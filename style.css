@@ -1,0 +1,93 @@
+@font-face {
+  font-family: "Courier Prime";
+  src: url("./assets/fonts/CourierPrime-Regular.ttf") format("truetype");
+}
+
+html {
+  margin: 0;
+  /* set in JS */
+  --col-low: #000000;
+  --col-med: #000000;
+  --col-hi: #000000;
+  --col-link: #000000;
+  --char-size: 0;
+  --char-width: 0;
+  --char-height: 0;
+  --rows: 0;
+  --cols: 0;
+}
+body {
+  position: absolute;
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  background-color: black;
+  justify-content: space-evenly;
+}
+#matrix-wrapper {
+  margin: 0;
+}
+#matrix {
+  display: inline-block;
+  width: calc(var(--char-width) * var(--cols) * 1px);
+  height: calc(var(--char-height) * var(--rows) * 1px);
+  color: var(--col-low);
+  font-size: calc(var(--char-size) * 1px);
+  background-color: black;
+  user-select: none;
+}
+.m-col {
+  display: inline-block;
+  width: calc(var(--char-width) * 1px);
+  height: calc(var(--char-height) * var(--rows) * 1px);
+}
+.m-char {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: calc(var(--char-width) * 1px);
+  height: calc(var(--char-height) * 1px);
+  font-family: "Courier Prime", "Courier", monospace;
+}
+.m-drop {
+  position: relative;
+  z-index: 2;
+  color: var(--col-med);
+  text-shadow:
+    0 0 25px var(--col-med),
+    0 0 5px var(--col-low);
+}
+.m-drop-tip {
+  position: relative;
+  z-index: 4;
+  color: var(--col-hi);
+  text-shadow:
+    0 0 25px var(--col-hi),
+    0 0 25px var(--col-hi),
+    0 0 5px var(--col-med);
+}
+.m-link {
+  position: relative;
+  z-index: 3;
+  color: var(--col-link);
+  cursor: pointer;
+  text-shadow:
+    0 0 25px var(--col-hi),
+    0 0 25px var(--col-hi),
+    0 0 25px var(--col-hi),
+    0 0 5px var(--col-link);
+}
+
+.m-link.m-link-hover {
+  z-index: 4;
+  color: var(--col-link-hover);
+  text-shadow:
+    0 0 25px var(--col-link-hover),
+    0 0 25px var(--col-link-hover),
+    0 0 25px var(--col-link-hover),
+    0 0 5px var(--col-link);
+}
+

@@ -1,0 +1,32 @@
+{
+  "plugins": ["stylelint-order"],
+  "rules": {
+    "order/properties-order": [
+      [
+        {
+          "groupName": "positioning",
+          "properties": ["position", "top", "right", "bottom", "left", "z-index"]
+        },
+        {
+          "groupName": "box-model",
+          "properties": [
+            "display",
+            "flex",
+            "box-sizing",
+            "width",
+            "height",
+            "margin",
+            "padding",
+            "border"
+          ]
+        },
+        {
+          "groupName": "typography",
+          "properties": ["color", "font-size", "font-family", "line-height"]
+        }
+      ],
+      { "unspecified": "bottomAlphabetical" }
+    ]
+  }
+}
+

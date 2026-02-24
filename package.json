@@ -1,0 +1,29 @@
+{
+  "name": "matrix",
+  "author": "Luke May",
+  "license": "UNLICENSED",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Matrix movie style homepage",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "test": "scripts/test.sh",
+    "build": "scripts/build.sh"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "eslint": "^9.36.0",
+    "eslint_d": "^14.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-html": "^8.1.3",
+    "eslint-plugin-json": "^4.0.1",
+    "eslint-plugin-prettier": "^5.5.4",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "stylelint": "^16.24.0",
+    "stylelint-config-tailwindcss": "^1.0.0",
+    "typescript": "^5.9.2"
+  }
+}
