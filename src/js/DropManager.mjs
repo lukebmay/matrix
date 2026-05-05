@@ -14,8 +14,6 @@ function DropManager(...args) {
   if (!new.target) return new DropManager(...args);
   let self = this;
 
-  const cfg = state.config;
-
   let texts = state.staticTexts;
   const drops = new Set();
 
@@ -63,4 +61,3 @@ function DropManager(...args) {
 export { DropManager };
 
 export default DropManager;
-

@@ -66,4 +66,3 @@ LinearWaveForm.linearSectionsFromStartingPointAndSlopeTimePairs = (startingY, sl
 export { LinearWaveForm };
 
 export default LinearWaveForm;
-

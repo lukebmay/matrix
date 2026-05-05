@@ -22,4 +22,3 @@ function LinearSection(...args) {
 export { LinearSection };
 
 export default LinearSection;
-

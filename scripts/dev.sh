@@ -17,17 +17,6 @@ BLUE='\e[34m'
 MAGENTA='\e[35m'
 CYAN='\e[36m'
 
-echo -e "${BLUE}=== Building ${MAGENTA}${APP_NAME}${BLUE} ===${RESET}"
+echo -e "${BLUE}=== Running ${MAGENTA}${APP_NAME}${BLUE} (dev mode) ===${RESET}"
 
-# Remove old dist and recreate it
-rm -rf "$PROJECT_DIR/dist"
-mkdir -p "$PROJECT_DIR/dist"
-
-# Copy everything except the things we don't want in the final build
-rsync -av --delete \
-  \ # --exclude="dist" \
-  \ # --exclude="scripts" \
-  "$PROJECT_DIR/src/" \
-  "$PROJECT_DIR/dist/"
-
-echo -e "${GREEN}✅ ${APP_NAME} built successfully!${RESET}"
+npx serve "$PROJECT_DIR"/src/

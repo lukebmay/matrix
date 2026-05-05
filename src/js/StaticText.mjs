@@ -153,4 +153,3 @@ function StaticText(...args) {
 export { StaticText };
 
 export default StaticText;
-

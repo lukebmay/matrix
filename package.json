@@ -8,6 +8,7 @@
   "main": "index.html",
   "type": "module",
   "scripts": {
+    "dev": "scripts/dev.sh",
     "test": "scripts/test.sh",
     "build": "scripts/build.sh"
   },
