@@ -39,61 +39,63 @@ function DomManager(...args) {
   };
   constructMatrixDom();
 
-  const initializeStaticTexts = () => {
+  const initializeDropScenes = () => {
     let grid = state.grid;
-    let staticTexts = state.staticTexts;
+    let dropScenes = state.dropScenes;
 
-    for (let st of staticTexts) {
-      if (st.href) {
-        let onClick = () => {
-          if (window.event.ctrlKey) {
-            window.open(st.href, "_blank");
-            window.event.clickHandeled = "Static Text Navigation";
-          } else {
-            window.location.href = st.href;
-          }
-        };
-        let onMouseOver = () => {
-          let targetEl = window.event.target;
-          if (!st.isComplete && targetEl.textContent.trim() !== "") {
-            for (let p of st.positions) {
+    for (let ds of dropScenes) {
+      for (let t of ds.texts) {
+        if (t.href) {
+          let onClick = (event) => {
+            if (event.ctrlKey) {
+              open(t.href, "_blank");
+              event.clickHandeled = "Display Text Navigation";
+            } else {
+              window.location.href = t.href;
+            }
+          };
+          let onMouseOver = (event) => {
+            let targetEl = event.target;
+            if (!t.isComplete && targetEl.textContent.trim() !== "") {
+              for (let p of t.positions) {
+                let el = grid.get(p.r, p.c);
+                el.textContent = p.char;
+              }
+              ds.complete();
+            }
+            for (let p of t.positions) {
               let el = grid.get(p.r, p.c);
-              el.textContent = p.char;
+              if (t.href && p.char) {
+                el.classList.add("m-link-hover");
+              }
             }
-            st.complete();
-          }
-          for (let p of st.positions) {
+          };
+          let onMouseOut = (event_) => {
+            for (let p of t.positions) {
+              let el = grid.get(p.r, p.c);
+              if (t.href && p.char && p.char !== " ") {
+                el.classList.remove("m-link-hover");
+              }
+            }
+          };
+          for (let p of t.positions) {
             let el = grid.get(p.r, p.c);
-            if (st.href && p.char) {
-              el.classList.add("m-link-hover");
+            if (t.href && p.char && p.char !== " ") {
+              el.setAttribute("data-static-char", p.char);
+              el.classList.add("m-link");
             }
+            el.classList.add("m-static");
+            el.addEventListener("click", onClick);
+            el.addEventListener("mouseover", onMouseOver);
+            el.addEventListener("mouseout", onMouseOut);
           }
-        };
-        let onMouseOut = () => {
-          for (let p of st.positions) {
-            let el = grid.get(p.r, p.c);
-            if (st.href && p.char && p.char !== " ") {
-              el.classList.remove("m-link-hover");
-            }
-          }
-        };
-        for (let p of st.positions) {
-          let el = grid.get(p.r, p.c);
-          if (st.href && p.char && p.char !== " ") {
-            el.setAttribute("data-static-char", p.char);
-            el.classList.add("m-link");
-          }
-          el.classList.add("m-static");
-          el.addEventListener("click", onClick);
-          el.addEventListener("mouseover", onMouseOver);
-          el.addEventListener("mouseout", onMouseOut);
         }
       }
     }
 
-    return staticTexts;
+    return dropScenes;
   };
-  initializeStaticTexts();
+  initializeDropScenes();
 
   self.updateDom = (seconds_) => {
     for (let d of dropManager.getDrops()) {
@@ -153,4 +155,3 @@ function DomManager(...args) {
 export { DomManager };
 
 export default DomManager;
-

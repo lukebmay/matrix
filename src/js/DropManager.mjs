@@ -14,27 +14,23 @@ function DropManager(...args) {
   if (!new.target) return new DropManager(...args);
   let self = this;
 
-  let texts = state.staticTexts;
+  let dropScenes = state.dropScenes;
+  let defaultDropScene = DropScene();
+
   const drops = new Set();
 
   self.getDrops = () => {
     return Array.from(drops);
   };
 
-  let dropScenes = texts.map((st) => DropScene(st, 3));
-
-  let defaultDropScene = DropScene();
-
   let currentScene;
-  let currentText;
 
   const startNewDrops = (seconds) => {
-    if ((!currentScene || currentScene.isComplete) && texts.length) {
+    if (!currentScene || currentScene.isComplete) {
       currentScene = dropScenes.shift();
-      currentText = texts.shift();
     }
     let newDrops;
-    if (currentText?.isActive) {
+    if (currentScene?.isActive) {
       newDrops = currentScene.getNewDrops(seconds);
     } else {
       newDrops = defaultDropScene.getNewDrops(seconds);

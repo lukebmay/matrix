@@ -9,32 +9,16 @@
  */
 import state from "./State.mjs";
 
-function StaticText(...args) {
-  if (!new.target) return new StaticText(...args);
+// Set of characters and locations (with an optional href) to be displayed.
+function DisplayText(...args) {
+  if (!new.target) return new DisplayText(...args);
   let self = this;
-
-  let {
-    href,
-    texts,
-    activationDelay,
-    showOnActive,
-    durationDelay,
-    repeat, // boolean or integer
-    repititionDelay,
-  } = args[0] ?? {};
+  let { href, texts } = args[0] ?? {};
 
   self.href = href;
-  self.showOnActive = showOnActive;
   texts = texts ?? [];
 
   const cfg = state.config;
-
-  // An active layer will display its static texts when a drop tip crosses over them, while
-  //   an inactive layer will hide its static text when a drop tip crosses over them.
-  self.isActive = false;
-  // A complete layer is one in which a drop has been started on each column of the layer
-  //   during either activation or deactivation.
-  self.isComplete = false;
 
   self.columns = new Set();
 
@@ -124,32 +108,8 @@ function StaticText(...args) {
   for (let text of texts) {
     self.addText(...text);
   }
-
-  self.activate = () => {
-    self.isActive = true;
-    self.isComplete = false;
-  };
-  if (typeof activationDelay === "number") setTimeout(self.activate, activationDelay);
-
-  self.deactivate = () => {
-    self.isActive = false;
-    self.isComplete = false;
-    if (repeat) {
-      setTimeout(self.activate, repititionDelay);
-      if (typeof repeat === "number") repeat--;
-    }
-  };
-
-  self.complete = () => {
-    self.isComplete = true;
-    if (self.isActive && durationDelay) {
-      setTimeout(self.deactivate, activationDelay + durationDelay);
-    } else if (!self.isActive && repititionDelay) {
-      setTimeout(self.activate, repititionDelay);
-    }
-  };
 }
 
-export { StaticText };
+export { DisplayText };
 
-export default StaticText;
+export default DisplayText;

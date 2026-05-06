@@ -17,8 +17,8 @@ function Application(...args) {
 
   self.matrix = null;
 
-  self.onClick = (event_) => {
-    if (!window.event.clickHandeled) {
+  self.onClick = (event) => {
+    if (!event.clickHandeled) {
       self.togglePause();
     }
   };
@@ -72,4 +72,3 @@ const app = Application();
 export { app };
 
 export default app;
-

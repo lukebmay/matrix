@@ -20,7 +20,7 @@ function Matrix(...args) {
 
   const cfg = state.config;
 
-  state.staticTexts = cfg.staticTexts();
+  state.dropScenes = cfg.createDropScenes();
 
   self.isRunning = false;
   self.isPaused = false;

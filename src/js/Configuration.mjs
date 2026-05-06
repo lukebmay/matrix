@@ -8,7 +8,8 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-import StaticText from "./StaticText.mjs";
+import DisplayText from "./DisplayText.mjs";
+import DropScene from "./DropScene.mjs";
 
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
@@ -80,87 +81,54 @@ function Configuration(...args) {
   htmlEl.style.setProperty("--rows", `${self.ROWS}`);
   htmlEl.style.setProperty("--cols", `${self.COLS}`);
 
-  self.staticTexts = () => {
+  self.createDropScenes = () => {
     const padWidth = 24;
-    return [
-      StaticText({
-        href: "https://isu.lukemay.com/resume",
+    const dropScenes = [
+      DropScene({
         activationDelay: 6000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
-        texts: [["Luke Benjamin May".padEnd(padWidth), [2, -4], "horizontal"]],
-      }),
-      StaticText({
-        href: "https://isu.lukemay.com/portfolio",
-        activationDelay: 6000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
-        texts: [["Software Engineer".padEnd(padWidth), [3, -4], "horizontal"]],
-      }),
-      StaticText({
-        href: "https://www.lukemay.com/game-of-life",
-        activationDelay: 6000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
-        texts: [["Full Stack Web Developer".padEnd(padWidth), [4, -4], "horizontal"]],
-      }),
-      StaticText({
-        href: "https://isu.lukemay.com",
-        activationDelay: 6000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
-        texts: [["Grad CS Instructor".padEnd(padWidth), [5, -4], "horizontal"]],
-      }),
-      StaticText({
-        href: "https://www.youtube.com/lukebeenjammin",
-        activationDelay: 10000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
-        texts: [["You Tube".padEnd(padWidth), [6, -4], "horizontal"]],
-      }),
-      StaticText({
-        href: "https://www.lukemay.com/resume",
-        activationDelay: 10000,
-        durationDelay: 10000,
-        repeat: true,
-        repititionDelay: 10000,
+        durationDelay: 1000,
+        repeat: false,
+        repititionDelay: -1,
         texts: [
-          ["lukebmay at gmail dot com", [-3, 3], "horizontal"],
-          ["LukeBMay at gmail", [-3, 3], "vertical"],
+          DisplayText({
+            href: "https://isu.lukemay.com/resume",
+            texts: [["Luke Benjamin May".padEnd(padWidth), [2, -4], "horizontal"]],
+          }),
+          DisplayText({
+            href: "https://isu.lukemay.com/portfolio",
+            texts: [["Software Engineer".padEnd(padWidth), [3, -4], "horizontal"]],
+          }),
+          DisplayText({
+            href: "https://www.lukemay.com/game-of-life",
+            texts: [["Full Stack Web Developer".padEnd(padWidth), [4, -4], "horizontal"]],
+          }),
+          DisplayText({
+            href: "https://isu.lukemay.com",
+            texts: [["Grad CS Instructor".padEnd(padWidth), [5, -4], "horizontal"]],
+          }),
+          DisplayText({
+            href: "https://www.youtube.com/lukebeenjammin",
+            texts: [["You Tube".padEnd(padWidth), [6, -4], "horizontal"]],
+          }),
         ],
       }),
-      // StaticText({
-      //     href: "https://isu.lukemay.com",
-      //     activationDelay:  0,
-      //     showOnActive: true,
-      //     durationDelay:   10000,
-      //     repeat: true,
-      //     repititionDelay: 10000,
-      //     texts: [
-      //         [ "abcdefghijklmnopqrstuvwxyz", [ Math.floor(cfg.ROWS/2), cfg.COLS-2], "horizontal" ],
-      //         [ "abcdefghijklmnopqrstuvwxyz", [ Math.floor(cfg.ROWS/2)+1, -cfg.COLS+1], "horizontal" ],
-      //         [ "abcdefghijklmnopqrstuvwxyz", [ cfg.ROWS-2, Math.floor(cfg.COLS/2)], "vertical" ],
-      //         [ "abcdefghijklmnopqrstuvwxyz", [ -cfg.ROWS+1, Math.floor(cfg.COLS/2)+1], "vertical" ],
-      //         [ " __A__", [ 0,  0], "horizontal" ],
-      //         [ " __B__", [ 0, -1], "horizontal" ],
-      //         [ " __C__", [-1,  0], "horizontal" ],
-      //         [ " __D__", [-1, -1], "horizontal" ],
-      //         [ " ||1||", [ 0,  0], "vertical" ],
-      //         [ " ||2||", [ 0, -1], "vertical" ],
-      //         [ " ||3||", [-1,  0], "vertical" ],
-      //         [ " ||4||", [-1, -1], "vertical" ],
-      //         [ "*", [ 0,  0], "horizontal" ],
-      //         [ "*", [ 0, -1], "horizontal" ],
-      //         [ "*", [-1,  0], "horizontal" ],
-      //         [ "*", [-1, -1], "horizontal" ],
-      //     ],
-      // }),
+      DropScene({
+        activationDelay: 10000,
+        durationDelay: 1000,
+        repeat: false,
+        repititionDelay: -1,
+        texts: [
+          DisplayText({
+            href: "https://www.lukemay.com/resume",
+            texts: [
+              ["lukebmay at gmail dot com", [-3, 3], "horizontal"],
+              ["LukeBMay at gmail", [-3, 3], "vertical"],
+            ],
+          }),
+        ],
+      }),
     ];
+    return dropScenes;
   };
 
   Object.freeze(self);
