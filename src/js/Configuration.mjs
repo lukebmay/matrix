@@ -86,7 +86,7 @@ function Configuration(...args) {
     const dropScenes = [
       DropScene({
         activationDelay: 6000,
-        durationDelay: 1000,
+        durationDelay: 3000,
         repeat: false,
         repititionDelay: -1,
         texts: [
@@ -114,7 +114,7 @@ function Configuration(...args) {
       }),
       DropScene({
         activationDelay: 10000,
-        durationDelay: 1000,
+        durationDelay: 3000,
         repeat: false,
         repititionDelay: -1,
         texts: [

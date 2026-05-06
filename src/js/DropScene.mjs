@@ -36,7 +36,7 @@ function DropScene(...args) {
     if (text?.columns) text.columns.forEach((c) => columns.add(c));
   });
   if (columns.size === 0) rangeArray(cfg.COLS).forEach((c) => columns.add(c));
-  let seconds = args[1] ?? 3;
+  let seconds = durationDelay ? durationDelay / 1000 : 40;
   let remainingColumns = new Set(columns);
 
   self.isActive = false;
