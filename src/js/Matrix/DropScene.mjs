@@ -9,23 +9,16 @@
  */
 import Drop from "./Drop.mjs";
 import LinearWaveForm from "./LinearWaveForm.mjs";
-import state from "./State.mjs";
-import { rangeArray, randomChoice } from "./util.mjs";
+import state from "../State.mjs";
+import { Queue, rangeArray, randomChoice } from "../util.mjs";
 
 function DropScene(...args) {
   if (!new.target) return new DropScene(...args);
   let self = this;
 
-  let {
-    texts,
-    activationDelay,
-    showOnActive,
-    durationDelay,
-    repeat, // boolean or integer
-    repititionDelay,
-  } = args[0] ?? {};
+  let { scene, duration } = args[0] ?? {};
 
-  self.showOnActive = showOnActive;
+  durationSeconds = typeof durationSeconds === "number" ? durationSeconds : 6;
 
   let cfg = state.config;
 
@@ -36,15 +29,11 @@ function DropScene(...args) {
     if (text?.columns) text.columns.forEach((c) => columns.add(c));
   });
   if (columns.size === 0) rangeArray(cfg.COLS).forEach((c) => columns.add(c));
-  let seconds = durationDelay ? durationDelay / 1000 : 40;
+
   let remainingColumns = new Set(columns);
 
   self.isActive = false;
   self.isComplete = false;
-
-  if (!["integer", "boolean"].includes(typeof repeat)) {
-    repeat = self.texts.length ? false : true;
-  }
 
   const createRegularWave = () => {
     let waveStart = LinearWaveForm.linearSectionsFromStartingPointAndSlopeTimePairs(1, [
@@ -62,34 +51,22 @@ function DropScene(...args) {
     return wave;
   };
   const createColumnSubsetWave = () => {
-    let sections = LinearWaveForm.linearSectionsFromDropNumberAndTime(columns.size, seconds);
+    let sections = LinearWaveForm.linearSectionsFromDropNumberAndTime(
+      columns.size,
+      duration / 1000,
+    );
     return LinearWaveForm(sections);
   };
+
+  let wave = self.texts.length > 0 ? createColumnSubsetWave() : createRegularWave();
 
   let drops = new Set();
   self.getDrops = () => {
     return Array.from(drops);
   };
 
-  let dropQueue = [];
-  self.dropQueueAdd = (drop) => {
-    dropQueue.unshift(drop);
-  };
-  self.dropQueueRemove = () => {
-    return dropQueue.pop();
-  };
-
-  let columnQueue = [];
-  self.columnQueueAdd = (col) => {
-    if (columns.has(col)) {
-      columnQueue.unshift(col);
-    }
-  };
-  self.columnQueueRemove = () => {
-    return columnQueue.pop();
-  };
-
-  let wave = self.texts ? createColumnSubsetWave() : createRegularWave();
+  self.dropQueue = Queue();
+  self.columnQueue = Queue();
 
   self.getNewDrops = (seconds) => {
     let dropCount = wave.getNextAreaChunk(seconds);
@@ -112,31 +89,14 @@ function DropScene(...args) {
   self.activate = () => {
     self.isActive = true;
     self.isComplete = false;
+    remainingColumns = new Set(columns);
+    wave = self.texts.length > 0 ? createColumnSubsetWave() : createRegularWave();
+    setTimeout(self.deactivate, duration);
   };
-  if (typeof activationDelay !== "number") {
-    activationDelay = 0;
-  }
-  if (typeof durationDelay !== "number") {
-    activationDelay = 0;
-  }
-  setTimeout(self.activate, activationDelay);
 
   self.deactivate = () => {
     self.isActive = false;
     self.isComplete = false;
-    if (repeat) {
-      setTimeout(self.activate, repititionDelay);
-      if (typeof repeat === "number") repeat--;
-    }
-  };
-
-  self.complete = () => {
-    self.isComplete = true;
-    if (self.isActive) {
-      setTimeout(self.deactivate, activationDelay + durationDelay);
-    } else if (!self.isActive && repititionDelay) {
-      setTimeout(self.activate, repititionDelay);
-    }
   };
 }
 

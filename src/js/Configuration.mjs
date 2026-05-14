@@ -8,8 +8,10 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-import DisplayText from "./DisplayText.mjs";
+// Configuration is the single source of truth for all user-configurable settings in the application (display content, colors, grid dimensions, etc.).
+
 import DropScene from "./DropScene.mjs";
+import { objMap } from "./utils.mjs";
 
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
@@ -40,11 +42,19 @@ function Configuration(...args) {
   self.ROWS = Math.floor(viewHeight / self.CHAR_HEIGHT);
   self.COLS = Math.floor(viewWidth / self.CHAR_WIDTH);
 
-  console.log(`DISPLAY_MODE: ${self.DISPLAY_MODE}`);
+  // console.log(`DISPLAY_MODE: ${self.DISPLAY_MODE}`);
 
   // ROW/COL maximums
   // self.ROWS = Math.min(self.ROWS, Math.floor(1.5 * self.COLS));
   // self.COLS = Math.min(self.COLS, 3 * self.ROWS);
+
+  self.TOP = 0;
+  self.MIDDLE = Math.floor(self.ROWS / 2);
+  self.BOTTOM = self.ROWS - 1;
+
+  self.LEFT = 0;
+  self.CENTER = Math.floor(self.COLS / 2);
+  self.RIGHT = self.COLS - 1;
 
   self.DROP_SPEED_MIN = 8;
   self.DROP_SPEED_MAX = 20;
@@ -54,9 +64,9 @@ function Configuration(...args) {
   self.DROP_CREATION_PERIOD = 20;
 
   let threadAvgLength = self.ROWS * 0.4;
-  let threadVariance = 0.5;
-  self.DROP_LENGTH_MIN = Math.floor(threadAvgLength - threadAvgLength * threadVariance);
-  self.DROP_LENGTH_MAX = Math.floor(threadAvgLength + threadAvgLength * threadVariance);
+  let threadLengthVariance = 0.5;
+  self.DROP_LENGTH_MIN = Math.floor(threadAvgLength * (1 - threadLengthVariance));
+  self.DROP_LENGTH_MAX = Math.floor(threadAvgLength * (1 + threadLengthVariance));
 
   self.FRAME_DELAY = 90;
   self.AUTOPAUSE_TIME = 10 * 60 * 1000;
@@ -81,54 +91,94 @@ function Configuration(...args) {
   htmlEl.style.setProperty("--rows", `${self.ROWS}`);
   htmlEl.style.setProperty("--cols", `${self.COLS}`);
 
-  self.createDropScenes = () => {
-    const padWidth = 24;
-    const dropScenes = [
-      DropScene({
-        activationDelay: 6000,
-        durationDelay: 3000,
-        repeat: false,
-        repititionDelay: -1,
+  const textSceneData = {
+    professionalRoles: {
+      orientation: "horizontal",
+      alignment: "left",
+      childAttachment: ["top", "right"],
+      partentAttachment: [2, -3],
+      texts: [
+        {
+          text: "Luke Benjamin May",
+          href: "https://isu.lukemay.com/resume",
+        },
+        {
+          text: "Software Engineer",
+          href: "https://isu.lukemay.com/portfolio",
+        },
+        {
+          text: "Full Stack Web Developer",
+          href: "https://www.lukemay.com/game-of-life",
+        },
+        {
+          text: "Grad CS Instructor",
+          href: "https://isu.lukemay.com",
+        },
+        {
+          text: "You Tube",
+          href: "https://www.youtube.com/lukebeenjammin",
+        },
+      ],
+    },
+    email: [
+      {
+        orientation: "vertical",
+        alignment: "left",
+        childAttachment: ["bottom", "left"],
+        partentAttachment: [-3, 3],
         texts: [
-          DisplayText({
-            href: "https://isu.lukemay.com/resume",
-            texts: [["Luke Benjamin May".padEnd(padWidth), [2, -4], "horizontal"]],
-          }),
-          DisplayText({
-            href: "https://isu.lukemay.com/portfolio",
-            texts: [["Software Engineer".padEnd(padWidth), [3, -4], "horizontal"]],
-          }),
-          DisplayText({
-            href: "https://www.lukemay.com/game-of-life",
-            texts: [["Full Stack Web Developer".padEnd(padWidth), [4, -4], "horizontal"]],
-          }),
-          DisplayText({
-            href: "https://isu.lukemay.com",
-            texts: [["Grad CS Instructor".padEnd(padWidth), [5, -4], "horizontal"]],
-          }),
-          DisplayText({
-            href: "https://www.youtube.com/lukebeenjammin",
-            texts: [["You Tube".padEnd(padWidth), [6, -4], "horizontal"]],
-          }),
-        ],
-      }),
-      DropScene({
-        activationDelay: 10000,
-        durationDelay: 3000,
-        repeat: false,
-        repititionDelay: -1,
-        texts: [
-          DisplayText({
+          {
+            text: "LukeBMay at Gmail",
             href: "https://www.lukemay.com/resume",
-            texts: [
-              ["lukebmay at gmail dot com", [-3, 3], "horizontal"],
-              ["LukeBMay at gmail", [-3, 3], "vertical"],
-            ],
-          }),
+          },
         ],
+      },
+      {
+        orientation: "horizontal",
+        alignment: "left",
+        childAttachment: ["bottom", "left"],
+        partentAttachment: [-3, 3],
+        texts: [
+          {
+            text: "lukebmay at gmail dot com",
+            href: "https://www.lukemay.com/resume",
+          },
+        ],
+      },
+    ],
+  };
+
+  const videoSceneData = {
+    // luke: {
+    //   videoFile: "luke.mp4",
+    //   9,
+    //   16,
+    //   child-attachment: ["middle", "center"], // keywords translate to integer row/col
+    //   parent-attachment: ["middle", "center"], // keywords translate to integer row/col
+    // },
+  };
+
+  self.dropScenes = {
+    default: DropScene({
+      type: "default",
+      name: "default",
+    }),
+    ...objMap(textSceneData, (sceneName, sceneData) => [
+      sceneName,
+      DropScene({
+        name: sceneName,
+        type: "text",
+        ...sceneData,
       }),
-    ];
-    return dropScenes;
+    ]),
+    ...objMap(videoSceneData, (sceneName, sceneData) => [
+      sceneName,
+      DropScene({
+        name: sceneName,
+        type: "video",
+        ...sceneData,
+      }),
+    ]),
   };
 
   Object.freeze(self);

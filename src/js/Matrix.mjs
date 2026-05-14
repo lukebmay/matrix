@@ -7,10 +7,13 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import state from "./State.mjs";
-import Grid from "./Grid.mjs";
-import DomManager from "./DomManager.mjs";
-import DropManager from "./DropManager.mjs";
+
+// Matrix is the core of the application and drives the main animation loop. It updates drop positions via DropManager, then renders active scenes from state.scenes (last entry takes priority; default scene is first).
+
+import state from "./Matrix/State.mjs";
+import Grid from "./Matrix/Grid.mjs";
+import DomManager from "./Matrix/DomManager.mjs";
+import DropManager from "./Matrix/DropManager.mjs";
 
 let runTimeoutId, autopauseTimeoutId, pauseDifference;
 
@@ -32,7 +35,7 @@ function Matrix(...args) {
     runTimeoutId = setTimeout(updateMatrix, cfg.FRAME);
     autopauseTimeoutId = setTimeout(() => {
       self.pause();
-      console.log("Application auto-paused after time limit.");
+      // console.log("Application auto-paused after time limit.");
     }, cfg.AUTOPAUSE_TIME);
     then = Date.now() - pauseDifference;
   };
@@ -59,9 +62,9 @@ function Matrix(...args) {
 
   const updateMatrix = () => {
     const now = Date.now();
-    const seconds = (now - then) / 1000;
-    state.dropManager.updateDrops(seconds);
-    state.domManager.updateDom(seconds);
+    const elapsedSeconds = (now - then) / 1000;
+    state.dropManager.updateDrops(elapsedSeconds);
+    state.domManager.updateDom();
     state.dropManager.killCompletedDrops();
     then = now;
     runTimeoutId = setTimeout(updateMatrix, cfg.FRAME_DELAY);

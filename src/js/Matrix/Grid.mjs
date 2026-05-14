@@ -7,25 +7,8 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import state from "./State.mjs";
-import util from "./util.mjs";
-
-// function GridElement (...args) {
-//     if (!new.target) return new GridElement(...args);
-//     let self = this;
-
-//     let {
-//         el,
-//         r,
-//         c,
-//     } = args[0] ?? {};
-
-//     self.href = href;
-//     self.showOnActive = showOnActive;
-//     texts = texts ?? [];
-
-//     const cfg = state.config;
-// }
+import state from "../State.mjs";
+import util from "../util.mjs";
 
 function Grid(...args) {
   if (!new.target) return new Grid(...args);
@@ -83,4 +66,3 @@ function Grid(...args) {
 export { Grid };
 
 export default Grid;
-

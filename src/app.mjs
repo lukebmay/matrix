@@ -7,13 +7,9 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-console.log("----------------------------------------");
-console.log("Written by Luke Benjamin May");
-console.log("2024-02-28");
-console.log("All rights reserved.");
-console.log("----------------------------------------");
+console.log("%cWake up, Neo...", "color: #73fa79");
 
-import app from "./js/Application.mjs";
+import Application from "./js/Application.mjs";
 
+const app = Application();
 app.run();
-

@@ -7,6 +7,9 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
+
+// Application is the root singleton that constructs the Matrix and registers top-level event handlers.
+
 import Configuration from "./Configuration.mjs";
 import Matrix from "./Matrix.mjs";
 import state from "./State.mjs";
@@ -38,18 +41,18 @@ function Application(...args) {
   };
 
   self.restart = () => {
-    console.log("Application restarted...");
+    // console.log("Application restarted...");
     self.matrix.stop();
     state.config = Configuration();
-    console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
+    // console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
     self.matrix = Matrix();
     self.matrix.start();
   };
 
   self.run = () => {
-    console.log("Application started...");
+    // console.log("Application started...");
     state.config = Configuration();
-    console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
+    // console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
     self.matrix = Matrix();
     self.matrix.start();
     window.addEventListener("click", self.onClick);
@@ -58,17 +61,15 @@ function Application(...args) {
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && !self.matrix?.isPaused) {
-      console.log("Application unpaused - visibility change.");
+      // console.log("Application unpaused - visibility change.");
       self.matrix?.start();
     } else if (!self.matrix?.isPaused) {
-      console.log("Application paused - visibility change.");
+      // console.log("Application paused - visibility change.");
       self.matrix?.stop();
     }
   });
 }
 
-const app = Application();
+export { Application };
 
-export { app };
-
-export default app;
+export default Application;

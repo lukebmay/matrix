@@ -7,8 +7,8 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import { integralOfLinearEq } from "./util.mjs";
-import LinearSection from "./LinearSection.mjs";
+import { integralOfLinearEq } from "../util.mjs";
+import LinearSectionalArea from "./LinearWaveForm/LinearSectionalArea.mjs";
 
 // A collection of discrete LinearSections from which the area under their collective "curve" can be provided in chunks for each new value of an increasing x.
 
@@ -26,7 +26,7 @@ function LinearWaveForm(...args) {
   self.getNextAreaChunk = (x, areaChunk = 0) => {
     let ls = linearSections[sectionNumber];
     areaChunk = areaChunk === 0 ? areaRemainder : areaChunk;
-    // if overflowing into new LinearSection, accumulate remaining area and reset variables
+    // if overflowing into new LinearSectionalArea, accumulate remaining area and reset variables
     if (currentX + x > ls.length) {
       areaChunk += ls.area - currentArea;
       currentArea = 0;
@@ -50,14 +50,14 @@ LinearWaveForm.linearSectionsFromDropNumberAndTime = (dropNum, t) => {
   let q = Math.floor(dropNum / t);
   let r = dropNum % t;
   let r2 = t - r;
-  return [LinearSection(0, q + 1, r), LinearSection(0, q, Math.ceil(r2))];
+  return [LinearSectionalArea(0, q + 1, r), LinearSectionalArea(0, q, Math.ceil(r2))];
 };
 
 LinearWaveForm.linearSectionsFromStartingPointAndSlopeTimePairs = (startingY, slopeTimePairs) => {
   let linearSections = [];
   let b = startingY;
   for (let [m, x] of slopeTimePairs) {
-    linearSections.push(LinearSection(m, b, x));
+    linearSections.push(LinearSectionalArea(m, b, x));
     b += m * x;
   }
   return linearSections;

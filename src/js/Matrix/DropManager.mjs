@@ -7,7 +7,8 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import state from "./State.mjs";
+
+import state from "../State.mjs";
 import DropScene from "./DropScene.mjs";
 
 function DropManager(...args) {
@@ -15,7 +16,7 @@ function DropManager(...args) {
   let self = this;
 
   let dropScenes = state.dropScenes;
-  let defaultDropScene = DropScene();
+  let defaultDropScene = dropScenes.default;
 
   const drops = new Set();
 
@@ -25,15 +26,15 @@ function DropManager(...args) {
 
   let currentScene;
 
-  const startNewDrops = (seconds) => {
+  const startNewDrops = (elapsedSeconds) => {
     if (!currentScene || currentScene.isComplete) {
       currentScene = dropScenes.shift();
     }
     let newDrops;
     if (currentScene?.isActive) {
-      newDrops = currentScene.getNewDrops(seconds);
+      newDrops = currentScene.getNewDrops(elapsedSeconds);
     } else {
-      newDrops = defaultDropScene.getNewDrops(seconds);
+      newDrops = defaultDropScene.getNewDrops(elapsedSeconds);
     }
     for (let drop of newDrops) {
       drops.add(drop);
@@ -46,11 +47,11 @@ function DropManager(...args) {
     }
   };
 
-  self.updateDrops = (seconds) => {
+  self.updateDrops = (elapsedSeconds) => {
     for (let drop of drops) {
-      drop.update(seconds);
+      drop.update(elapsedSeconds);
     }
-    startNewDrops(seconds);
+    startNewDrops(elapsedSeconds);
   };
 }
 

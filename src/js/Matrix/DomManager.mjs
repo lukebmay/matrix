@@ -7,8 +7,8 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import { randomChar } from "./util.mjs";
-import state from "./State.mjs";
+import { randomChar } from "../util.mjs";
+import state from "../State.mjs";
 
 function DomManager(...args) {
   if (!new.target) return new DomManager(...args);
@@ -97,7 +97,7 @@ function DomManager(...args) {
   };
   initializeDropScenes();
 
-  self.updateDom = (seconds_) => {
+  self.updateDom = () => {
     for (let d of dropManager.getDrops()) {
       let r = d.getRow();
       let c = d.col;
@@ -107,7 +107,6 @@ function DomManager(...args) {
       // Label column with drop ID for debugging.
       let colEl = grid.getColumn(c);
       colEl.setAttribute("data-drop-id", d.id);
-      // if (colEl) colEl.style.visibility = "hidden";
 
       let tipEl = grid.get(r, c);
       if (tipEl) {
@@ -147,7 +146,6 @@ function DomManager(...args) {
           }
         }
       }
-      // if (colEl) colEl.style.visibility = "visible";
     }
   };
 }

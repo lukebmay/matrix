@@ -7,18 +7,19 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import state from "./State.mjs";
-import { nanoid, randomChoice, rangeArray, randomInterval } from "./util.mjs";
+import state from "../State.mjs";
+import { nanoid, randomChoice, rangeArray, randomInterval } from "../util.mjs";
 
 function Drop(...args) {
   if (!new.target) return new Drop(...args);
   let self = this;
 
-  self.id = nanoid(6);
-
   const cfg = state.config;
 
-  self.col = randomChoice(rangeArray(cfg.COLS));
+  self.id = nanoid(6);
+
+  let { col } = args[0];
+  self._col = typeof col === "number" ? col : randomChoice(rangeArray(cfg.COLS));
 
   self._row = 0.0; // decimal
   self.length = Math.floor(randomInterval(cfg.DROP_LENGTH_MIN, cfg.DROP_LENGTH_MAX));
@@ -45,4 +46,3 @@ function Drop(...args) {
 export { Drop };
 
 export default Drop;
-

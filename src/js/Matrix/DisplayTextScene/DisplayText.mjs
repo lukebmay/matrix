@@ -7,7 +7,7 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import state from "./State.mjs";
+import state from "../State.mjs";
 
 // Set of characters and locations (with an optional href) to be displayed.
 function DisplayText(...args) {
