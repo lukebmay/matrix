@@ -9,6 +9,7 @@
  */
 
 import state from "../State.mjs";
+import { objFilter } from "../util.mjs";
 import DropScene from "./DropScene.mjs";
 
 function DropManager(...args) {
@@ -24,12 +25,9 @@ function DropManager(...args) {
     return Array.from(drops);
   };
 
-  let currentScene;
-
   const startNewDrops = (elapsedSeconds) => {
-    if (!currentScene || currentScene.isComplete) {
-      currentScene = dropScenes.shift();
-    }
+    let activeScenes = objFilter(dropScenes, (k_, v, o_) => v.isActive);
+
     let newDrops;
     if (currentScene?.isActive) {
       newDrops = currentScene.getNewDrops(elapsedSeconds);

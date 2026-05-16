@@ -28,7 +28,7 @@ function Matrix(...args) {
   self.isRunning = false;
   self.isPaused = false;
 
-  let then = Date.now() - 1;
+  let then = Date.now() - 1; // guarantee time delta is non-zero
 
   self.start = () => {
     self.isRunning = true;

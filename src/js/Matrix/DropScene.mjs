@@ -16,9 +16,7 @@ function DropScene(...args) {
   if (!new.target) return new DropScene(...args);
   let self = this;
 
-  let { scene, duration } = args[0] ?? {};
-
-  durationSeconds = typeof durationSeconds === "number" ? durationSeconds : 6;
+  let { name, type, dropAccumulator: dropAcc, ...rest } = args[0] ?? {};
 
   let cfg = state.config;
 
@@ -35,31 +33,6 @@ function DropScene(...args) {
   self.isActive = false;
   self.isComplete = false;
 
-  const createRegularWave = () => {
-    let waveStart = LinearWaveForm.linearSectionsFromStartingPointAndSlopeTimePairs(1, [
-      [0, 2],
-      [1, 1],
-      [0, 2],
-      [1, 1], // ascent 2 + 1.5 + 4 + 2.5  = 10
-    ]);
-    let waveMiddle = LinearWaveForm.linearSectionsFromDropNumberAndTime(columns.size - 18, 10);
-    let waveEnd = LinearWaveForm.linearSectionsFromStartingPointAndSlopeTimePairs(3, [
-      [-1, 2],
-      [0, 2], // descent 4 + 4 = 8
-    ]);
-    let wave = LinearWaveForm([...waveStart, ...waveMiddle, ...waveEnd]);
-    return wave;
-  };
-  const createColumnSubsetWave = () => {
-    let sections = LinearWaveForm.linearSectionsFromDropNumberAndTime(
-      columns.size,
-      duration / 1000,
-    );
-    return LinearWaveForm(sections);
-  };
-
-  let wave = self.texts.length > 0 ? createColumnSubsetWave() : createRegularWave();
-
   let drops = new Set();
   self.getDrops = () => {
     return Array.from(drops);
@@ -68,8 +41,8 @@ function DropScene(...args) {
   self.dropQueue = Queue();
   self.columnQueue = Queue();
 
-  self.getNewDrops = (seconds) => {
-    let dropCount = wave.getNextAreaChunk(seconds);
+  self.getNewDrops = (elapsedSeconds) => {
+    let dropCount = dropAcc.advance(elapsedSeconds);
     let drops = [];
     for (let i = 0; i < dropCount; i++) {
       if (!repeat && remainingColumns.size === 0) {

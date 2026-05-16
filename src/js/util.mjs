@@ -9,11 +9,12 @@
  */
 
 import Queue from "./util/Queue.mjs";
+import VariableRateAccumulator from "./util/VariableRateAccumulator.mjs";
 import { range, rangeArray, rangeMap, rangeMapArray } from "./util/range.mjs";
 import { randomChar, randomChoice, randomInterval, shuffle } from "./util/random.mjs";
 import { nanoid } from "./util/nanoid.mjs";
 import { constrainToInterval } from "./util/numeric.mjs";
-import { objMap } from "./util/collection.mjs";
+import { objMap, objFilter } from "./util/collection.mjs";
 
 export {
   range,
@@ -27,7 +28,9 @@ export {
   nanoid,
   constrainToInterval,
   objMap,
+  objFilter,
   Queue,
+  VariableRateAccumulator,
 };
 
 export default {
@@ -42,5 +45,7 @@ export default {
   nanoid,
   constrainToInterval,
   objMap,
+  objFilter,
   Queue,
+  VariableRateAccumulator,
 };

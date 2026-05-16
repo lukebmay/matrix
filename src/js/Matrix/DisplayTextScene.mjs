@@ -22,7 +22,7 @@ function DisplayTextScene(...args) {
 
   self.positions = self.texts.flatMap((text) => text.positions);
 
-  self.upd;
+  self.values = self.updateValues(elsapsedSeconds, dropTipPassedPositions);
 }
 
 export { DisplayTextScene };

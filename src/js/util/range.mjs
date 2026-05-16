@@ -14,7 +14,8 @@
 // range(end)
 // range(start, end)
 // range(start, end, step)
-
+//
+// Generator, to complete iteration up front, call the Array version below.
 function* range(...args) {
   let start = 0;
   let end;
@@ -43,6 +44,7 @@ function* range(...args) {
 
 // Maps a function over range values (generator).
 // Last argument must be the mapping function.
+// Generator, to complete iteration up front, call the Array version below.
 function* rangeMap(...args) {
   const fn = args.pop();
   if (typeof fn !== "function") {
@@ -53,6 +55,7 @@ function* rangeMap(...args) {
   }
 }
 
+// Completes iteration resulting in an array.
 const rangeArray = (...args) => Array.from(range(...args));
 const rangeMapArray = (...args) => Array.from(rangeMap(...args));
 

@@ -11,6 +11,7 @@
 // Configuration is the single source of truth for all user-configurable settings in the application (display content, colors, grid dimensions, etc.).
 
 import DropScene from "./DropScene.mjs";
+import { VariableRateAccumulator } from "./util.mjs";
 import { objMap } from "./utils.mjs";
 
 function Configuration(...args) {
@@ -158,11 +159,14 @@ function Configuration(...args) {
     // },
   };
 
+  const rates = VariableRateAccumulator.rates;
+  
   self.dropScenes = {
     default: DropScene({
       type: "default",
       name: "default",
-    }),
+      dropAccumulator: VariableRateAccumulator(cfg.COLS/10, Infinity, rates.sineTroughStart(4, 3.5)), 
+    })),
     ...objMap(textSceneData, (sceneName, sceneData) => [
       sceneName,
       DropScene({

@@ -7,8 +7,11 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
+
+// Grid is the row/col 2D array data structure representing the matrix characters
+
 import state from "../State.mjs";
-import util from "../util.mjs";
+import { rangeMapArray } from "../util.mjs";
 
 function Grid(...args) {
   if (!new.target) return new Grid(...args);
@@ -22,9 +25,9 @@ function Grid(...args) {
   let grid = [];
   self.columns = Array(self.COLS);
 
-  util.rangeMapArray(self.ROWS, () => {
+  rangeMapArray(self.ROWS, () => {
     let row = [];
-    util.rangeMapArray(self.COLS, () => {
+    rangeMapArray(self.COLS, () => {
       row.push(undefined);
     });
     grid.push(row);
