@@ -12,21 +12,21 @@ import state from "./State.mjs";
 
 function DomManager(...args) {
   if (!new.target) return new DomManager(...args);
-  let self = this;
+  const self = this;
 
-  let cfg = state.config;
-  let grid = state.grid;
-  let dropManager = state.dropManager;
+  const cfg = state.config;
+  const grid = state.grid;
+  const dropManager = state.dropManager;
 
-  let matrixEl = document.querySelector("#matrix");
+  const matrixEl = document.querySelector("#matrix");
 
   const constructMatrixDom = () => {
     for (let c = 0; c < cfg.COLS; c++) {
-      let columnEl = document.createElement("div");
+      const columnEl = document.createElement("div");
       columnEl.style.visibility = "visible";
       columnEl.classList.add("m-col");
       for (let r = 0; r < cfg.ROWS; r++) {
-        let el = document.createElement("code");
+        const el = document.createElement("code");
         el.id = `_${r}_${c}`;
         el.classList.add("m-char");
         el.textContent = " ";
@@ -39,79 +39,74 @@ function DomManager(...args) {
   };
   constructMatrixDom();
 
-  const initializeDropScenes = () => {
-    let grid = state.grid;
-    let dropScenes = state.dropScenes;
+  const initializeContent = () => {
+    const layers = state.contentLayers ?? [];
 
-    for (let ds of dropScenes) {
-      for (let t of ds.texts) {
-        if (t.href) {
-          let onClick = (event) => {
-            if (event.ctrlKey) {
-              open(t.href, "_blank");
-              event.clickHandeled = "Display Text Navigation";
-            } else {
-              window.location.href = t.href;
-            }
-          };
-          let onMouseOver = (event) => {
-            let targetEl = event.target;
-            if (!t.isComplete && targetEl.textContent.trim() !== "") {
-              for (let p of t.positions) {
-                let el = grid.get(p.r, p.c);
-                el.textContent = p.char;
-              }
-              ds.complete();
-            }
-            for (let p of t.positions) {
-              let el = grid.get(p.r, p.c);
-              if (t.href && p.char) {
-                el.classList.add("m-link-hover");
-              }
-            }
-          };
-          let onMouseOut = (event_) => {
-            for (let p of t.positions) {
-              let el = grid.get(p.r, p.c);
-              if (t.href && p.char && p.char !== " ") {
-                el.classList.remove("m-link-hover");
-              }
-            }
-          };
-          for (let p of t.positions) {
-            let el = grid.get(p.r, p.c);
-            if (t.href && p.char && p.char !== " ") {
-              el.setAttribute("data-static-char", p.char);
-              el.classList.add("m-link");
-            }
-            el.classList.add("m-static");
-            el.addEventListener("click", onClick);
-            el.addEventListener("mouseover", onMouseOver);
-            el.addEventListener("mouseout", onMouseOut);
+    for (const layer of layers) {
+      if (!layer.href) continue;
+
+      const onClick = (event) => {
+        if (event.ctrlKey) {
+          open(layer.href, "_blank");
+          event.clickHandled = "Display Text Navigation";
+        } else {
+          window.location.href = layer.href;
+        }
+      };
+      const onMouseOver = (event) => {
+        const targetEl = event.target;
+        if (!layer.isComplete && targetEl.textContent.trim() !== "") {
+          for (const p of layer.positions) {
+            const el = grid.get(p.r, p.c);
+            if (el) el.textContent = p.char;
+          }
+          layer.complete?.();
+        }
+        for (const p of layer.positions) {
+          const el = grid.get(p.r, p.c);
+          if (el && layer.href && p.char) {
+            el.classList.add("m-link-hover");
           }
         }
+      };
+      const onMouseOut = () => {
+        for (const p of layer.positions) {
+          const el = grid.get(p.r, p.c);
+          if (el && layer.href && p.char && p.char !== " ") {
+            el.classList.remove("m-link-hover");
+          }
+        }
+      };
+
+      for (const p of layer.positions) {
+        const el = grid.get(p.r, p.c);
+        if (!el) continue;
+        if (layer.href && p.char && p.char !== " ") {
+          el.setAttribute("data-static-char", p.char);
+          el.classList.add("m-link");
+        }
+        el.classList.add("m-static");
+        el.addEventListener("click", onClick);
+        el.addEventListener("mouseover", onMouseOver);
+        el.addEventListener("mouseout", onMouseOut);
       }
     }
-
-    return dropScenes;
   };
-  initializeDropScenes();
+  initializeContent();
 
-  self.updateDom = (seconds_) => {
-    for (let d of dropManager.getDrops()) {
-      let r = d.getRow();
-      let c = d.col;
-      let pr = d.prevRow;
-      let l = d.length;
+  self.updateDom = () => {
+    for (const d of dropManager.getDrops()) {
+      const r = d.getRow();
+      const c = d.col;
+      const pr = d.prevRow;
+      const l = d.length;
 
-      // Label column with drop ID for debugging.
-      let colEl = grid.getColumn(c);
-      colEl.setAttribute("data-drop-id", d.id);
-      // if (colEl) colEl.style.visibility = "hidden";
+      const colEl = grid.getColumn(c);
+      if (colEl) colEl.setAttribute("data-drop-id", d.id);
 
-      let tipEl = grid.get(r, c);
+      const tipEl = grid.get(r, c);
       if (tipEl) {
-        let staticChar = tipEl.getAttribute("data-static-char");
+        const staticChar = tipEl.getAttribute("data-static-char");
         if (staticChar === null) {
           tipEl.textContent = randomChar();
         } else if (tipEl.textContent !== staticChar) {
@@ -119,17 +114,18 @@ function DomManager(...args) {
         }
       }
 
-      // Check if drop has moved, if not, we're done.
       if (pr === r) continue;
 
       if (tipEl) tipEl.classList.add("m-drop-tip");
 
-      let lastTipEl = grid.get(pr, c);
-      if (lastTipEl) lastTipEl.classList.remove("m-drop-tip");
-      if (lastTipEl) lastTipEl.classList.add("m-drop");
+      const lastTipEl = grid.get(pr, c);
+      if (lastTipEl) {
+        lastTipEl.classList.remove("m-drop-tip");
+        lastTipEl.classList.add("m-drop");
+      }
 
       for (let i = r - 1; i >= 0; i--) {
-        let el = grid.get(i, c);
+        const el = grid.get(i, c);
         if (!el) continue;
 
         if (i > r - l) {
@@ -139,7 +135,7 @@ function DomManager(...args) {
         }
 
         if (el.textContent === " ") {
-          let staticChar = el.getAttribute("data-static-char");
+          const staticChar = el.getAttribute("data-static-char");
           if (staticChar === null) {
             el.textContent = randomChar();
           } else if (el.textContent !== staticChar) {
@@ -147,11 +143,9 @@ function DomManager(...args) {
           }
         }
       }
-      // if (colEl) colEl.style.visibility = "visible";
     }
   };
 }
 
 export { DomManager };
-
 export default DomManager;

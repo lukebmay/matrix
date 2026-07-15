@@ -75,12 +75,13 @@ function DisplayText(...args) {
         text = text.slice(0, text.length - amountOver);
       }
       for (let i = 0; i < text.length; i++) {
-        if (text && text !== " ") {
+        const ch = text[i];
+        if (ch && ch !== " ") {
           self.columns.add(c + i);
           self.positions.push({
             r,
             c: c + i,
-            char: text[i],
+            char: ch,
           });
         }
       }
@@ -94,12 +95,13 @@ function DisplayText(...args) {
         text = text.slice(0, text.length - amountOver);
       }
       for (let i = 0; i < text.length; i++) {
-        if (text && text !== " ") {
+        const ch = text[i];
+        if (ch && ch !== " ") {
           self.columns.add(c);
           self.positions.push({
             r: r + i,
             c,
-            char: text[i],
+            char: ch,
           });
         }
       }

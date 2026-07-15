@@ -7,6 +7,7 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
+
 import Configuration from "./Configuration.mjs";
 import Matrix from "./Matrix.mjs";
 import state from "./State.mjs";
@@ -18,14 +19,14 @@ function Application(...args) {
   self.matrix = null;
 
   self.onClick = (event) => {
-    if (!event.clickHandeled) {
+    if (!event.clickHandled && !event.clickHandeled) {
       self.togglePause();
     }
   };
 
   let timeoutId;
-  self.onResize = (event_) => {
-    self.matrix.stop();
+  self.onResize = () => {
+    self.matrix?.stop();
     clearTimeout(timeoutId);
     timeoutId = window.setTimeout(() => {
       self.restart();
@@ -38,30 +39,24 @@ function Application(...args) {
   };
 
   self.restart = () => {
-    console.log("Application restarted...");
-    self.matrix.stop();
+    self.matrix?.stop();
     state.config = Configuration();
-    console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
     self.matrix = Matrix();
     self.matrix.start();
   };
 
   self.run = () => {
-    console.log("Application started...");
     state.config = Configuration();
-    console.log(`rows: ${state.config.ROWS} x cols: ${state.config.COLS}`);
     self.matrix = Matrix();
     self.matrix.start();
     window.addEventListener("click", self.onClick);
     window.addEventListener("resize", self.onResize, true);
   };
 
-  document.addEventListener("visibilitychange", function () {
+  document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !self.matrix?.isPaused) {
-      console.log("Application unpaused - visibility change.");
       self.matrix?.start();
     } else if (!self.matrix?.isPaused) {
-      console.log("Application paused - visibility change.");
       self.matrix?.stop();
     }
   });
@@ -69,6 +64,5 @@ function Application(...args) {
 
 const app = Application();
 
-export { app };
-
+export { app, Application };
 export default app;

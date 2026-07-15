@@ -7,16 +7,20 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
+
 function State(...args) {
   if (!new.target) return new State(...args);
   const self = this;
 
   self.config = null;
+  self.grid = null;
+  self.dropManager = null;
+  self.domManager = null;
+  self.contentLayers = null;
+  self.spawnPolicies = null;
 }
 
 const state = State();
 
 export { state };
-
 export default state;
-

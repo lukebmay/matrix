@@ -12,26 +12,24 @@ import { nanoid, randomChoice, rangeArray, randomInterval } from "./util.mjs";
 
 function Drop(...args) {
   if (!new.target) return new Drop(...args);
-  let self = this;
+  const self = this;
+
+  const cfg = state.config;
+  const opts = args[0] ?? {};
 
   self.id = nanoid(6);
 
-  const cfg = state.config;
+  self.col =
+    typeof opts.col === "number" ? opts.col : randomChoice(rangeArray(cfg.COLS));
 
-  self.col = randomChoice(rangeArray(cfg.COLS));
-
-  self._row = 0.0; // decimal
+  self._row = 0.0;
   self.length = Math.floor(randomInterval(cfg.DROP_LENGTH_MIN, cfg.DROP_LENGTH_MAX));
-  // characters per second
   self.speed = randomInterval(cfg.DROP_SPEED_MIN, cfg.DROP_SPEED_MAX);
 
   self.isComplete = false;
-
   self.prevRow = null;
 
-  self.getRow = () => {
-    return Math.floor(self._row);
-  };
+  self.getRow = () => Math.floor(self._row);
 
   self.update = (seconds) => {
     self.prevRow = self.getRow();
@@ -43,6 +41,4 @@ function Drop(...args) {
 }
 
 export { Drop };
-
 export default Drop;
-
