@@ -100,6 +100,12 @@ function DropScene(...args) {
   };
   self.emit = emit;
 
+  // Stable handles for play chains: ctx.on(scene.events.completed)
+  self.events = Object.freeze({
+    started: Object.freeze({ scene: self, event: "started" }),
+    completed: Object.freeze({ scene: self, event: "completed" }),
+  });
+
   self.isModeActive = () => ACTIVE.has(self.mode);
   self.isModeStable = () => STABLE.has(self.mode);
 

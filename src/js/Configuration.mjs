@@ -12,7 +12,8 @@ import DisplayText from "./DisplayText.mjs";
 import DropScene from "./DropScene.mjs";
 import Rain from "./Rain.mjs";
 import SceneManager from "./SceneManager.mjs";
-import { cardQuoteLoop } from "./ScenePlayer.mjs";
+import ScenePlayer from "./ScenePlayer.mjs";
+import { homepagePlay } from "./play/homepage.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 import Grid from "./layout/Grid.mjs";
 import TextLine from "./layout/TextLine.mjs";
@@ -302,7 +303,9 @@ function Configuration(...args) {
 
     const sceneManager = SceneManager({ scenes: dropScenes });
 
-    const scenePlayer = cardQuoteLoop(
+    const scenePlayer = ScenePlayer();
+    homepagePlay(
+      scenePlayer,
       {
         rolesReveal,
         emailReveal,
@@ -311,9 +314,7 @@ function Configuration(...args) {
         quoteHide,
       },
       {
-        // After card (email) fully gone → wait → quote.
         afterCardGoneMs: 3_000,
-        // Quote fully revealed → hold → hide; fully gone → loop.
         quoteHoldMs: 5_000,
         restartGapMs: 0,
       },

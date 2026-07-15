@@ -9,6 +9,7 @@
  */
 
 import state from "./State.mjs";
+import { VariableRateAccumulator } from "./util.mjs";
 
 // Pause-aware timed cue runner for DropScene mode/storm sequences.
 function ScenePlayer(...args) {
@@ -80,6 +81,9 @@ function ScenePlayer(...args) {
     pending.clear();
   };
 
+  // Thin play context + cue chains (Style A multi-chain, Style C linear).
+  self.context = (ctxOpts = {}) => createPlayContext(self, ctxOpts);
+
   if (Array.isArray(opts.cues)) {
     for (const cue of opts.cues) {
       if (cue && typeof cue.run === "function") {
@@ -117,6 +121,348 @@ const onceCompleted = (scene, mode, fn) => {
   });
   return off;
 };
+
+const SCENE_EVENT_NAMES = new Set([
+  "started",
+  "completed",
+  "modeEnter",
+  "dropSelected",
+  "pointRevealed",
+  "pointHidden",
+  "stormStart",
+  "stormStop",
+]);
+
+// Storm coverage: rebuild VRA so remaining pool columns begin within `seconds`.
+const configureStormCoverage = (scene, seconds) => {
+  if (!scene) return;
+  const pool =
+    scene.columnsSelected?.size > 0
+      ? scene.columnsSelected.size
+      : (scene.columns?.size ?? 0);
+  const units = Math.max(pool, 1);
+  const durationSeconds = Math.max(Number(seconds) || 0, 0.001);
+  const period = Math.max(durationSeconds, 0.5);
+  scene.stormAccumulator = VariableRateAccumulator(
+    units,
+    durationSeconds,
+    VariableRateAccumulator.rates.easeInOutSine(8, 6, period),
+  );
+  scene.startStorm();
+};
+
+function createPlayContext(player, opts = {}) {
+  const scenes = opts.scenes ?? {};
+  let ctxCancelled = false;
+  const synthetic = new Map();
+  const allOffs = new Set();
+
+  const ctxAlive = () => !ctxCancelled && !player.isCancelled();
+
+  const clearAllOffs = () => {
+    for (const off of [...allOffs]) off();
+    allOffs.clear();
+  };
+
+  const resolveScene = (ref) => {
+    if (ref == null) return null;
+    if (typeof ref === "string") return scenes[ref] ?? null;
+    return ref;
+  };
+
+  // Handles: { scene, event }. Strings: scene event on lastSubject, else synthetic.
+  const resolveEvent = (ev, lastScene) => {
+    if (ev != null && typeof ev === "object" && ev.event != null && ev.scene != null) {
+      return { kind: "scene", scene: ev.scene, name: ev.event };
+    }
+    if (typeof ev === "string") {
+      if (lastScene && SCENE_EVENT_NAMES.has(ev)) {
+        return { kind: "scene", scene: lastScene, name: ev };
+      }
+      return { kind: "synthetic", name: ev };
+    }
+    throw new Error("PlayContext: invalid event (use string, or scene.events.*)");
+  };
+
+  const ctx = {
+    scenes,
+    player,
+
+    emit(name, detail) {
+      const set = synthetic.get(name);
+      if (!set) return ctx;
+      for (const fn of [...set]) {
+        try {
+          fn(detail);
+        } catch {
+          // ignore
+        }
+      }
+      return ctx;
+    },
+
+    // Kickoff: emit synthetic "appStart" (chains arm with .on("appStart")).
+    start() {
+      return ctx.emit("appStart");
+    },
+
+    cancel() {
+      ctxCancelled = true;
+      clearAllOffs();
+      return ctx;
+    },
+
+    clearView() {
+      for (const s of Object.values(scenes)) forceStableHidden(s);
+      return ctx;
+    },
+
+    on(event) {
+      return startChain(event);
+    },
+
+    wait(event) {
+      return startChain(event);
+    },
+  };
+
+  const prevCancel = player.cancel.bind(player);
+  player.cancel = () => {
+    ctx.cancel();
+    prevCancel();
+  };
+
+  function startChain(entryEvent) {
+    const steps = [];
+    const labels = new Map();
+    let lastSubject = null;
+    let chainGen = 0;
+    const chainOffs = new Set();
+
+    const chainAlive = (gen) => ctxAlive() && gen === chainGen;
+
+    const trackOff = (off) => {
+      const wrapped = () => {
+        off();
+        chainOffs.delete(wrapped);
+        allOffs.delete(wrapped);
+      };
+      chainOffs.add(wrapped);
+      allOffs.add(wrapped);
+      return wrapped;
+    };
+
+    const clearChainOffs = () => {
+      for (const off of [...chainOffs]) off();
+      chainOffs.clear();
+    };
+
+    const armOne = (spec, gen, onFire) => {
+      if (!chainAlive(gen)) return;
+
+      if (spec.kind === "synthetic") {
+        let set = synthetic.get(spec.name);
+        if (!set) {
+          set = new Set();
+          synthetic.set(spec.name, set);
+        }
+        const handler = (detail) => {
+          set.delete(handler);
+          chainOffs.delete(wrappedOff);
+          allOffs.delete(wrappedOff);
+          if (chainAlive(gen)) onFire(detail);
+        };
+        set.add(handler);
+        const wrappedOff = () => {
+          set.delete(handler);
+        };
+        chainOffs.add(wrappedOff);
+        allOffs.add(wrappedOff);
+        return;
+      }
+
+      const rawOff = spec.scene.on(spec.name, (detail) => {
+        wrappedOff();
+        if (chainAlive(gen)) onFire(detail);
+      });
+      const wrappedOff = trackOff(rawOff);
+    };
+
+    const runFrom = (index) => {
+      const gen = chainGen;
+      if (!chainAlive(gen)) return;
+
+      const step = steps[index];
+      if (!step) {
+        armEntry();
+        return;
+      }
+
+      switch (step.type) {
+        case "wait": {
+          const spec = resolveEvent(step.event, lastSubject);
+          armOne(spec, gen, () => runFrom(index + 1));
+          return;
+        }
+        case "delay": {
+          player.at(step.ms, () => {
+            if (chainAlive(gen)) runFrom(index + 1);
+          });
+          return;
+        }
+        case "activate": {
+          const sc = resolveScene(step.scene);
+          if (sc) {
+            sc.enterMode("revealing");
+            lastSubject = sc;
+          }
+          runFrom(index + 1);
+          return;
+        }
+        case "hide": {
+          const sc = resolveScene(step.scene);
+          if (sc) {
+            sc.enterMode("hiding");
+            lastSubject = sc;
+          }
+          runFrom(index + 1);
+          return;
+        }
+        case "storm": {
+          const sc = resolveScene(step.scene) ?? lastSubject;
+          if (sc) {
+            lastSubject = sc;
+            configureStormCoverage(sc, step.seconds);
+          }
+          runFrom(index + 1);
+          return;
+        }
+        case "clear": {
+          forceStableHidden(resolveScene(step.scene));
+          runFrom(index + 1);
+          return;
+        }
+        case "clearView": {
+          for (const s of Object.values(scenes)) forceStableHidden(s);
+          runFrom(index + 1);
+          return;
+        }
+        case "call": {
+          try {
+            step.fn();
+          } catch {
+            // ignore step errors
+          }
+          runFrom(index + 1);
+          return;
+        }
+        case "loop": {
+          restartBody(0);
+          return;
+        }
+        case "loopFrom": {
+          const at = labels.has(step.label) ? labels.get(step.label) : 0;
+          restartBody(at);
+          return;
+        }
+        default:
+          runFrom(index + 1);
+      }
+    };
+
+    const restartBody = (at) => {
+      if (!ctxAlive()) return;
+      chainGen += 1;
+      clearChainOffs();
+      for (const s of Object.values(scenes)) forceStableHidden(s);
+      lastSubject = null;
+      runFrom(at);
+    };
+
+    const armEntry = () => {
+      const gen = chainGen;
+      // Entry strings are always synthetic (handles for scene events).
+      let spec;
+      if (
+        entryEvent != null &&
+        typeof entryEvent === "object" &&
+        entryEvent.event != null &&
+        entryEvent.scene != null
+      ) {
+        spec = { kind: "scene", scene: entryEvent.scene, name: entryEvent.event };
+      } else if (typeof entryEvent === "string") {
+        spec = { kind: "synthetic", name: entryEvent };
+      } else {
+        throw new Error("PlayContext.on: invalid entry event");
+      }
+      armOne(spec, gen, () => {
+        if (chainAlive(gen)) runFrom(0);
+      });
+    };
+
+    const chain = {
+      on(event) {
+        steps.push({ type: "wait", event });
+        return chain;
+      },
+      wait(event) {
+        return chain.on(event);
+      },
+      delay(ms) {
+        steps.push({ type: "delay", ms: Math.max(0, Number(ms) || 0) });
+        return chain;
+      },
+      activate(scene) {
+        steps.push({ type: "activate", scene });
+        return chain;
+      },
+      hide(scene) {
+        steps.push({ type: "hide", scene });
+        return chain;
+      },
+      storm(a, b) {
+        if (typeof a === "number") {
+          steps.push({ type: "storm", scene: null, seconds: a });
+        } else {
+          steps.push({ type: "storm", scene: a, seconds: b });
+        }
+        return chain;
+      },
+      clear(scene) {
+        steps.push({ type: "clear", scene });
+        return chain;
+      },
+      clearView() {
+        steps.push({ type: "clearView" });
+        return chain;
+      },
+      call(fn) {
+        if (typeof fn !== "function") {
+          throw new Error("PlayContext.call: function required");
+        }
+        steps.push({ type: "call", fn });
+        return chain;
+      },
+      label(name) {
+        labels.set(name, steps.length);
+        return chain;
+      },
+      loop() {
+        steps.push({ type: "loop" });
+        return chain;
+      },
+      loopFrom(label) {
+        steps.push({ type: "loopFrom", label });
+        return chain;
+      },
+    };
+
+    armEntry();
+    return chain;
+  }
+
+  return ctx;
+}
 
 // Reusable timed phase: { durationMs, schedule(t) } where t(ms, fn) is relative.
 function Phase(name, build) {
@@ -177,7 +523,7 @@ function cardRevealPhase(scenes, opts = {}) {
   }));
 }
 
-// Fixed-duration quote phase (legacy/tests). Prefer cardQuoteLoop event chain.
+// Fixed-duration quote phase (legacy/tests). Prefer play context chains.
 function quotePhase(scenes, opts = {}) {
   const {
     rolesReveal,
@@ -219,13 +565,8 @@ function quotePhase(scenes, opts = {}) {
   }));
 }
 
-// Homepage: event-driven card → hide → quote → loop.
-//
-//   roles/email reveal (timed starts)
-//   → email fully revealed → optional card hold → card hide
-//   → card fully gone → afterCardGoneMs → quote reveal
-//   → quote fully revealed → quoteHoldMs → quote hide
-//   → quote fully gone → restartGapMs → loop
+// Homepage: event-driven card → hide → quote → loop (legacy interim).
+// Prefer src/js/play/homepage.mjs play context.
 function cardQuoteLoop(scenes, opts = {}) {
   const player = ScenePlayer();
   const {
@@ -357,6 +698,8 @@ export {
   cardRevealPhase,
   quotePhase,
   cardQuoteLoop,
+  forceStableHidden,
+  configureStormCoverage,
 };
 export default ScenePlayer;
 
@@ -370,6 +713,7 @@ const isMain =
 
 if (isMain) {
   const assert = (await import("node:assert/strict")).default;
+  const { DropScene } = await import("./DropScene.mjs");
 
   console.log("Running ScenePlayer smoke tests...");
 
@@ -408,6 +752,138 @@ if (isMain) {
   await new Promise((r) => setTimeout(r, 40));
   assert.ok(hits >= 1, "phase scheduled");
   player3.cancel();
+
+  // --- Play context: register + Style C linear arm/delay/activate ---
+  const mkScene = (name, cols = [0, 1]) =>
+    DropScene({
+      name,
+      points: cols.map((c) => ({ r: 0, c, char: "X", revealed: false })),
+    });
+
+  const roles = mkScene("roles");
+  const email = mkScene("email");
+  const pCtx = ScenePlayer();
+  const ctx = pCtx.context({ scenes: { roles, email } });
+  assert.equal(ctx.scenes.roles, roles, "context registers scenes");
+
+  let activated = [];
+  ctx
+    .on("appStart")
+    .delay(20)
+    .activate(roles)
+    .storm(2)
+    .call(() => activated.push("roles"))
+    .on(roles.events.completed)
+    .delay(10)
+    .activate(email)
+    .call(() => activated.push("email"));
+
+  ctx.start(); // kickoff = emit("appStart")
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(roles.mode, "hidden", "delay not yet elapsed");
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(roles.mode, "revealing", "activate after delay");
+  assert.equal(roles.stormEnabled, true, "storm starts");
+  assert.ok(roles.stormAccumulator, "storm VRA rebuilt");
+  assert.deepEqual(activated, ["roles"]);
+
+  // Finish roles so mid-chain wait proceeds.
+  roles.onColumnSpawned(0);
+  roles.onColumnSpawned(1);
+  roles.notifyPointRevealed(0, 0);
+  roles.notifyPointRevealed(0, 1);
+  assert.equal(roles.mode, "revealed");
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(email.mode, "revealing", "mid-chain completed → activate email");
+  assert.deepEqual(activated, ["roles", "email"]);
+  pCtx.cancel();
+
+  // --- Style A multi-chain ---
+  const a = mkScene("a");
+  const b = mkScene("b");
+  const pA = ScenePlayer();
+  const ctxA = pA.context({ scenes: { a, b } });
+  const order = [];
+  ctxA.on("appStart").delay(10).activate(a).call(() => order.push("a"));
+  ctxA
+    .on(a.events.completed)
+    .delay(10)
+    .activate(b)
+    .call(() => order.push("b"));
+  ctxA.start();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(a.mode, "revealing");
+  a.onColumnSpawned(0);
+  a.onColumnSpawned(1);
+  a.notifyPointRevealed(0, 0);
+  a.notifyPointRevealed(0, 1);
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(b.mode, "revealing", "Style A second chain");
+  assert.deepEqual(order, ["a", "b"]);
+  pA.cancel();
+
+  // --- storm(seconds) coverage VRA ---
+  const st = mkScene("storm", [0, 1, 2, 3]);
+  st.enterMode("revealing");
+  configureStormCoverage(st, 3);
+  assert.equal(st.stormEnabled, true);
+  assert.ok(st.stormAccumulator);
+  // Finite accumulator: units ≈ pool size, duration = 3
+  let total = 0;
+  for (let i = 0; i < 60; i++) total += st.stormAccumulator.advance(0.05);
+  assert.ok(total >= 3 && total <= 5, `storm units ~4 got ${total}`);
+
+  // storm on chain with explicit scene
+  const st2 = mkScene("st2", [0, 1]);
+  const pS = ScenePlayer();
+  const ctxS = pS.context({ scenes: { st2 } });
+  ctxS.on("appStart").activate(st2).storm(st2, 1);
+  ctxS.start();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(st2.stormEnabled, true);
+  pS.cancel();
+
+  // --- pause / cancel safety on chains ---
+  const pc = mkScene("pc");
+  const pPause = ScenePlayer();
+  const ctxP = pPause.context({ scenes: { pc } });
+  let fired = false;
+  ctxP.on("appStart").delay(40).activate(pc).call(() => {
+    fired = true;
+  });
+  ctxP.start();
+  pPause.pause();
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(fired, false, "paused chain delay");
+  assert.equal(pc.mode, "hidden");
+  pPause.unpause();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(fired, true, "unpause chain continues");
+  assert.equal(pc.mode, "revealing");
+  pPause.cancel();
+
+  const pCan = ScenePlayer();
+  const cCan = mkScene("can");
+  const ctxC = pCan.context({ scenes: { cCan } });
+  let bad = false;
+  ctxC.on("appStart").delay(30).activate(cCan).call(() => {
+    bad = true;
+  });
+  ctxC.start();
+  pCan.cancel();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(bad, false, "cancel: chain must not continue");
+  assert.equal(cCan.mode, "hidden");
+
+  // wait ≡ on
+  const w = mkScene("w");
+  const pW = ScenePlayer();
+  const ctxW = pW.context({ scenes: { w } });
+  ctxW.wait("go").activate(w);
+  ctxW.emit("go");
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(w.mode, "revealing", "wait ≡ on");
+  pW.cancel();
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
   console.log(`ScenePlayer smoke tests passed! ${green("✓")}`);

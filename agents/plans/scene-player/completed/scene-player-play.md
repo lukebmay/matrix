@@ -1,10 +1,10 @@
 # Task — ScenePlayer play authoring
 
-**Status:** Ready  
+**Status:** Done  
 **Kind:** Implement (plan-linked)  
-**Plan:** [plans/scene-player.md](../plans/scene-player.md)  
+**Plan:** [scene-player.md](../../scene-player.md)  
 **Design (locked):**  
-[plans/scene-player/completed/scene-player-play-plan.md](../plans/scene-player/completed/scene-player-play-plan.md)  
+[scene-player-play-plan.md](scene-player-play-plan.md)  
 **Branch:** `refactor_07-2026`
 
 ## Goal
@@ -71,25 +71,25 @@ Ship programmatic play authoring on ScenePlayer:
 
 | Path | Role |
 | --- | --- |
-| `src/js/ScenePlayer.mjs` | Player clock; add `context` + chain builder (or extract play builder next to it) |
-| `src/js/DropScene.mjs` | Optional cheap `scene.events` handles for `started`/`completed`; existing emit names stay |
-| `src/js/play/homepage.mjs` | **New** — homepage Style C play |
-| `src/js/Configuration.mjs` | Wire play module; stop using `cardQuoteLoop` for live homepage |
+| `src/js/ScenePlayer.mjs` | Player clock; `context` + chain builder + storm coverage |
+| `src/js/DropScene.mjs` | `scene.events.started` / `.completed` handles |
+| `src/js/play/homepage.mjs` | Homepage Style C play |
+| `src/js/Configuration.mjs` | Wires `homepagePlay` (not `cardQuoteLoop`) |
 | `src/js/util/VariableRateAccumulator.mjs` | Consume as-is for storm rebuild |
 | Existing force-hidden helper in ScenePlayer | Reuse for `clear` / loop reset |
 
 ## Done when
 
-- [ ] `player.context({ scenes })` returns chainable builder
-- [ ] Style C homepage play runs card → quote → loop without
+- [x] `player.context({ scenes })` returns chainable builder
+- [x] Style C homepage play runs card → quote → loop without
       `cardQuoteLoop`
-- [ ] Style A multi-chain works (at least smoke / minimal parallel chain)
-- [ ] `.storm(n)` rebuilds VRA for coverage window and starts storm on
+- [x] Style A multi-chain works (at least smoke / minimal parallel chain)
+- [x] `.storm(n)` rebuilds VRA for coverage window and starts storm on
       subject scene
-- [ ] `on`/`wait` arm + mid-chain barrier on `started`/`completed`
-- [ ] Pause/cancel still safe
-- [ ] Smokes green; `scripts/build.sh` green
-- [ ] Plan + this task session note updated
+- [x] `on`/`wait` arm + mid-chain barrier on `started`/`completed`
+- [x] Pause/cancel still safe
+- [x] Smokes green; `scripts/build.sh` green
+- [x] Plan + this task session note updated
 
 ## Out of scope
 
@@ -112,20 +112,31 @@ export function homepagePlay(player, scenes) {
   ctx
     .on("appStart")
     .delay(3_000)
-    .activate(s.rolesReveal) // or names registered in context
+    .activate(s.rolesReveal)
     .storm(3)
     .on(s.rolesReveal.events.completed)
     // …
     .loop();
-  ctx.emit?.("appStart"); // or player.start / context.start — pick one simple kick
+  ctx.start(); // emit("appStart")
 }
 ```
 
-Exact kick (`appStart` synthetic event vs `ctx.start()`) is implementer's
-choice — keep it one obvious entry.
+Kickoff: **`ctx.start()`** ≡ `ctx.emit("appStart")`.
 
 ## Session note
 
-Ready for implement. Design locked in
-[scene-player-play-plan.md](../plans/scene-player/completed/scene-player-play-plan.md).
-No code yet in this taskforce pass.
+**2026-07-15 — Shipped**
+
+- `player.context({ scenes })` + chain verbs in `ScenePlayer.mjs`
+- Kickoff: `ctx.start()` → synthetic `appStart`
+- Storm: `configureStormCoverage` rebuilds finite VRA (units = pool cols,
+  duration = seconds) then `startStorm`
+- `scene.events.started` / `.completed` on DropScene
+- Homepage Style C: `src/js/play/homepage.mjs`; Configuration wires it
+- `cardQuoteLoop` / Phase kept for legacy
+- Smokes (ScenePlayer/DropScene/Rain/SceneManager) + `npm run build` green
+
+**Next agent**
+1. Optional browser eyeball paint task if needed
+2. Do not re-open play API design
+3. Parent commits after review

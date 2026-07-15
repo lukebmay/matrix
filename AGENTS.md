@@ -16,11 +16,10 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 **Status:** Runnable on `refactor_07-2026` (finish of mid-refactor).
 Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 
-**Next:** ScenePlayer play authoring —
-[tasks/scene-player-play.md](tasks/scene-player-play.md)
-(context + chains + storm window; homepage `play/homepage.mjs`).
-Optional: browser eyeball
-[tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md).
+**Next:** Optional browser eyeball
+[tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md);
+deploy + job-search polish. Play authoring shipped
+([plans/scene-player/completed/scene-player-play.md](plans/scene-player/completed/scene-player-play.md)).
 
 **Plan:** [plans/scene-player.md](plans/scene-player.md).
 
@@ -71,8 +70,8 @@ Optional: browser eyeball
 (paint rewrite; browser eyeball),
 [scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md)
 (design locked),
-[scene-player-play.md](tasks/scene-player-play.md)
-(**next** — play context/chains + storm + homepage).
+[scene-player-play.md](plans/scene-player/completed/scene-player-play.md)
+(shipped — context/chains + storm + homepage).
 
 ### Stack
 
@@ -97,7 +96,7 @@ SceneManager (logical grid) + DomManager (paint)
 | Module | Role |
 | --- | --- |
 | DropScene | points, columns, columnsSelected, mode, events |
-| ScenePlayer | sequence revealing/hiding via timed phases |
+| ScenePlayer | pause-aware clock + play context / cue chains |
 | SceneManager | logical grid + tip resolve |
 | Rain / Storm | weather rates + column pick |
 | layout/* | positionables; Grid; DomGrid |
@@ -113,12 +112,10 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. ScenePlayer **play authoring** — implement
-   [tasks/scene-player-play.md](tasks/scene-player-play.md)
-   (design locked in
-   [plans/scene-player/completed/scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md)).
-2. Browser polish on reveal timing / paint eyeball if needed.
-3. Deploy + job-search polish.
+1. Browser polish on reveal timing / paint eyeball if needed
+   ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
+2. Deploy + job-search polish.
+3. Optional later: frame-`dt` unified animation clock.
 
 ---
 # general.md

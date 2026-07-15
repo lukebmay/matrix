@@ -3,7 +3,7 @@
 **Status:** Design locked — ready for implement  
 **Kind:** Plan task (design complete; no builder code here)  
 **Depends on:** SceneManager + ScenePlayer MVP  
-**Implement:** [scene-player-play.md](../../../tasks/scene-player-play.md)  
+**Implement:** [scene-player-play.md](scene-player-play.md)  
 **Related:** [scene-player-mvp.md](../../../tasks/scene-player-mvp.md),  
 [plans/scene-player.md](../../scene-player.md)
 
@@ -170,7 +170,7 @@ frame-`dt` clock (keep setTimeout remaining surface stable for scripts).
 2. [x] Capture programmatic-authoring direction (multi-style + storm)
 3. [x] Rename plan/tasks: `symphony-*` → `scene-player-*`
 4. [x] Agree API surface (styles A/C, storm window, context) — locked
-5. [x] Name implement task: [scene-player-play.md](../../../tasks/scene-player-play.md)
+5. [x] Name implement task: [scene-player-play.md](scene-player-play.md)
 6. [x] Design lock complete — **no builder code in this task**
 
 ## Done when
@@ -191,7 +191,7 @@ the play builder (→ implement task).
 **2026-07-15 — Design locked**
 
 Decisions locked (see table above). Implement:
-[scene-player-play.md](../../../tasks/scene-player-play.md).
+[scene-player-play.md](scene-player-play.md).
 
 **Next agent (implement only)**
 1. Build play context + cue chains (A + C; same primitives).

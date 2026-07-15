@@ -1,12 +1,13 @@
 # Plan — ScenePlayer & scene paint
 
-**Status:** In progress (paint rewrite shipped; play design **locked**)  
+**Status:** In progress (paint rewrite shipped; **play authoring shipped**)  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
-**Next task:** [scene-player-play.md](../tasks/scene-player-play.md)
-(play context + chains + storm window + homepage migrate).  
-Optional parallel: browser eyeball
-[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md).
+**Next task:** optional browser eyeball
+[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
+then deploy / job-search polish.  
+Play implement done:
+[scene-player-play.md](scene-player/completed/scene-player-play.md).
 
 ## Goal
 
@@ -55,28 +56,28 @@ DropManager
 - Drop must be post-activation (`dropAffects`) when provided.  
 - Glyph change only when tip **enters** a cell (once per drop).
 
-### Phases (shipped — interim until play task)
+### Phases (legacy — still exported)
 
 | Piece | Role |
 | --- | --- |
 | `Phase(name, build)` | `{ durationMs, schedule(t) }` |
 | `loopPhases(player, phases, { gapMs })` | Sequence then loop |
 | `cardRevealPhase` / `quotePhase` | Legacy fixed-duration builders |
-| `cardQuoteLoop` | Event-driven interim homepage loop |
+| `cardQuoteLoop` | Event-driven interim homepage loop (superseded live) |
 
-**Target replace:** play context + cue chains — design locked in
-[completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
-Implement: [scene-player-play.md](../tasks/scene-player-play.md).
+**Live homepage:** `src/js/play/homepage.mjs` via `player.context` chains.
+Design: [completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
 
-### Play authoring (locked)
+### Play authoring (shipped)
 
 | Piece | Choice |
 | --- | --- |
 | Verb | `.on(event)`; alias `.wait` ≡ same |
-| Events | `started` + `completed` (existing DropScene); optional `scene.events.*` |
+| Events | `started` + `completed`; `scene.events.*` handles |
 | Storm | Coverage VRA window; rebuild accumulator per call |
 | Skins | A multi-chain + C linear; homepage **C** at `src/js/play/homepage.mjs` |
 | Context | Thin `player.context({ scenes })` |
+| Kickoff | `ctx.start()` → `emit("appStart")` |
 | Out of v1 | Frame-dt clock, Style D async, visual timeline |
 
 ### Quote layout
@@ -92,25 +93,27 @@ Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 | SceneManager first pass + phases + event loop | Shipped; paint rewrite done |
 | [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md) | Ownership rewrite done; browser eyeball |
 | [scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md) | **Design locked** |
-| [scene-player-play.md](../tasks/scene-player-play.md) | **Next implement** — context + chains + storm window; migrate homepage |
+| [scene-player-play.md](scene-player/completed/scene-player-play.md) | **Shipped** — context + chains + storm + homepage |
 
 ## Residual
 
 - Browser confirmation of card/quote loop paint  
-- **Play authoring implement** (locked design → code)  
 - Animation clock unified with frame `dt` (after play surface)  
 - Word-space cells in TextLine (blank ownership when revealed) — currently rain gaps  
+- Deploy + job-search polish  
 
 ## Session note
 
-**2026-07-15 — Play design locked**
+**2026-07-15 — Play authoring shipped**
 
-Open questions resolved (`.on`+`.wait`, `started`/`completed`, storm
-subject + VRA rebuild, `src/js/play/homepage.mjs`). Design archived at
-[scene-player/completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
-Implement task: [scene-player-play.md](../tasks/scene-player-play.md).
+- APIs: `player.context`, chain `on/wait/delay/activate/hide/storm/clear/clearView/call/loop/loopFrom`, `ctx.start`/`emit`
+- Storm coverage helper rebuilds finite VRA per call
+- Homepage: `src/js/play/homepage.mjs` Style C; Configuration uses it
+- Paths: `ScenePlayer.mjs`, `DropScene.mjs` (`events`), `play/homepage.mjs`, `Configuration.mjs`
+- Task archived: [scene-player/completed/scene-player-play.md](scene-player/completed/scene-player-play.md)
+- Smokes + build green
 
-**Next agent**
-1. Implement play context/chains + storm coverage + homepage migrate only.  
-2. No frame-dt clock, Style D, deploy, or reopening design.  
-3. Eyeball paint remains optional/parallel if human available.
+**Next**
+1. Optional paint eyeball ([scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md))  
+2. Deploy / polish when ready  
+3. No frame-dt / Style D unless new task
