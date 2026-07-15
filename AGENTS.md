@@ -16,9 +16,11 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 **Status:** Runnable on `refactor_07-2026` (finish of mid-refactor).
 Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 
-**Next:** Symphony —
-[tasks/symphony-orchestration.md](tasks/symphony-orchestration.md)
-(alignment A–F + Rain MVP done; G percent anchors later if needed).
+**Next:** Logical grid + DOM paint fix —
+[tasks/symphony-logical-grid-paint.md](tasks/symphony-logical-grid-paint.md)
+(prior SceneManager pass incomplete in browser; G percent anchors later).
+
+**Plan:** [plans/symphony.md](plans/symphony.md).
 
 ### Product rules
 
@@ -30,7 +32,7 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 | **Rain** | Ambient spawn on the grid DropScene |
 | **Storm** | Optional faster coverage on a content DropScene |
 | **DropScene** | Points + column sets + **mode** (see below) |
-| **Symphony** | Developer script of timed/event cues (animation machine) |
+| **ScenePlayer** | Timed/event cues that drive DropScene modes (animation machine) |
 
 #### DropScene modes
 
@@ -54,14 +56,19 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 4. **Bidirectional sets** on spawn: Rain↔active scene `columnsSelected`
    and Rain first-pass (stable scenes untouched).
 5. **Events** on scenes (`started`, `dropSelected`, point show/hide,
-   `completed`) feed the orchestrator / Symphony.
+   `completed`) feed ScenePlayer.
 6. Drops = motion; Dom paints from mode + points.
 7. No video path.
 
 **Tasks:**
 [rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md)
 (done),
-[symphony-orchestration.md](tasks/symphony-orchestration.md).
+[symphony-orchestration.md](tasks/symphony-orchestration.md)
+(MVP loop),
+[symphony-logical-grid-paint.md](tasks/symphony-logical-grid-paint.md)
+(**next** — logical vs DOM grid, fix paint),
+[symphony-orchestration-plan.md](tasks/symphony-orchestration-plan.md)
+(residual design: events, clearView, clock).
 
 ### Stack
 
@@ -75,19 +82,19 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 ### Architecture (target)
 
 ```text
-Symphony (cues: time + scene events)
-  → Orchestrator
-      → DropScenes (mode, columnsSelected, events)
-      → Rain / Storm picks + bidirectional sets
-      → Drops
+ScenePlayer (cues: time + scene events)
+  → DropScenes (mode, columnsSelected, events)
+  → Rain / Storm picks + bidirectional sets
+  → Drops
 layout Positionables.cells() → scene points
-DomManager ← mode + points (show/hide)
+SceneManager (logical grid) + DomManager (paint)
 ```
 
 | Module | Role |
 | --- | --- |
 | DropScene | points, columns, columnsSelected, mode, events |
-| Orchestrator / Symphony | sequence revealing/hiding |
+| ScenePlayer | sequence revealing/hiding via timed phases |
+| SceneManager | logical grid + tip resolve |
 | Rain / Storm | weather rates + column pick |
 | layout/* | positionables; Grid; DomGrid |
 | DomManager | paint |
@@ -102,7 +109,7 @@ DomManager ← mode + points (show/hide)
 
 ### Priorities
 
-1. Symphony (event/time cues; replace Configuration timers).
+1. ScenePlayer polish (event cues, clearView) after paint eyeball.
 2. Browser polish on reveal timing if needed.
 3. Deploy + job-search polish.
 

@@ -30,7 +30,7 @@ attachment model for stacks, resize, and reveal.
 Out of scope: video, multi-parent constraints, layout undo, animation
 runtime, percent anchors (follow-on task G).
 
-### Related product work (spawn / DropScene / Symphony) — end goal
+### Related product work (spawn / DropScene / ScenePlayer) — end goal
 
 Authoritative rules: `agents/project.md`.  
 Tasks:
@@ -43,8 +43,8 @@ Tasks:
 
 This app is ultimately a **simple animation machine**: scenes enter
 **revealing** / **hiding** modes over time, driven by timers and scene
-events. Layout and weather are subsystems; the **Symphony** is the
-developer-facing script the orchestrator plays.
+events. Layout and weather are subsystems; **ScenePlayer** is the
+developer-facing timed/event cue runner.
 
 | Term | Meaning |
 | --- | --- |
@@ -52,8 +52,8 @@ developer-facing script the orchestrator plays.
 | **Rain** | Ambient spawn (grid DropScene; soft-square; forever) |
 | **Storm** | Optional faster column coverage for a content DropScene |
 | **DropScene** | Set of canonical points + column bookkeeping + **mode** |
-| **Symphony** | Declarative program: when event X → start scene Y / mode Z |
-| **Orchestrator** | Runs the Symphony; listens to scene events |
+| **ScenePlayer** | Timed/event cues: when event X → start scene Y / mode Z |
+| **Phase** | Reusable timed block scheduled on a ScenePlayer |
 
 #### Four modes (replace vague activate/deactivate)
 
@@ -119,7 +119,7 @@ Orchestrator / Symphony keys off these (and timers) to start other
 scenes: e.g. “when roles reveal **completed** → start email revealing”
 or “after 20s → start roles hiding.”
 
-#### Symphony (developer interface) — end goal
+#### ScenePlayer (developer interface) — end goal
 
 Declarative **thread of cues**, not ad-hoc `setTimeout` soup in
 Configuration long-term:
@@ -358,18 +358,11 @@ Completed plan-linked tasks →
 
 ## Session notes
 
-**2026-07-15 — F done (A–F complete):**
+**2026-07-15 — Symphony loop + first-pass fix (product):**
 
-- `DropScene.from(rolesGroup|emailGroup)` after solve; Storm on active reveal
-- DisplayText shares scene points; timers still drive revealing (Symphony next)
-- Hide scenes skipped (prefer separate instances later in Symphony)
-- Rain ambient + bidirectional active-only sets unchanged from Rain MVP
-- Build + DropScene/Rain smokes pass; browser eyeball recommended for timing
-
-**2026-07-15 — Rain MVP:** modes, Rain first-pass, Storm, DomManager tip path.
-
-**2026-07-15 — E:** Configuration layout groups; no `location: [r,c]`.
-
-**2026-07-15 — D–A:** Group/stacks, TextLine, env/attach, geometry + DomGrid.
-
-**2026-07-14:** Plan filed; four modes + Symphony end-goal.
+- `Symphony`/`cardQuoteLoop`: roles/email ↔ quote hide/reveal loop
+- Storm delayed via `startStorm()`; roles/email start hidden
+- Rain first-pass waits (no free-random until all cols spawned once)
+- Pre-activation drops ignored (`spawnAt` ≥ `modeEnteredAt`)
+- Quote centered, ≤3 lines; rain max −20%, peak ~3s
+- See task session note: `tasks/symphony-orchestration.md`

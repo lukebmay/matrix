@@ -31,6 +31,28 @@ function DropScene(...args) {
     if (p.revealed === undefined) p.revealed = false;
   }
   self.positions = self.points;
+  self.defaultStyle = opts.defaultStyle ?? opts.style ?? null;
+
+  // O(1) ownership: "r,c" → { char, href, lineId, style, r, c }
+  self.cellMap = new Map();
+  const rebuildCellMap = () => {
+    self.cellMap.clear();
+    for (const p of self.points) {
+      if (p == null || p.r == null || p.c == null) continue;
+      if (p.char == null || p.char === "") continue;
+      const key = `${p.r},${p.c}`;
+      self.cellMap.set(key, {
+        r: p.r,
+        c: p.c,
+        char: p.char,
+        href: p.href ?? null,
+        lineId: p.lineId,
+        style: p.style ?? self.defaultStyle,
+        point: p,
+      });
+    }
+  };
+  rebuildCellMap();
 
   self.columns = opts.columns
     ? new Set(opts.columns)
@@ -40,8 +62,12 @@ function DropScene(...args) {
   self.mode = opts.mode && MODES.includes(opts.mode) ? opts.mode : "hidden";
   self.isComplete = false;
 
-  // Optional Storm: rate while active.
+  // Built only on enterMode(revealing|hiding); pre-activation drops ignored.
+  self.modeEnteredAt = null;
+
+  // Optional Storm: rate while active and startStorm() has been called.
   self.stormAccumulator = opts.stormAccumulator ?? opts.accumulator ?? null;
+  self.stormEnabled = false;
   self.infinite = false;
 
   const listeners = new Map();
@@ -83,7 +109,8 @@ function DropScene(...args) {
     enumerable: true,
   });
 
-  self.hasPoint = (r, c) => self.points.some((p) => p.r === r && p.c === c);
+  self.hasPoint = (r, c) => self.cellMap.has(`${r},${c}`);
+  self.getCell = (r, c) => self.cellMap.get(`${r},${c}`) ?? null;
 
   const allPointsRevealed = () =>
     self.points.length === 0 || self.points.every((p) => p.revealed);
@@ -120,6 +147,7 @@ function DropScene(...args) {
   };
 
   // hiding always resets columnsSelected; revealing builds it.
+  // Selection is created only on activation — prior drops do not count.
   self.enterMode = (next) => {
     if (!MODES.includes(next)) {
       throw new Error(`DropScene.enterMode: unknown mode ${next}`);
@@ -127,9 +155,11 @@ function DropScene(...args) {
     const prev = self.mode;
     self.mode = next;
     self.isComplete = false;
+    self.stormEnabled = false;
 
     if (next === "revealing" || next === "hiding") {
       rebuildSelection();
+      self.modeEnteredAt = performance.now();
       self.stormAccumulator?.reset?.();
       emit("modeEnter", { scene: self, mode: next, prev });
       emit("started", { scene: self, mode: next });
@@ -138,6 +168,7 @@ function DropScene(...args) {
     }
 
     self.columnsSelected = new Set();
+    self.modeEnteredAt = null;
     if (next === "revealed") {
       for (const p of self.points) p.revealed = true;
       self.isComplete = true;
@@ -148,6 +179,30 @@ function DropScene(...args) {
     }
     emit("modeEnter", { scene: self, mode: next, prev });
     return self;
+  };
+
+  // Storm is optional and delayed; Rain still drains columnsSelected while active.
+  self.startStorm = () => {
+    if (!self.stormAccumulator) return self;
+    if (!ACTIVE.has(self.mode) || self.isComplete) return self;
+    self.stormAccumulator.reset?.();
+    self.stormEnabled = true;
+    emit("stormStart", { scene: self });
+    return self;
+  };
+
+  self.stopStorm = () => {
+    self.stormEnabled = false;
+    emit("stormStop", { scene: self });
+    return self;
+  };
+
+  // Drop spawned after this scene's activation may affect reveal/hide paint.
+  self.dropAffects = (drop) => {
+    if (!ACTIVE.has(self.mode) || self.isComplete) return false;
+    if (self.modeEnteredAt == null) return false;
+    if (drop == null) return true;
+    return (drop.spawnAt ?? 0) >= self.modeEnteredAt;
   };
 
   // Spawn on col: drain selection while active. Stable scenes ignore.
@@ -307,7 +362,13 @@ if (isMain) {
   assert.equal(scene.mode, "revealing");
   assert.equal(scene.isActive, true);
   assert.equal(scene.columnsSelected.size, 2);
+  assert.equal(scene.stormEnabled, false);
+  assert.ok(scene.modeEnteredAt != null);
   assert.ok(events.some((e) => e[0] === "started"));
+
+  // Pre-activation drop does not affect (spawn before modeEnteredAt).
+  assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt - 1 }), false);
+  assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt + 1 }), true);
 
   scene.onColumnSpawned(1);
   assert.equal(scene.columnsSelected.size, 1);
@@ -363,6 +424,9 @@ if (isMain) {
   assert.equal(glued.mode, "hidden");
   assert.equal(glued.points.length, 3);
   assert.equal(glued.columns.size, 2);
+  assert.equal(glued.cellMap.size, 3);
+  assert.ok(glued.hasPoint(0, 10));
+  assert.equal(glued.getCell(0, 10)?.char, "L");
   glued.enterMode("revealing");
   assert.equal(glued.mode, "revealing");
   assert.equal(glued.columnsSelected.size, 2);

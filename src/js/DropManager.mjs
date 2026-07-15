@@ -42,7 +42,9 @@ function DropManager(...args) {
     if (state.rain) sources.push(state.rain);
 
     for (const scene of state.dropScenes ?? []) {
-      if (scene.isActive && scene.stormAccumulator) sources.push(scene);
+      if (scene.isActive && scene.stormEnabled && scene.stormAccumulator) {
+        sources.push(scene);
+      }
     }
 
     // Legacy bridge: SpawnPolicy list still supported if present.

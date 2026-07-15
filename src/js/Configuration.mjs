@@ -11,6 +11,8 @@
 import DisplayText from "./DisplayText.mjs";
 import DropScene from "./DropScene.mjs";
 import Rain from "./Rain.mjs";
+import SceneManager from "./SceneManager.mjs";
+import { cardQuoteLoop } from "./ScenePlayer.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 import Grid from "./layout/Grid.mjs";
 import TextLine from "./layout/TextLine.mjs";
@@ -18,6 +20,22 @@ import Group from "./layout/Group.mjs";
 import { stackVertical } from "./layout/stack.mjs";
 import { Anchors } from "./layout/Anchor.mjs";
 import { solveLayout } from "./layout/attach.mjs";
+
+// Always exactly 3 lines; balance words, truncate to maxWidth if needed.
+function wrapLinesAlways3(text, maxWidth) {
+  const words = String(text).trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return ["", "", ""];
+  const width = Math.max(1, maxWidth);
+  const n = words.length;
+  const cut1 = Math.ceil(n / 3);
+  const cut2 = Math.ceil((2 * n) / 3);
+  const raw = [
+    words.slice(0, cut1).join(" "),
+    words.slice(cut1, cut2).join(" "),
+    words.slice(cut2).join(" "),
+  ];
+  return raw.map((line) => (line.length <= width ? line : line.slice(0, width)));
+}
 
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
@@ -174,6 +192,26 @@ function Configuration(...args) {
       ],
     });
 
+    const quoteText =
+      "Most people are willing to sacrifice their own liberty, and yours, for the illusion of safety.";
+    const quoteMaxWidth = Math.max(12, self.COLS - 4);
+    const quoteLineStrs = wrapLinesAlways3(quoteText, quoteMaxWidth);
+    const quoteLines = quoteLineStrs.map((text, i) =>
+      TextLine({
+        text,
+        lineId: i,
+        name: `quote-${i}`,
+      }),
+    );
+    const quoteGroup = stackVertical(quoteLines, {
+      align: "center",
+      name: "quote",
+    });
+    quoteGroup.attach({
+      this: Anchors.middleCenter(quoteGroup),
+      that: Anchors.middleCenter(grid),
+    });
+
     solveLayout([
       grid,
       rolesGroup,
@@ -181,12 +219,15 @@ function Configuration(...args) {
       emailGroup,
       emailH,
       emailV,
+      quoteGroup,
+      ...quoteLines,
     ]);
 
-    // Rain: ambient forever; first-pass then free random.
+    // Rain: ambient forever; slow → heavy by ~3s; max ~20% below prior peak.
+    // softSquare peaks at period/4 ≈ 3s when period is 12.
     const baselineAvg = Math.max(2, self.COLS / 14);
-    const baselineMin = baselineAvg * 0.15;
-    const baselineMax = baselineAvg * 1.3;
+    const baselineMin = baselineAvg * 0.12;
+    const baselineMax = baselineAvg * 1.3 * 0.8;
 
     const rain = Rain({
       name: "rain",
@@ -195,7 +236,7 @@ function Configuration(...args) {
       accumulator: VariableRateAccumulator(
         (baselineMin + baselineMax) / 2,
         Infinity,
-        softSquare(baselineMin, baselineMax, 14, 2.6),
+        softSquare(baselineMin, baselineMax, 12, 2.6),
       ),
     });
 
@@ -206,14 +247,11 @@ function Configuration(...args) {
         revealPulse(8, 10, 5),
       );
 
-    // Layout → DropScene (hidden → revealing → revealed). Storm while active.
-    // Hide scenes deferred to Symphony (separate instances preferred).
+    // Roles / email start deactivated; ScenePlayer activates on a timed loop.
     const rolesReveal = DropScene.from(rolesGroup, {
       name: "roles-reveal",
       mode: "hidden",
       priority: 10,
-      enterModeAfterMs: 3500,
-      enterModeOnStart: "revealing",
     });
     rolesReveal.stormAccumulator = revealStorm(rolesReveal.columns.size);
 
@@ -221,24 +259,70 @@ function Configuration(...args) {
       name: "email-reveal",
       mode: "hidden",
       priority: 10,
-      enterModeAfterMs: 9000,
-      enterModeOnStart: "revealing",
     });
     emailReveal.stormAccumulator = revealStorm(emailReveal.columns.size);
 
-    // Paint layers share scene points (revealed flags stay in sync).
+    // Shared points so hide/reveal stay in sync with paint layers.
     const roles = DisplayText({ cells: rolesReveal.points });
     const email = DisplayText({ cells: emailReveal.points });
-    const contentLayers = [roles, email];
-    const dropScenes = [rolesReveal, emailReveal];
+
+    const cardHide = DropScene({
+      name: "card-hide",
+      points: [...rolesReveal.points, ...emailReveal.points],
+      mode: "hidden",
+      priority: 20,
+    });
+    cardHide.stormAccumulator = revealStorm(cardHide.columns.size);
+
+    const quoteReveal = DropScene.from(quoteGroup, {
+      name: "quote-reveal",
+      mode: "hidden",
+      priority: 10,
+    });
+    quoteReveal.stormAccumulator = revealStorm(quoteReveal.columns.size);
+
+    const quote = DisplayText({ cells: quoteReveal.points });
+
+    const quoteHide = DropScene({
+      name: "quote-hide",
+      points: quoteReveal.points,
+      mode: "hidden",
+      priority: 20,
+    });
+    quoteHide.stormAccumulator = revealStorm(quoteHide.columns.size);
+
+    const contentLayers = [roles, email, quote];
+    const dropScenes = [
+      rolesReveal,
+      emailReveal,
+      cardHide,
+      quoteReveal,
+      quoteHide,
+    ];
+
+    const sceneManager = SceneManager({ scenes: dropScenes });
+
+    const scenePlayer = cardQuoteLoop(
+      {
+        rolesReveal,
+        emailReveal,
+        cardHide,
+        quoteReveal,
+        quoteHide,
+      },
+      {
+        restartGapMs: 20_000,
+      },
+    );
 
     return {
       contentLayers,
       rain,
       dropScenes,
-      // legacy empty: DropManager still reads if present
+      sceneManager,
       spawnPolicies: [],
-      layout: { grid, rolesGroup, emailGroup },
+      scenePlayer,
+      layout: { grid, rolesGroup, emailGroup, quoteGroup },
     };
   };
 

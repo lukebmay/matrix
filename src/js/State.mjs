@@ -20,6 +20,8 @@ function State(...args) {
   self.rain = null;
   self.dropScenes = null;
   self.spawnPolicies = null; // legacy bridge; prefer rain + dropScenes
+  self.sceneManager = null;
+  self.scenePlayer = null;
 }
 
 const state = State();

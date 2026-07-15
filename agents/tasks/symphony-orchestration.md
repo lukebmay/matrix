@@ -1,58 +1,56 @@
-# Task — Symphony orchestration (animation machine)
+# Task — ScenePlayer phases (animation machine)
 
-**Status:** Ready (after Rain/DropScene MVP + layout F)  
-**Plan:** [alignment-anchors.md](../plans/alignment-anchors.md)  
-**Depends on:** rain-storm-column-coverage, alignment F (scenes exist)  
-**Priority:** After card layout ships; informs earlier APIs only
+**Status:** Partial (MVP shipped; plan residual in symphony-orchestration-plan)  
+**Plan:** [symphony.md](../plans/symphony.md)  
+**Depends on:** rain-storm-column-coverage, alignment F  
+**Priority:** Product sequencing
 
 ## Goal
 
-Developer-facing **Symphony**: a simple programmed thread of cues that
-the orchestrator plays — the end-state “animation machine.”
+Developer-facing **ScenePlayer**: timed/event cues that drive DropScene modes.
 
-Scenes already expose **events** (`started`, `dropSelected`,
-`pointRevealed` / `pointHidden`, `completed`). Symphony wires:
+## Shipped
 
-- time offsets (`at(3.5s)`)
-- event triggers (`on(scene, 'completed')`)
-- actions (`start(scene)`, `enterMode`, start Storm, …)
+- [x] Homepage sequence as phases (not ad-hoc only)
+- [x] Reusable `Phase` + `loopPhases`
+- [x] Pause-aware cues
+- [x] SceneManager paint resolve (reveal > hide)
+- [x] Rename Symphony → ScenePlayer / Orchestration → Phase
+- [x] Session note updated
 
-## End-user mental model
+## Residual
 
-```text
-Rain always
-  → rolesReveal scene (revealing) @ 3.5s
-  → emailReveal when rolesReveal.completed
-  → optional rolesHide @ T or on event
-```
+**Paint browser eyeball** → [symphony-logical-grid-paint.md](symphony-logical-grid-paint.md)
 
-Not a general game engine — linear/branching **cues** only.
-
-## Do
-
-1. Sketch/implement thin API (chainable or data array of cues).
-2. Orchestrator subscribes to scene events + clock.
-3. Replace ad-hoc Configuration `setTimeout`s with a Symphony script
-   for the homepage card.
-4. Document authoring in README / project.md one example.
-
-## Done when
-
-- [ ] Homepage sequence is data/Symphony, not scattered timers
-- [ ] New scene can be added with a few cue lines
-- [ ] Session note updated
-
-## Design notes
-
-- Keep scenes **dumb** (mode + sets + events); Symphony owns sequencing.
-- Reveal and hide are **separate scenes** (or separate mode runs) so
-  completion events stay unambiguous.
-- Prefer explicit cues over implicit magic.
-
-## Out of scope
-
-Visual timeline editor; multi-track audio sync.
+Later design: [symphony-orchestration-plan.md](symphony-orchestration-plan.md)
+(events, clearView, clock).
 
 ## Session note
 
-*(overwrite each session)*
+**2026-07-15 — ScenePlayer rename + phase loop**
+
+### Timeline (per cycle)
+
+```text
+0–20s   cardRevealPhase (roles@3s, email@5s, storms…)
+20s     quotePhase start (cardHide + quoteReveal)
+23s     storms on hide + quote
+30s     quoteHide
+33s     quoteHide storm
++20s    gap (restartGapMs) — rain only
+then    loop → roles again
+```
+
+### APIs
+
+| Module | API |
+| --- | --- |
+| `ScenePlayer` | `at`, `pause`, `unpause`, `cancel` |
+| `Phase` | `{ durationMs, schedule(t) }` |
+| `loopPhases` | phases + `gapMs` |
+| `SceneManager` | `resolve`, `applyTip`, `paintGlyph`, logical map |
+| `DropScene` | `cellMap` (`"r,c"`) |
+
+### Quote
+
+Always 3 lines via `wrapLinesAlways3`.

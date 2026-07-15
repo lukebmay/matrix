@@ -47,8 +47,12 @@ function Rain(...args) {
   self.pickColumns = (count, freeColumns) => {
     if (count <= 0 || freeColumns.length === 0) return [];
 
-    const freeFirst = freeColumns.filter((c) => self.firstPass.has(c));
-    const pool = freeFirst.length > 0 ? freeFirst : freeColumns;
+    // First-pass: only columns still in the set. If those are occupied, wait —
+    // do not free-random until every column has had its first drop.
+    const pool =
+      self.firstPass.size > 0
+        ? freeColumns.filter((c) => self.firstPass.has(c))
+        : freeColumns;
     if (pool.length === 0) return [];
 
     const picked = [];
@@ -91,6 +95,14 @@ if (isMain) {
 
   for (const c of first) rain.onColumnSpawned(c);
   assert.equal(rain.firstPass.size, 3);
+
+  // First-pass still pending but only non-firstPass cols free → wait.
+  const remaining = [...rain.firstPass];
+  assert.ok(remaining.length > 0);
+  const freeNotInFirst = free.filter((c) => !rain.firstPass.has(c));
+  assert.ok(freeNotInFirst.length > 0);
+  const waited = rain.pickColumns(2, freeNotInFirst);
+  assert.equal(waited.length, 0);
 
   // Drain first-pass
   for (const c of [0, 1, 2, 3, 4]) rain.onColumnSpawned(c);

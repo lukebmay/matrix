@@ -15,7 +15,7 @@ light evenly). **DropScenes** hold text points and a **mode**: stable
 are driven by drops (show or hide glyphs; column sets drain without
 replacement). Prefer separate reveal vs hide scenes. Optional **Storms**
 speed an active scene. Rain↔Storm column sets update both ways. Long-term,
-a **Symphony** of timed/event cues sequences scenes (simple animation
+a **ScenePlayer** of timed/event cues sequences scenes (simple animation
 machine).
 
 | Rule | Detail |
@@ -24,7 +24,7 @@ machine).
 | **Hiding** | Reset column set; hide as drops cover columns |
 | **Rain first-pass** | Without replacement, then free random |
 | **Bidirectional sets** | Active scenes only |
-| **Symphony** | Event/time cues (follow-on task) |
+| **ScenePlayer** | Event/time cues that drive DropScene modes |
 
 Drops only move. Glyphs and links live on a content layer; the DOM painter
 shows the static character when a tip crosses that cell.

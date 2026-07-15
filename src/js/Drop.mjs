@@ -22,17 +22,18 @@ function Drop(...args) {
   self.col =
     typeof opts.col === "number" ? opts.col : randomChoice(rangeArray(cfg.COLS));
 
+  // DomManager only reveal/hides for scenes entered at or before this spawn.
+  self.spawnAt = opts.spawnAt ?? performance.now();
+
   self._row = 0.0;
   self.length = Math.floor(randomInterval(cfg.DROP_LENGTH_MIN, cfg.DROP_LENGTH_MAX));
   self.speed = randomInterval(cfg.DROP_SPEED_MIN, cfg.DROP_SPEED_MAX);
 
   self.isComplete = false;
-  self.prevRow = null;
 
   self.getRow = () => Math.floor(self._row);
 
   self.update = (seconds) => {
-    self.prevRow = self.getRow();
     self._row += self.speed * seconds;
     if (self.getRow() >= cfg.ROWS + self.length - 1) {
       self.isComplete = true;
