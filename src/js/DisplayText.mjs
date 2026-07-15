@@ -9,118 +9,44 @@
  */
 import state from "./State.mjs";
 
-// Content group: multiple lines (each may have its own href) that share one
-// reveal wave. Tracks which (r,c) cells are still unrevealed.
-//
-// lines: array of {
-//   text, location: [r,c], orientation?: "horizontal"|"vertical", href?: string
-// }
-// Legacy tuples also accepted: [text, location, orientation?, href?]
+// Content layer from laid-out cells. Reveal tracking for DomManager.
+// DropScene may share .positions. opts.cells | opts.positions.
 function DisplayText(...args) {
   if (!new.target) return new DisplayText(...args);
   const self = this;
   const opts = args[0] ?? {};
 
-  // Default href for lines that omit their own (optional).
   self.defaultHref = opts.href ?? null;
-
-  const rawLines = opts.lines ?? opts.texts ?? [];
-  const cfg = state.config;
-
   self.columns = new Set();
   self.positions = [];
   self.isComplete = false;
 
-  let lineSeq = 0;
+  const cfg = state.config;
+  const cells = opts.cells ?? opts.positions ?? [];
 
-  const normalizeLine = (entry) => {
-    if (Array.isArray(entry)) {
-      const [text, location, orientation, href] = entry;
-      return { text, location, orientation, href };
+  for (const cell of cells) {
+    const r = cell.r;
+    const c = cell.c;
+    const char = cell.char;
+    if (char == null || char === "" || char === " ") continue;
+    if (cfg != null) {
+      if (r < 0 || c < 0 || r >= cfg.ROWS || c >= cfg.COLS) continue;
     }
-    return entry;
-  };
-
-  self.addText = (entry) => {
-    const { text: rawText, location, orientation: orientIn, href: lineHref } =
-      normalizeLine(entry);
-    let text = rawText;
-    let orientation = orientIn ?? "horizontal";
-    let [r, c] = location;
-    const href = lineHref ?? self.defaultHref;
-    const lineId = lineSeq++;
-
-    if (r < 0) {
-      r += cfg.ROWS;
-      if (orientation === "vertical") {
-        r = r - text.length + 1;
-        if (r < 0) {
-          text = text.slice(Math.abs(r));
-          r = 0;
-        }
-      }
+    self.columns.add(c);
+    // Share DropScene points when already shaped (F glue).
+    if (cell.revealed !== undefined) {
+      if (cell.href == null && self.defaultHref != null) cell.href = self.defaultHref;
+      self.positions.push(cell);
+    } else {
+      self.positions.push({
+        r,
+        c,
+        char,
+        href: cell.href ?? self.defaultHref,
+        lineId: cell.lineId,
+        revealed: false,
+      });
     }
-
-    if (c < 0) {
-      c += cfg.COLS;
-      if (orientation === "horizontal") {
-        c = c - text.length + 1;
-        if (c < 0) {
-          text = text.slice(Math.abs(c));
-          c = 0;
-        }
-      }
-    }
-
-    if (orientation === "horizontal" && c > 0 && c + text.length > cfg.COLS) {
-      text = text.slice(0, text.length - (c + text.length - cfg.COLS));
-    } else if (orientation === "vertical" && r > 0 && r + text.length > cfg.ROWS) {
-      text = text.slice(0, text.length - (r + text.length - cfg.ROWS));
-    }
-
-    if (orientation === "horizontal") {
-      if (c < 0 || c >= cfg.COLS || r < 0 || r >= cfg.ROWS) return;
-      if (c + text.length >= cfg.COLS) {
-        text = text.slice(0, text.length - (c + text.length - cfg.COLS));
-      }
-      for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (ch && ch !== " ") {
-          self.columns.add(c + i);
-          self.positions.push({
-            r,
-            c: c + i,
-            char: ch,
-            href,
-            lineId,
-            revealed: false,
-          });
-        }
-      }
-    } else if (orientation === "vertical") {
-      if (c < 0 || c >= cfg.COLS || r < 0 || r >= cfg.ROWS) return;
-      if (r + text.length >= cfg.ROWS) {
-        text = text.slice(0, text.length - (r + text.length - cfg.ROWS));
-      }
-      for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (ch && ch !== " ") {
-          self.columns.add(c);
-          self.positions.push({
-            r: r + i,
-            c,
-            char: ch,
-            href,
-            lineId,
-            revealed: false,
-          });
-        }
-      }
-    }
-  };
-
-  for (const line of rawLines) {
-    self.addText(line);
   }
 
   self.unrevealedColumns = () => {
@@ -153,6 +79,19 @@ function DisplayText(...args) {
     if (newly && self.positions.every((p) => p.revealed)) {
       self.isComplete = true;
     }
+    return newly;
+  };
+
+  // Returns true if this position newly transitioned to hidden.
+  self.markHidden = (r, c) => {
+    let newly = false;
+    for (const p of self.positions) {
+      if (p.r === r && p.c === c && p.revealed) {
+        p.revealed = false;
+        newly = true;
+      }
+    }
+    if (newly) self.isComplete = false;
     return newly;
   };
 

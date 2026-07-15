@@ -8,9 +8,9 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 **Status:** Runnable on `refactor_07-2026` (finish of mid-refactor).
 Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 
-**Next:** Layout —
-[plans/alignment-anchors.md](plans/alignment-anchors.md) → task
-[alignment-anchors_a-geometry-grid.md](tasks/alignment-anchors_a-geometry-grid.md).
+**Next:** Symphony —
+[tasks/symphony-orchestration.md](tasks/symphony-orchestration.md)
+(alignment A–F + Rain MVP done; G percent anchors later if needed).
 
 ## Product rules
 
@@ -51,7 +51,8 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 7. No video path.
 
 **Tasks:**
-[rain-storm-column-coverage.md](tasks/rain-storm-column-coverage.md),
+[rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md)
+(done),
 [symphony-orchestration.md](tasks/symphony-orchestration.md).
 
 ## Stack
@@ -93,7 +94,6 @@ DomManager ← mode + points (show/hide)
 
 ## Priorities
 
-1. Layout A–E (card alignment).
-2. Rain/DropScene modes + column sets.
-3. F glue; Symphony when MVP sequence is painful as timers.
-4. Deploy + job-search polish.
+1. Symphony (event/time cues; replace Configuration timers).
+2. Browser polish on reveal timing if needed.
+3. Deploy + job-search polish.

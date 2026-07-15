@@ -16,18 +16,52 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 **Status:** Runnable on `refactor_07-2026` (finish of mid-refactor).
 Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 
-**Next:** Polish timings/copy for job search; deploy when ready.
+**Next:** Symphony —
+[tasks/symphony-orchestration.md](tasks/symphony-orchestration.md)
+(alignment A–F + Rain MVP done; G percent anchors later if needed).
 
 ### Product rules
 
-1. Ambient baseline rain forever; soft-square rate waves.
-2. Timed reveal waves for text column sets (roles ~3.5s, email ~9s).
-3. **Additive** policies (not exclusive mode switch).
-4. **At most one live drop per column.**
-5. Baseline covering a reveal column **marks that column covered** for the
-   active finite reveal (no second drop required there).
-6. Drops = motion only; content/links = DisplayText + DomManager.
-7. No video / ASCII stream path.
+#### Weather terminology
+
+| Term | Role |
+| --- | --- |
+| **Drop** | One falling thread |
+| **Rain** | Ambient spawn on the grid DropScene |
+| **Storm** | Optional faster coverage on a content DropScene |
+| **DropScene** | Points + column sets + **mode** (see below) |
+| **Symphony** | Developer script of timed/event cues (animation machine) |
+
+#### DropScene modes
+
+| Mode | Kind | Drop system acts? | Effect when drop covers points/cols |
+| --- | --- | --- | --- |
+| `hidden` | stable | No | — |
+| `revealing` | active | Yes | **Show** glyphs; drain `columnsSelected` |
+| `revealed` | stable | No | Text stays shown |
+| `hiding` | active | Yes | **Reset** `columnsSelected` on enter; **hide** glyphs as cols covered |
+
+- Scenes **exist** anytime; only `revealing` / `hiding` are acted on.
+- Prefer **separate** reveal vs hide scene instances (one job each).
+- Entering `hiding` always **resets** the column selection set.
+
+#### Spawn rules
+
+1. **Rain** forever; soft-square rate; first-pass **without replacement**
+   then free random.
+2. Optional **Storms** on active content scenes.
+3. Additive Rain + Storm; **one live drop per column**.
+4. **Bidirectional sets** on spawn: Rain↔active scene `columnsSelected`
+   and Rain first-pass (stable scenes untouched).
+5. **Events** on scenes (`started`, `dropSelected`, point show/hide,
+   `completed`) feed the orchestrator / Symphony.
+6. Drops = motion; Dom paints from mode + points.
+7. No video path.
+
+**Tasks:**
+[rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md)
+(done),
+[symphony-orchestration.md](tasks/symphony-orchestration.md).
 
 ### Stack
 
@@ -38,23 +72,25 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 | Rate | `VariableRateAccumulator` + softSquare / pulse rateFns |
 | Deploy | monorepo `scripts/deploy/matrix.py` |
 
-### Architecture
+### Architecture (target)
 
 ```text
-Configuration.createScene()
-  → contentLayers[] (DisplayText)
-  → spawnPolicies[] (baseline + reveals)
-Matrix loop
-  → DropManager.updateDrops(dt)   # policies additive; occupancy
-  → DomManager.updateDom()        # paint + reveal glyphs
+Symphony (cues: time + scene events)
+  → Orchestrator
+      → DropScenes (mode, columnsSelected, events)
+      → Rain / Storm picks + bidirectional sets
+      → Drops
+layout Positionables.cells() → scene points
+DomManager ← mode + points (show/hide)
 ```
 
 | Module | Role |
 | --- | --- |
-| `SpawnPolicy` | accumulator, column set, remaining, markCovered |
-| `DropManager` | Set of drops, occupied columns, priority-sorted spawn |
-| `DisplayText` | positions/columns/href |
-| `DomManager` | data-static-char + trail classes |
+| DropScene | points, columns, columnsSelected, mode, events |
+| Orchestrator / Symphony | sequence revealing/hiding |
+| Rain / Storm | weather rates + column pick |
+| layout/* | positionables; Grid; DomGrid |
+| DomManager | paint |
 
 ### Branches
 
@@ -66,10 +102,9 @@ Matrix loop
 
 ### Priorities
 
-1. Deploy + eyeball timings on real viewport sizes.
-2. Link/resume URL polish for applications.
-3. Optional: credit accounting on accumulator when baseline covers reveal
-   (column markCovered is already enough for product).
+1. Symphony (event/time cues; replace Configuration timers).
+2. Browser polish on reveal timing if needed.
+3. Deploy + job-search polish.
 
 ---
 # general.md
@@ -148,6 +183,21 @@ Plans live in `agents/plans/` as kebab-case **files** (`agents/plans/<plan>.md`)
 Update the plan as you execute (status, discoveries, task table paths). If a discovery should reshape the plan, stop and ask the user for direction.
 
 When code changes, ALWAYS update the plan with a brief note/summary on progress after each prompt. One update per session. Overwrite and re-summarize the note after each prompt instead of piling up notes.
+
+#### Taskforce (plan via subagents, low token baggage)
+
+When the user wants a plan run with subagents (“taskforce”):
+
+| Rule | Detail |
+| --- | --- |
+| **Serial** | One task at a time. Never run taskforces for different tasks in parallel. |
+| **Fresh agents** | New subagent(s) per task; do **not** resume prior taskforces (avoids transcript baggage). |
+| **Scope** | Spin as many agents as that task would normally need — still one taskforce per task. |
+| **Handoff** | Each taskforce finishes the task, then **overwrites** a short plan session note (and task note): what shipped, key APIs/paths, next-agent bullets only. |
+| **Orchestrator** | Parent keeps only plan next-task + handoff; do not paste prior taskforce transcripts into the next prompt. |
+| **Stop early** | After a task, if the next would exceed a lean context budget, **stop** and hand back to manual sessions. |
+
+Handoffs live in the plan/task docs so the next agent loads understanding without the previous agent’s token history.
 
 ---
 # security.md

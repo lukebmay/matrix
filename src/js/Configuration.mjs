@@ -9,8 +9,15 @@
  */
 
 import DisplayText from "./DisplayText.mjs";
-import SpawnPolicy from "./SpawnPolicy.mjs";
+import DropScene from "./DropScene.mjs";
+import Rain from "./Rain.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
+import Grid from "./layout/Grid.mjs";
+import TextLine from "./layout/TextLine.mjs";
+import Group from "./layout/Group.mjs";
+import { stackVertical } from "./layout/stack.mjs";
+import { Anchors } from "./layout/Anchor.mjs";
+import { solveLayout } from "./layout/attach.mjs";
 
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
@@ -80,7 +87,6 @@ function Configuration(...args) {
   htmlEl.style.setProperty("--cols", `${self.COLS}`);
 
   // Soft square with independent min/max so peak can drop without lifting trough.
-  // max reduced ~30% vs prior avg±0.85avg peak (was ~1.85*avg).
   const softSquare =
     (minRate, maxRate, period = 14, sharpness = 2.6) =>
     (t) => {
@@ -95,81 +101,97 @@ function Configuration(...args) {
       Math.max(0, avg + amp * Math.max(0, Math.sin((t * Math.PI * 2) / period)));
 
   self.createScene = () => {
-    // Placeholder for unfinished portfolio destinations.
     const site = "https://www.lukemay.com";
+    const grid = Grid({ rows: self.ROWS, cols: self.COLS });
 
-    // One reveal group; each line has its own link.
-    const roles = DisplayText({
-      lines: [
-        {
-          text: "Luke Benjamin May",
-          location: [2, -4],
-          orientation: "horizontal",
-          href: `${site}/resume`,
-        },
-        {
-          text: "Full Stack Web Developer",
-          location: [3, -4],
-          orientation: "horizontal",
-          href: `${site}/game-of-life`,
-        },
-        {
-          text: "Software Engineer",
-          location: [4, -4],
-          orientation: "horizontal",
-          href: site,
-        },
-        {
-          text: "Agentic Engineer",
-          location: [5, -4],
-          orientation: "horizontal",
-          href: site,
-        },
-        {
-          text: "Graduate CS Instructor",
-          location: [6, -4],
-          orientation: "horizontal",
-          href: "https://isu.lukemay.com",
-        },
-        {
-          text: "YouTube",
-          location: [7, -4],
-          orientation: "horizontal",
-          href: "https://www.youtube.com/lukebeenjammin",
-        },
+    const rolesPadTop = 2;
+    const rolesPadRight = 3;
+    const emailPadLeft = 3;
+    const emailPadBottom = 2;
+
+    const roleSpecs = [
+      { text: "Luke Benjamin May", href: `${site}/resume` },
+      { text: "Full Stack Web Developer", href: `${site}/game-of-life` },
+      { text: "Software Engineer", href: site },
+      { text: "Agentic Engineer", href: site },
+      { text: "Graduate CS Instructor", href: "https://isu.lukemay.com" },
+      { text: "YouTube", href: "https://www.youtube.com/lukebeenjammin" },
+    ];
+
+    const roleLines = roleSpecs.map((s, i) =>
+      TextLine({
+        text: s.text,
+        href: s.href,
+        lineId: i,
+        name: `role-${i}`,
+      })
+    );
+    const rolesGroup = stackVertical(roleLines, {
+      align: "left",
+      name: "roles",
+    });
+    rolesGroup.attach({
+      this: Anchors.topRight(rolesGroup),
+      that: [
+        Anchors.top(grid).plus(rolesPadTop),
+        Anchors.right(grid).minus(rolesPadRight),
       ],
     });
 
-    const email = DisplayText({
-      lines: [
-        {
-          text: "lukebmay at gmail dot com",
-          location: [-3, 3],
-          orientation: "horizontal",
-          href: `${site}/resume`,
-        },
-        {
-          text: "LukeBMay at gmail",
-          location: [-3, 3],
-          orientation: "vertical",
-          href: `${site}/resume`,
-        },
+    const emailHref = `${site}/resume`;
+    const emailH = TextLine({
+      text: "lukebmay at gmail dot com",
+      href: emailHref,
+      lineId: 0,
+      name: "email-h",
+    });
+    const emailV = TextLine({
+      text: "LukeBMay at gmail",
+      orientation: "vertical",
+      href: emailHref,
+      lineId: 1,
+      name: "email-v",
+    });
+    const emailGroup = Group({
+      name: "email",
+      children: [emailH, emailV],
+      width: Math.max(emailH.width, emailV.width),
+      height: Math.max(emailH.height, emailV.height),
+    });
+    emailH.attach({
+      this: Anchors.bottomLeft(emailH),
+      that: Anchors.bottomLeft(emailGroup),
+    });
+    emailV.attach({
+      this: Anchors.bottomLeft(emailV),
+      that: Anchors.bottomLeft(emailGroup),
+    });
+    emailGroup.attach({
+      this: Anchors.bottomLeft(emailGroup),
+      that: [
+        Anchors.bottom(grid).minus(emailPadBottom),
+        Anchors.left(grid).plus(emailPadLeft),
       ],
     });
 
-    const contentLayers = [roles, email];
+    solveLayout([
+      grid,
+      rolesGroup,
+      ...roleLines,
+      emailGroup,
+      emailH,
+      emailV,
+    ]);
 
-    // Baseline: keep low troughs (often ≥1 drop, brief gaps); peak ~30% lower.
+    // Rain: ambient forever; first-pass then free random.
     const baselineAvg = Math.max(2, self.COLS / 14);
     const baselineMin = baselineAvg * 0.15;
-    const baselineMax = baselineAvg * 1.3; // was ~1.85*avg
+    const baselineMax = baselineAvg * 1.3;
 
-    const baseline = SpawnPolicy({
-      name: "baseline",
-      columns: null,
-      infinite: true,
+    const rain = Rain({
+      name: "rain",
+      cols: self.COLS,
       priority: 0,
-      activateAfterMs: 0,
       accumulator: VariableRateAccumulator(
         (baselineMin + baselineMax) / 2,
         Infinity,
@@ -177,35 +199,46 @@ function Configuration(...args) {
       ),
     });
 
-    const rolesReveal = SpawnPolicy({
-      name: "reveal-roles",
-      getEligibleColumns: () => roles.unrevealedColumns(),
-      infinite: false,
-      priority: 10,
-      activateAfterMs: 3500,
-      accumulator: VariableRateAccumulator(
-        Math.max(roles.columns.size, 1),
+    const revealStorm = (colCount) =>
+      VariableRateAccumulator(
+        Math.max(colCount, 1),
         5,
         revealPulse(8, 10, 5),
-      ),
-    });
+      );
 
-    const emailReveal = SpawnPolicy({
-      name: "reveal-email",
-      getEligibleColumns: () => email.unrevealedColumns(),
-      infinite: false,
+    // Layout → DropScene (hidden → revealing → revealed). Storm while active.
+    // Hide scenes deferred to Symphony (separate instances preferred).
+    const rolesReveal = DropScene.from(rolesGroup, {
+      name: "roles-reveal",
+      mode: "hidden",
       priority: 10,
-      activateAfterMs: 9000,
-      accumulator: VariableRateAccumulator(
-        Math.max(email.columns.size, 1),
-        5,
-        revealPulse(8, 10, 5),
-      ),
+      enterModeAfterMs: 3500,
+      enterModeOnStart: "revealing",
     });
+    rolesReveal.stormAccumulator = revealStorm(rolesReveal.columns.size);
+
+    const emailReveal = DropScene.from(emailGroup, {
+      name: "email-reveal",
+      mode: "hidden",
+      priority: 10,
+      enterModeAfterMs: 9000,
+      enterModeOnStart: "revealing",
+    });
+    emailReveal.stormAccumulator = revealStorm(emailReveal.columns.size);
+
+    // Paint layers share scene points (revealed flags stay in sync).
+    const roles = DisplayText({ cells: rolesReveal.points });
+    const email = DisplayText({ cells: emailReveal.points });
+    const contentLayers = [roles, email];
+    const dropScenes = [rolesReveal, emailReveal];
 
     return {
       contentLayers,
-      spawnPolicies: [baseline, rolesReveal, emailReveal],
+      rain,
+      dropScenes,
+      // legacy empty: DropManager still reads if present
+      spawnPolicies: [],
+      layout: { grid, rolesGroup, emailGroup },
     };
   };
 

@@ -10,9 +10,8 @@
 
 import { randomChoice } from "./util.mjs";
 
-// Spawn policy: rate accumulator + column pool.
-// Finite reveal policies optionally take getEligibleColumns() so remaining
-// work tracks unrevealed content (not just "we already spawned there").
+// Legacy spawn source. Prefer Rain + DropScene (Storm) via DropManager.
+// Kept as a thin bridge if state.spawnPolicies is still populated.
 function SpawnPolicy(...args) {
   if (!new.target) return new SpawnPolicy(...args);
   const self = this;

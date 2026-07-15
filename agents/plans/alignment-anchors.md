@@ -1,12 +1,12 @@
 # Plan — Alignment, anchors, and groups
 
-**Status:** Ready — tasks filed  
+**Status:** A–F complete (G later; browser polish optional)  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
 **Priority:** P1 — coherent business-card layout  
 
-**Next task:**
-[alignment-anchors_a-geometry-grid.md](../tasks/alignment-anchors_a-geometry-grid.md)
+**Next task:** none for this plan (G percent anchors later if needed).
+Product next: [symphony-orchestration.md](../tasks/symphony-orchestration.md).
 
 ## Problem
 
@@ -34,10 +34,10 @@ runtime, percent anchors (follow-on task G).
 
 Authoritative rules: `agents/project.md`.  
 Tasks:
-- [rain-storm-column-coverage.md](../tasks/rain-storm-column-coverage.md)
-  — Rain/Storm sets + scene modes (MVP)
-- [alignment-anchors_f-reveal-glue.md](../tasks/alignment-anchors_f-reveal-glue.md)
-  — bind layout → scenes
+- [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md)
+  — Rain/Storm sets + scene modes (MVP) **done**
+- [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md)
+  — bind layout → scenes **done**
 - [symphony-orchestration.md](../tasks/symphony-orchestration.md)
   — event-driven “animation machine” (after MVP)
 
@@ -315,14 +315,14 @@ Configuration.mjs       // card + email via layout
 
 | ID | Task file | Depends | Deliverable |
 | --- | --- | --- | --- |
-| **A** | [alignment-anchors_a-geometry-grid.md](../tasks/alignment-anchors_a-geometry-grid.md) | — | Positionable geometry; coordinate `Grid`; rename `Grid.mjs` → `DomGrid` |
-| **B** | [alignment-anchors_b-env-attach-solve.md](../tasks/alignment-anchors_b-env-attach-solve.md) | A | `env.mjs`; Anchor resolve; attach + solve; cycles |
-| **C** | [alignment-anchors_c-textline.md](../tasks/alignment-anchors_c-textline.md) | A | TextLine size + materialize (spaces shine through, href) |
-| **D** | [alignment-anchors_d-group-stacks.md](../tasks/alignment-anchors_d-group-stacks.md) | B, C | Group + stackVertical/Horizontal + offsetRow/Col |
-| **E** | [alignment-anchors_e-wire-configuration.md](../tasks/alignment-anchors_e-wire-configuration.md) | D | Configuration card/email; remove old locations |
-| **F** | [alignment-anchors_f-reveal-glue.md](../tasks/alignment-anchors_f-reveal-glue.md) | E | Storm glue from layout; use Rain/Storm names |
+| **A** | [alignment-anchors_a-geometry-grid.md](alignment-anchors/completed/alignment-anchors_a-geometry-grid.md) | — | Positionable geometry; coordinate `Grid`; rename `Grid.mjs` → `DomGrid` |
+| **B** | [alignment-anchors_b-env-attach-solve.md](alignment-anchors/completed/alignment-anchors_b-env-attach-solve.md) | A | `env.mjs`; Anchor resolve; attach + solve; cycles |
+| **C** | [alignment-anchors_c-textline.md](alignment-anchors/completed/alignment-anchors_c-textline.md) | A | TextLine size + materialize (spaces shine through, href) |
+| **D** | [alignment-anchors_d-group-stacks.md](alignment-anchors/completed/alignment-anchors_d-group-stacks.md) | B, C | Group + stackVertical/Horizontal + offsetRow/Col |
+| **E** | [alignment-anchors_e-wire-configuration.md](alignment-anchors/completed/alignment-anchors_e-wire-configuration.md) | D | Configuration card/email; remove old locations |
+| **F** | [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md) | E + Rain | Storm glue from layout **done** |
 | **G** | later | F | Percent anchors (not filed until needed) |
-| **Rain** | [rain-storm-column-coverage.md](../tasks/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP |
+| **Rain** | [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP **done** |
 | **Sym** | [symphony-orchestration.md](../tasks/symphony-orchestration.md) | Rain + F | Event/time cue “animation machine” |
 
 Completed plan-linked tasks →
@@ -330,13 +330,14 @@ Completed plan-linked tasks →
 
 ### Plan done when
 
-- [ ] Card lines share one left column; email left-aligned ~3 from left
-- [ ] Resize re-layouts cleanly
-- [ ] Inclusive character geometry only
-- [ ] Mixed static/anchor components work; Anchor objects readable
-- [ ] `errorOnCycles` env-gated
-- [ ] DomGrid rename complete; Rain/Storm still work
-- [ ] Rain first-pass without-replacement done (or tracked done via Rain task)
+- [x] Card lines share one left column; email left-aligned ~3 from left
+- [x] Resize re-layouts cleanly
+- [x] Inclusive character geometry only
+- [x] Mixed static/anchor components work; Anchor objects readable
+- [x] `errorOnCycles` env-gated
+- [x] DomGrid rename complete; Rain/Storm still work
+- [x] Rain first-pass without-replacement done (or tracked done via Rain task)
+- [x] F: layout → DropScene reveal glue
 
 ---
 
@@ -357,12 +358,18 @@ Completed plan-linked tasks →
 
 ## Session notes
 
-**2026-07-14:** Initial plan from design thread.
+**2026-07-15 — F done (A–F complete):**
 
-**2026-07-14:** Plane → **Grid** (coords); cell store → **DomGrid**;
-Anchor objects + `.canonical`; utilities readable not pure-FP; tasks A–F
-filed.
+- `DropScene.from(rolesGroup|emailGroup)` after solve; Storm on active reveal
+- DisplayText shares scene points; timers still drive revealing (Symphony next)
+- Hide scenes skipped (prefer separate instances later in Symphony)
+- Rain ambient + bidirectional active-only sets unchanged from Rain MVP
+- Build + DropScene/Rain smokes pass; browser eyeball recommended for timing
 
-**2026-07-14:** Four scene modes (hidden/revealing/revealed/hiding);
-separate reveal vs hide scenes preferred; hide resets columnsSelected;
-events; **Symphony** end-goal + task; activate/deactivate language retired.
+**2026-07-15 — Rain MVP:** modes, Rain first-pass, Storm, DomManager tip path.
+
+**2026-07-15 — E:** Configuration layout groups; no `location: [r,c]`.
+
+**2026-07-15 — D–A:** Group/stacks, TextLine, env/attach, geometry + DomGrid.
+
+**2026-07-14:** Plan filed; four modes + Symphony end-goal.

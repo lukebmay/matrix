@@ -11,8 +11,9 @@
 import state from "./State.mjs";
 import { rangeMapArray } from "./util.mjs";
 
-function Grid(...args) {
-  if (!new.target) return new Grid(...args);
+// DOM cell element store (columns + r,c cells).
+function DomGrid(...args) {
+  if (!new.target) return new DomGrid(...args);
   const self = this;
 
   const cfg = state.config;
@@ -56,5 +57,5 @@ function Grid(...args) {
   };
 }
 
-export { Grid };
-export default Grid;
+export { DomGrid };
+export default DomGrid;

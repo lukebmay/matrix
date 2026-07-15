@@ -17,7 +17,9 @@ function State(...args) {
   self.dropManager = null;
   self.domManager = null;
   self.contentLayers = null;
-  self.spawnPolicies = null;
+  self.rain = null;
+  self.dropScenes = null;
+  self.spawnPolicies = null; // legacy bridge; prefer rain + dropScenes
 }
 
 const state = State();

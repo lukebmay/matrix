@@ -58,11 +58,13 @@ src/js/
   State.mjs
   Matrix.mjs           # frame loop
   Drop.mjs             # dumb particle
-  SpawnPolicy.mjs      # rate + column pool (baseline or reveal)
-  DropManager.mjs      # live drops; additive policies; occupancy
+  Rain.mjs             # ambient first-pass then free random
+  DropScene.mjs        # modes + columnsSelected + Storm + events
+  DropManager.mjs      # live drops; Rain+Storm; occupancy
   DisplayText.mjs      # content positions + href
   DomManager.mjs       # paint rain + static chars
-  Grid.mjs
+  SpawnPolicy.mjs      # legacy spawn bridge
+  layout/              # Grid, Group, TextLine, anchors
   util/VariableRateAccumulator.mjs
 ```
 

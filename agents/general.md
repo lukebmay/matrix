@@ -71,3 +71,18 @@ Plans live in `agents/plans/` as kebab-case **files** (`agents/plans/<plan>.md`)
 Update the plan as you execute (status, discoveries, task table paths). If a discovery should reshape the plan, stop and ask the user for direction.
 
 When code changes, ALWAYS update the plan with a brief note/summary on progress after each prompt. One update per session. Overwrite and re-summarize the note after each prompt instead of piling up notes.
+
+### Taskforce (plan via subagents, low token baggage)
+
+When the user wants a plan run with subagents (“taskforce”):
+
+| Rule | Detail |
+| --- | --- |
+| **Serial** | One task at a time. Never run taskforces for different tasks in parallel. |
+| **Fresh agents** | New subagent(s) per task; do **not** resume prior taskforces (avoids transcript baggage). |
+| **Scope** | Spin as many agents as that task would normally need — still one taskforce per task. |
+| **Handoff** | Each taskforce finishes the task, then **overwrites** a short plan session note (and task note): what shipped, key APIs/paths, next-agent bullets only. |
+| **Orchestrator** | Parent keeps only plan next-task + handoff; do not paste prior taskforce transcripts into the next prompt. |
+| **Stop early** | After a task, if the next would exceed a lean context budget, **stop** and hand back to manual sessions. |
+
+Handoffs live in the plan/task docs so the next agent loads understanding without the previous agent’s token history.

@@ -58,6 +58,27 @@ function DomManager(...args) {
     return true;
   };
 
+  // Replace painted glyph with rain noise; keep data-static-char for re-reveal.
+  const hideStaticAt = (r, c, el) => {
+    if (el.getAttribute("data-static-char") === null) return false;
+    el.textContent = randomChar();
+    dropManager.notifyCellHidden?.(r, c);
+    return true;
+  };
+
+  // Active hiding scene owns this cell → hide; else reveal static if present.
+  const tipAffectsStatic = (r, c, el) => {
+    const scenes = state.dropScenes ?? [];
+    const hiding = scenes.some(
+      (s) => s.mode === "hiding" && s.hasPoint?.(r, c),
+    );
+    if (hiding) return hideStaticAt(r, c, el);
+    if (el.getAttribute("data-static-char") !== null) {
+      return revealStaticAt(r, c, el);
+    }
+    return false;
+  };
+
   const initializeContent = () => {
     const layers = state.contentLayers ?? [];
 
@@ -145,7 +166,7 @@ function DomManager(...args) {
         if (staticChar === null) {
           tipEl.textContent = randomChar();
         } else {
-          revealStaticAt(r, c, tipEl);
+          tipAffectsStatic(r, c, tipEl);
         }
       }
 
@@ -176,14 +197,14 @@ function DomManager(...args) {
           el.classList.remove("m-drop", "m-drop-tip");
         }
 
-        // Fill empty rain cells; reveal static if tip/trail crossed space.
+        // Fill empty rain cells; show/hide static if tip/trail crossed space.
         if (inTrail || isTip) {
           if (el.textContent === " " || el.getAttribute("data-static-char")) {
             const staticChar = el.getAttribute("data-static-char");
             if (staticChar === null) {
               if (el.textContent === " ") el.textContent = randomChar();
             } else {
-              revealStaticAt(i, c, el);
+              tipAffectsStatic(i, c, el);
             }
           }
         }

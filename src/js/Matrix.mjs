@@ -9,7 +9,7 @@
  */
 
 import state from "./State.mjs";
-import Grid from "./Grid.mjs";
+import DomGrid from "./DomGrid.mjs";
 import DomManager from "./DomManager.mjs";
 import DropManager from "./DropManager.mjs";
 
@@ -23,7 +23,9 @@ function Matrix(...args) {
 
   const scene = cfg.createScene();
   state.contentLayers = scene.contentLayers;
-  state.spawnPolicies = scene.spawnPolicies;
+  state.rain = scene.rain ?? null;
+  state.dropScenes = scene.dropScenes ?? [];
+  state.spawnPolicies = scene.spawnPolicies ?? [];
 
   self.isRunning = false;
   self.isPaused = false;
@@ -46,6 +48,10 @@ function Matrix(...args) {
   };
   self.destroy = () => {
     self.stop();
+    state.rain?.cancel?.();
+    for (const s of state.dropScenes ?? []) {
+      s.cancel?.();
+    }
     for (const p of state.spawnPolicies ?? []) {
       p.cancel?.();
     }
@@ -61,7 +67,7 @@ function Matrix(...args) {
 
   self.stop();
 
-  state.grid = Grid();
+  state.grid = DomGrid();
   state.dropManager = DropManager();
   state.domManager = DomManager();
 
