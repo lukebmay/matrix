@@ -9,10 +9,10 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 
 **Next:** Logical grid + DOM paint fix —
-[tasks/symphony-logical-grid-paint.md](tasks/symphony-logical-grid-paint.md)
+[tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)
 (prior SceneManager pass incomplete in browser; G percent anchors later).
 
-**Plan:** [plans/symphony.md](plans/symphony.md).
+**Plan:** [plans/scene-player.md](plans/scene-player.md).
 
 ## Product rules
 
@@ -55,11 +55,11 @@ Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
 **Tasks:**
 [rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md)
 (done),
-[symphony-orchestration.md](tasks/symphony-orchestration.md)
+[scene-player-mvp.md](tasks/scene-player-mvp.md)
 (MVP loop),
-[symphony-logical-grid-paint.md](tasks/symphony-logical-grid-paint.md)
+[scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)
 (**next** — logical vs DOM grid, fix paint),
-[symphony-orchestration-plan.md](tasks/symphony-orchestration-plan.md)
+[scene-player-play-plan.md](tasks/scene-player-play-plan.md)
 (residual design: events, clearView, clock).
 
 ## Stack
@@ -101,6 +101,7 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. ScenePlayer polish (event cues, clearView) after paint eyeball.
-2. Browser polish on reveal timing if needed.
+1. ScenePlayer **play authoring** (context + chains; storm coverage window) —
+   design in `tasks/scene-player-play-plan.md`; implement after sign-off.
+2. Browser polish on reveal timing / paint eyeball if needed.
 3. Deploy + job-search polish.

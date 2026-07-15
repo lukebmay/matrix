@@ -63,10 +63,12 @@ function DomManager(...args) {
       return;
     }
 
+    // Capture before remove: hide must replace intentional glyph, not keep it as "rain".
+    const wasContent = el.classList.contains("m-revealed");
     el.classList.remove("m-revealed", "m-link-hover");
     if (rainIfEmpty) {
-      // Fresh noise when empty or leftover blank; keep existing rain glyph.
-      if (el.textContent === " " || el.textContent === "") {
+      // Fresh noise on blank or after hide; keep existing rain glyph otherwise.
+      if (wasContent || el.textContent === " " || el.textContent === "") {
         el.textContent = randomChar();
       }
     } else {
@@ -85,7 +87,7 @@ function DomManager(...args) {
     el.textContent = randomChar();
   };
 
-  // Public: repaint after orchestration force-clears logical cells.
+  // Public: repaint after ScenePlayer force-clears logical cells.
   self.paintCell = (r, c, opts = {}) => {
     const el = grid.get(r, c);
     if (!el) return;

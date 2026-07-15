@@ -311,7 +311,11 @@ function Configuration(...args) {
         quoteHide,
       },
       {
-        restartGapMs: 20_000,
+        // After card (email) fully gone → wait → quote.
+        afterCardGoneMs: 3_000,
+        // Quote fully revealed → hold → hide; fully gone → loop.
+        quoteHoldMs: 5_000,
+        restartGapMs: 0,
       },
     );
 

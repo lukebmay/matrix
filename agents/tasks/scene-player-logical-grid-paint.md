@@ -1,9 +1,8 @@
 # Task — Logical grid + DOM paint (SceneManager fix)
 
 **Status:** Implement session done (smokes + build green; **browser eyeball still required**)  
-**Plan:** [symphony.md](../plans/symphony.md)  
-**Priority:** **Next** — current browser paint is wrong (garbled quote, rain
-inside words, card+quote fighting)  
+**Plan:** [scene-player.md](../plans/scene-player.md)  
+**Priority:** **Next** — human eyeball of card → quote → loop paint  
 **Depends on:** DropScene modes, Rain first-pass, ScenePlayer phase loop (exist but
 paint ownership is broken)
 
@@ -158,7 +157,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 
 ## Do
 
-1. Read this task + `agents/plans/symphony.md` + current
+1. Read this task + `agents/plans/scene-player.md` + current
    `SceneManager.mjs`, `DomManager.mjs`, `DropScene.mjs`, `ScenePlayer.mjs`.
 2. Make **logical grid** clearly intentional content only; rain never writes
    content chars into logical.
@@ -199,18 +198,27 @@ Event DSL, clearView utilities, percent anchors, deploy, visual timeline.
 
 *(overwrite each session)*
 
-**2026-07-15 — Committed; next = browser eyeball**
+**2026-07-15 — Audit + hide-paint fix**
 
-Shipped logical/DOM paint ownership + ScenePlayer rename. Smokes + build green.
+Ownership model verified against task rules. One real bug fixed:
 
-| Module | Role after this commit |
+| Issue | Fix |
 | --- | --- |
-| `SceneManager` | Logical intentional only; hide deletes; rain never writes |
-| `DomManager` | Sync DOM; multi-row tip (`WeakMap`); `repaintKeys` |
-| `Drop` | Motion only |
-| `ScenePlayer` | Phases + `forceStableHidden` clears logical |
+| Hide tip cleared logical but DOM kept intentional char as “rain” (`rainIfEmpty` only replaced blanks) | `paintFromLogical`: if cell had `m-revealed`, force `randomChar()` when empty |
 
-**Next session**
-1. Eyeball card → quote → 20s gap → loop.
-2. Tick “No garbled dual paint” or fix (shared hide/reveal points, hover `applyTip`).
-3. When paint passes: complete this task; residual → `symphony-orchestration-plan.md`.
+Also: SceneManager smoke covers pre-activation `dropAffects` (no reveal/hide).
+
+| Module | Role |
+| --- | --- |
+| `SceneManager` | Logical intentional only; hide deletes; rain never writes; resolve newest reveal → hide |
+| `DomManager` | Tip-once multi-row; trail styles only; hide replaces content glyph |
+| `Drop` | Motion only (`spawnAt`) |
+| `ScenePlayer` | `forceStableHidden` clears logical + blanks DOM |
+| Spaces | Not owned (`TextLine.cells`) → **rain gaps between words** (documented, not blank ownership) |
+
+Smokes: SceneManager, DropScene, ScenePlayer, Rain. `npm test` + `npm run build` green. Headless chrome loads rain; not a substitute for sequence eyeball.
+
+**Next agent**
+1. Browser eyeball: card → quote → gap → loop (roles/email/quote dual paint).
+2. Tick “No garbled dual paint” or fix remaining visual bugs.
+3. When paint passes: complete this task; residual → `scene-player-play-plan.md`.

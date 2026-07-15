@@ -4,7 +4,7 @@
 **Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
 **Depends on:** layout `cells()` helpful; Grid-wide Rain can stub first  
 **Parallel with:** alignment A–E  
-**After this:** F (layout glue); [symphony-orchestration.md](../../../tasks/symphony-orchestration.md)
+**After this:** F (layout glue); [scene-player-mvp.md](../../../tasks/scene-player-mvp.md)
 
 ## Goal
 
@@ -18,7 +18,7 @@ MVP weather + **DropScene modes** (not vague activate/deactivate):
    are covered.
 6. Stable scenes ignored by DropManager for set/show logic.
 7. Emit basic **events** (`started`, `dropSelected`, `completed`, …)
-   even if Symphony is later.
+   even if ScenePlayer play is later.
 
 ## Modes
 
@@ -46,12 +46,12 @@ MVP weather + **DropScene modes** (not vague activate/deactivate):
 - [x] Four modes behave as table
 - [x] Hide path resets column set
 - [x] Bidirectional sets; stable scenes ignored
-- [x] Events fire enough for a future Symphony
+- [x] Events fire enough for a future ScenePlayer
 - [x] Session note updated
 
 ## Out of scope
 
-Full Symphony DSL (see symphony task); full anchor layout.
+Full ScenePlayer play API (see play-authoring plan); full anchor layout.
 
 ## Session note
 
@@ -102,4 +102,4 @@ Prefer **separate** hide instance later:
 - Prefer `DropScene.from(group)` end-to-end; optional drop DisplayText if
   DropScene covers paint fields
 - Hide scenes not wired in Configuration (API + DomManager path ready)
-- Symphony still timers; listen to `completed` when ready
+- ScenePlayer interim timers; listen to `completed` when ready

@@ -6,7 +6,7 @@
 **Priority:** P1 — coherent business-card layout  
 
 **Next task:** none for this plan (G percent anchors later if needed).
-Product next: [symphony-orchestration.md](../tasks/symphony-orchestration.md).
+Product next: [scene-player-mvp.md](../tasks/scene-player-mvp.md).
 
 ## Problem
 
@@ -38,8 +38,8 @@ Tasks:
   — Rain/Storm sets + scene modes (MVP) **done**
 - [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md)
   — bind layout → scenes **done**
-- [symphony-orchestration.md](../tasks/symphony-orchestration.md)
-  — event-driven “animation machine” (after MVP)
+- [scene-player-mvp.md](../tasks/scene-player-mvp.md)
+  — ScenePlayer MVP (play authoring next)
 
 This app is ultimately a **simple animation machine**: scenes enter
 **revealing** / **hiding** modes over time, driven by timers and scene
@@ -104,7 +104,7 @@ On **spawn** on column `c`:
 
 Stable scenes (`hidden` / `revealed`): **no** Rain→scene set updates.
 
-#### Events (scene → orchestrator)
+#### Events (scene → ScenePlayer)
 
 Scenes emit (or record timestamps for) at least:
 
@@ -115,27 +115,26 @@ Scenes emit (or record timestamps for) at least:
 | `pointRevealed(r,c)` / `pointHidden(r,c)` | Tip (or policy) finished show/hide at a point |
 | `completed` | Selection exhausted + points in target stable state (often same as last point resolved) |
 
-Orchestrator / Symphony keys off these (and timers) to start other
-scenes: e.g. “when roles reveal **completed** → start email revealing”
+**ScenePlayer** keys off these (and timers) to start other scenes:
+e.g. “when roles reveal **completed** → start email revealing”
 or “after 20s → start roles hiding.”
 
 #### ScenePlayer (developer interface) — end goal
 
-Declarative **thread of cues**, not ad-hoc `setTimeout` soup in
-Configuration long-term:
+Programmatic **play authoring** (multi-style cue chains + thin context),
+not ad-hoc `setTimeout` soup in Configuration. Design:
+[scene-player-play-plan.md](../tasks/scene-player-play-plan.md)
+(path historical).
 
 ```text
-// sketch only — exact DSL in symphony task
-symphony
-  .at(0).rain()                          // grid Rain always
-  .at(3.5s).start(rolesReveal)           // → revealing
-  .on(rolesReveal, 'completed').start(emailReveal)
-  .at(30s).start(rolesHide)              // → hiding, reset columns
+// sketch — see play-authoring plan for full styles
+ctx.on("appStart").delay(3s).activate(roles)
+ctx.on(roles.events.completed).delay(2s).activate(email)
+// storm(seconds) = VRA window so pool columns begin within that time
 ```
 
-MVP may still use timers; **API shape** should not block growing into
-event-driven cues. Keep scene objects dumb enough that the Symphony
-owns sequencing.
+MVP may still use timers; **API shape** should not block event-driven
+cues. Keep scene objects dumb enough that **ScenePlayer** owns sequencing.
 
 #### Points from layout
 
@@ -146,8 +145,8 @@ owns sequencing.
 #### Layering
 
 ```text
-Symphony (cues)
-  → Orchestrator
+Play (cue chains / context)
+  → ScenePlayer (clock)
       → DropScenes (mode, columnsSelected, events)
       → Rain / Storm rate + column pick
       → Drop particles
@@ -156,8 +155,7 @@ DomManager ← mode + points (show/hide on pass)
 ```
 
 **Ship sequencing:** layout A–E; Rain/DropScene MVP
-(`rain-storm-column-coverage`); F glue; Symphony task after that (or
-thin timer Symphony in E/F if needed for demo).
+(`rain-storm-column-coverage`); F glue; ScenePlayer play after that.
 
 ---
 
@@ -323,7 +321,7 @@ Configuration.mjs       // card + email via layout
 | **F** | [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md) | E + Rain | Storm glue from layout **done** |
 | **G** | later | F | Percent anchors (not filed until needed) |
 | **Rain** | [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP **done** |
-| **Sym** | [symphony-orchestration.md](../tasks/symphony-orchestration.md) | Rain + F | Event/time cue “animation machine” |
+| **SP** | [scene-player-mvp.md](../tasks/scene-player-mvp.md) | Rain + F | ScenePlayer MVP |
 
 Completed plan-linked tasks →
 `agents/plans/alignment-anchors/completed/`.
@@ -358,11 +356,11 @@ Completed plan-linked tasks →
 
 ## Session notes
 
-**2026-07-15 — Symphony loop + first-pass fix (product):**
+**2026-07-15 — ScenePlayer loop + first-pass fix (product):**
 
-- `Symphony`/`cardQuoteLoop`: roles/email ↔ quote hide/reveal loop
+- `ScenePlayer` / `cardQuoteLoop`: roles/email ↔ quote hide/reveal loop
 - Storm delayed via `startStorm()`; roles/email start hidden
 - Rain first-pass waits (no free-random until all cols spawned once)
 - Pre-activation drops ignored (`spawnAt` ≥ `modeEnteredAt`)
 - Quote centered, ≤3 lines; rain max −20%, peak ~3s
-- See task session note: `tasks/symphony-orchestration.md`
+- See task session note: `tasks/scene-player-mvp.md`

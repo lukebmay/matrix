@@ -238,11 +238,19 @@ if (isMain) {
   assert.equal(sm.getLogical(1, 2), null);
   assert.equal(sm.paintGlyph(1, 2).revealed, false);
 
-  // Force-clear scene cells (orchestration abort).
+  // Pre-activation drop must not reveal or hide.
   revA.enterMode("revealing");
-  revA.modeEnteredAt = 10;
-  sm.applyTip(1, 2, drop);
-  assert.ok(sm.isContentRevealed(1, 2));
+  revA.modeEnteredAt = 500;
+  hide.enterMode("hidden");
+  const preDrop = { spawnAt: 100 };
+  assert.equal(sm.resolve(1, 2, preDrop).kind, "rain");
+  assert.equal(sm.applyTip(1, 2, preDrop).kind, "rain");
+  assert.equal(sm.getLogical(1, 2), null);
+  const postDrop = { spawnAt: 600 };
+  assert.equal(sm.applyTip(1, 2, postDrop).kind, "reveal");
+  assert.equal(sm.getLogical(1, 2)?.char, "A");
+
+  // Force-clear scene cells (ScenePlayer abort).
   const cleared = sm.clearLogicalForScene(revA);
   assert.ok(cleared.includes("1,2"));
   assert.equal(sm.isContentRevealed(1, 2), false);

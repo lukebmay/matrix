@@ -89,16 +89,33 @@ function ScenePlayer(...args) {
   }
 }
 
-// Abort an active reveal/hide: clear logical content for its cells + blank DOM.
+// Abort active reveal/hide or settle revealed → hidden; clear logical + blank DOM.
 // Without this, phase transitions leave stale glyphs (garbled quote/card).
 const forceStableHidden = (scene) => {
   if (!scene) return;
   scene.stopStorm?.();
+  if (scene.mode === "hidden") return;
   if (scene.mode === "hiding" || scene.mode === "revealing") {
     const keys = state.sceneManager?.clearLogicalForScene?.(scene) ?? [];
     scene.enterMode("hidden");
     state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
+    return;
   }
+  // revealed (or other stable): mode only — hide path already cleared logical.
+  const keys = state.sceneManager?.clearLogicalForScene?.(scene) ?? [];
+  scene.enterMode("hidden");
+  if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
+};
+
+// One-shot: scene "completed" with optional mode filter.
+const onceCompleted = (scene, mode, fn) => {
+  if (!scene || typeof fn !== "function") return () => {};
+  const off = scene.on("completed", (d) => {
+    if (mode != null && d.mode !== mode) return;
+    off();
+    fn(d);
+  });
+  return off;
 };
 
 // Reusable timed phase: { durationMs, schedule(t) } where t(ms, fn) is relative.
@@ -160,7 +177,7 @@ function cardRevealPhase(scenes, opts = {}) {
   }));
 }
 
-// Hide card + show quote; storms; later hide quote. Then outer loop gaps.
+// Fixed-duration quote phase (legacy/tests). Prefer cardQuoteLoop event chain.
 function quotePhase(scenes, opts = {}) {
   const {
     rolesReveal,
@@ -169,7 +186,7 @@ function quotePhase(scenes, opts = {}) {
     quoteReveal,
     quoteHide,
   } = scenes;
-  const quoteHoldMs = opts.quoteHoldMs ?? 10_000;
+  const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
   const stormAfterActivateMs = opts.stormAfterActivateMs ?? 3_000;
 
   // Hold + hide kickoff; storm after hide is still within duration.
@@ -202,21 +219,134 @@ function quotePhase(scenes, opts = {}) {
   }));
 }
 
-// Homepage: card phase → quote phase → gap → loop.
+// Homepage: event-driven card → hide → quote → loop.
+//
+//   roles/email reveal (timed starts)
+//   → email fully revealed → optional card hold → card hide
+//   → card fully gone → afterCardGoneMs → quote reveal
+//   → quote fully revealed → quoteHoldMs → quote hide
+//   → quote fully gone → restartGapMs → loop
 function cardQuoteLoop(scenes, opts = {}) {
   const player = ScenePlayer();
-  const card = cardRevealPhase(scenes, opts);
-  const quote = quotePhase(scenes, opts);
-  const gapMs = opts.restartGapMs ?? 20_000;
+  const {
+    rolesReveal,
+    emailReveal,
+    cardHide,
+    quoteReveal,
+    quoteHide,
+  } = scenes;
 
-  loopPhases(player, [card, quote], {
-    gapMs,
-    onCycleStart: () => {
-      forceStableHidden(scenes.quoteHide);
-      forceStableHidden(scenes.cardHide);
-    },
-  });
+  const rolesAtMs = opts.rolesAtMs ?? 3_000;
+  const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
+  const rolesStormAfterMs = opts.rolesStormAfterMs ?? 3_000;
+  const emailStormAfterMs = opts.emailStormAfterMs ?? 5_000;
+  const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 2_000;
+  const afterCardGoneMs =
+    opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 3_000;
+  const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
+  const restartGapMs = opts.restartGapMs ?? 0;
+  const stormAfterActivateMs = opts.stormAfterActivateMs ?? 3_000;
 
+  let generation = 0;
+  let offs = [];
+
+  const alive = (gen) => !player.isCancelled() && gen === generation;
+
+  const clearOffs = () => {
+    for (const off of offs) off();
+    offs = [];
+  };
+
+  const whenCompleted = (scene, mode, fn) => {
+    offs.push(onceCompleted(scene, mode, fn));
+  };
+
+  const resetAll = () => {
+    forceStableHidden(quoteHide);
+    forceStableHidden(quoteReveal);
+    forceStableHidden(cardHide);
+    forceStableHidden(rolesReveal);
+    forceStableHidden(emailReveal);
+  };
+
+  const runCycle = () => {
+    if (player.isCancelled()) return;
+    const gen = ++generation;
+    clearOffs();
+    resetAll();
+
+    player.at(rolesAtMs, () => {
+      if (!alive(gen)) return;
+      rolesReveal.enterMode("revealing");
+      player.at(rolesStormAfterMs, () => {
+        if (alive(gen)) rolesReveal.startStorm();
+      });
+      player.at(emailAfterRolesMs, () => {
+        if (!alive(gen)) return;
+        emailReveal.enterMode("revealing");
+        player.at(emailStormAfterMs, () => {
+          if (alive(gen)) emailReveal.startStorm();
+        });
+      });
+    });
+
+    whenCompleted(emailReveal, "revealed", () => {
+      if (!alive(gen)) return;
+      player.at(cardHoldAfterEmailMs, () => {
+        if (!alive(gen)) return;
+        rolesReveal.stopStorm();
+        emailReveal.stopStorm();
+        forceStableHidden(quoteHide);
+        forceStableHidden(quoteReveal);
+        cardHide.enterMode("hiding");
+        player.at(stormAfterActivateMs, () => {
+          if (alive(gen)) cardHide.startStorm();
+        });
+      });
+    });
+
+    whenCompleted(cardHide, "hidden", () => {
+      if (!alive(gen)) return;
+      // Card points already cleared by hide; settle reveal scenes to hidden.
+      if (rolesReveal.mode !== "hidden") rolesReveal.enterMode("hidden");
+      if (emailReveal.mode !== "hidden") emailReveal.enterMode("hidden");
+      player.at(afterCardGoneMs, () => {
+        if (!alive(gen)) return;
+        quoteReveal.enterMode("revealing");
+        player.at(stormAfterActivateMs, () => {
+          if (alive(gen)) quoteReveal.startStorm();
+        });
+      });
+    });
+
+    whenCompleted(quoteReveal, "revealed", () => {
+      if (!alive(gen)) return;
+      player.at(quoteHoldMs, () => {
+        if (!alive(gen)) return;
+        quoteReveal.stopStorm();
+        forceStableHidden(cardHide);
+        quoteHide.enterMode("hiding");
+        player.at(stormAfterActivateMs, () => {
+          if (alive(gen)) quoteHide.startStorm();
+        });
+      });
+    });
+
+    whenCompleted(quoteHide, "hidden", () => {
+      if (!alive(gen)) return;
+      player.at(restartGapMs, () => {
+        if (alive(gen)) runCycle();
+      });
+    });
+  };
+
+  const baseCancel = player.cancel.bind(player);
+  player.cancel = () => {
+    clearOffs();
+    baseCancel();
+  };
+
+  runCycle();
   return player;
 }
 
