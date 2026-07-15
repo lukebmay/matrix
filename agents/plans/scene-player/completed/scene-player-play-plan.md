@@ -4,7 +4,7 @@
 **Kind:** Plan task (design complete; no builder code here)  
 **Depends on:** SceneManager + ScenePlayer MVP  
 **Implement:** [scene-player-play.md](scene-player-play.md)  
-**Related:** [scene-player-mvp.md](../../../tasks/scene-player-mvp.md),  
+**Related:** [scene-player-mvp.md](scene-player-mvp.md),  
 [plans/scene-player.md](../../scene-player.md)
 
 ## Goal

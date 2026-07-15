@@ -1,13 +1,12 @@
 # Plan — ScenePlayer & scene paint
 
-**Status:** In progress (paint rewrite shipped; **play authoring shipped**)  
+**Status:** Mostly complete (play authoring shipped; paint code done;
+**optional browser eyeball** residual)  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
-**Next task:** optional browser eyeball
+**Next:** Optional human eyeball
 [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
-then deploy / job-search polish.  
-Play implement done:
-[scene-player-play.md](scene-player/completed/scene-player-play.md).
+then deploy / job-search polish.
 
 ## Goal
 
@@ -31,10 +30,10 @@ Rain never writes content into the logical grid.
 ## Architecture
 
 ```text
-Play (homepage.mjs) via ScenePlayer.context / cue chains
+Play (src/js/play/homepage.mjs) via ScenePlayer.context / cue chains
   → delay | on/wait | activate | hide | storm(seconds) | loop
 ScenePlayer (pause-aware clock)
-  → DropScene.enterMode / startStorm (VRA coverage window)
+  → DropScene.enterMode / configureStormCoverage (VRA window)
 SceneManager
   → resolve(r,c): reveals newest-first, then hides
   → logical Map "r,c" → intentional char | empty
@@ -56,18 +55,6 @@ DropManager
 - Drop must be post-activation (`dropAffects`) when provided.  
 - Glyph change only when tip **enters** a cell (once per drop).
 
-### Phases (legacy — still exported)
-
-| Piece | Role |
-| --- | --- |
-| `Phase(name, build)` | `{ durationMs, schedule(t) }` |
-| `loopPhases(player, phases, { gapMs })` | Sequence then loop |
-| `cardRevealPhase` / `quotePhase` | Legacy fixed-duration builders |
-| `cardQuoteLoop` | Event-driven interim homepage loop (superseded live) |
-
-**Live homepage:** `src/js/play/homepage.mjs` via `player.context` chains.
-Design: [completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
-
 ### Play authoring (shipped)
 
 | Piece | Choice |
@@ -80,6 +67,17 @@ Design: [completed/scene-player-play-plan.md](scene-player/completed/scene-playe
 | Kickoff | `ctx.start()` → `emit("appStart")` |
 | Out of v1 | Frame-dt clock, Style D async, visual timeline |
 
+Live homepage: `src/js/play/homepage.mjs` (Configuration wires it).  
+Design: [completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
+
+### Legacy (still exported)
+
+| Piece | Role |
+| --- | --- |
+| `Phase` / `loopPhases` | Fixed-duration sequences |
+| `cardRevealPhase` / `quotePhase` | Fixed-duration builders |
+| `cardQuoteLoop` | Pre-play-context homepage factory (not used live) |
+
 ### Quote layout
 
 Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
@@ -88,32 +86,40 @@ Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 
 | Task | Status |
 | --- | --- |
-| [scene-player-mvp.md](../tasks/scene-player-mvp.md) | MVP loop (ScenePlayer) |
-| Pause + brightness quickfixes | Partial |
-| SceneManager first pass + phases + event loop | Shipped; paint rewrite done |
-| [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md) | Ownership rewrite done; browser eyeball |
+| [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md) | **Done** — MVP + superseded by play |
+| Pause + brightness quickfixes | Partial (historical) |
+| SceneManager first pass + phases + event loop | Shipped |
+| [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md) | Code done; **optional browser eyeball** |
 | [scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md) | **Design locked** |
 | [scene-player-play.md](scene-player/completed/scene-player-play.md) | **Shipped** — context + chains + storm + homepage |
 
 ## Residual
 
-- Browser confirmation of card/quote loop paint  
-- Animation clock unified with frame `dt` (after play surface)  
-- Word-space cells in TextLine (blank ownership when revealed) — currently rain gaps  
+- Optional browser confirmation of card/quote loop paint  
+- Word-space cells in TextLine (rain gaps between words today)  
+- Frame-`dt` unified animation clock (new task if needed)  
 - Deploy + job-search polish  
 
 ## Session note
 
-**2026-07-15 — Play authoring shipped**
+**2026-07-15 — Wrapup**
 
-- APIs: `player.context`, chain `on/wait/delay/activate/hide/storm/clear/clearView/call/loop/loopFrom`, `ctx.start`/`emit`
-- Storm coverage helper rebuilds finite VRA per call
-- Homepage: `src/js/play/homepage.mjs` Style C; Configuration uses it
-- Paths: `ScenePlayer.mjs`, `DropScene.mjs` (`events`), `play/homepage.mjs`, `Configuration.mjs`
-- Task archived: [scene-player/completed/scene-player-play.md](scene-player/completed/scene-player-play.md)
-- Smokes + build green
+Play authoring + paint ownership shipped on `refactor_07-2026`. MVP and
+play tasks archived under `plans/scene-player/completed/`. Only active
+product residual for this plan: human paint eyeball if desired.
+
+**Key paths**
+
+| Path | Role |
+| --- | --- |
+| `src/js/ScenePlayer.mjs` | Clock + `context` chains + storm helper |
+| `src/js/play/homepage.mjs` | Style C homepage play |
+| `src/js/DropScene.mjs` | Modes + `events.*` handles |
+| `src/js/SceneManager.mjs` | Logical grid + tip resolve |
+| `src/js/DomManager.mjs` | DOM paint from logical |
+| `src/js/Configuration.mjs` | Layout + wire `homepagePlay` |
 
 **Next**
-1. Optional paint eyeball ([scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md))  
-2. Deploy / polish when ready  
-3. No frame-dt / Style D unless new task
+1. Optional eyeball: [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md)  
+2. Deploy / job-search polish  
+3. Frame-dt / Style D only if a new task is filed  

@@ -4,7 +4,7 @@
 **Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
 **Depends on:** layout `cells()` helpful; Grid-wide Rain can stub first  
 **Parallel with:** alignment A–E  
-**After this:** F (layout glue); [scene-player-mvp.md](../../../tasks/scene-player-mvp.md)
+**After this:** F (layout glue); ScenePlayer shipped ([scene-player.md](../../scene-player.md))
 
 ## Goal
 

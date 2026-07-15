@@ -6,7 +6,9 @@
 **Priority:** P1 — coherent business-card layout  
 
 **Next task:** none for this plan (G percent anchors later if needed).
-Product next: [scene-player-mvp.md](../tasks/scene-player-mvp.md).
+Product residual: optional paint eyeball
+[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
+play shipped under [scene-player.md](scene-player.md).
 
 ## Problem
 
@@ -38,8 +40,8 @@ Tasks:
   — Rain/Storm sets + scene modes (MVP) **done**
 - [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md)
   — bind layout → scenes **done**
-- [scene-player-mvp.md](../tasks/scene-player-mvp.md)
-  — ScenePlayer MVP (play authoring next)
+- [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md)
+  — ScenePlayer MVP **done** (play authoring also shipped)
 
 This app is ultimately a **simple animation machine**: scenes enter
 **revealing** / **hiding** modes over time, driven by timers and scene
@@ -121,20 +123,18 @@ or “after 20s → start roles hiding.”
 
 #### ScenePlayer (developer interface) — end goal
 
-Programmatic **play authoring** (multi-style cue chains + thin context),
-not ad-hoc `setTimeout` soup in Configuration. Design locked:
-[scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md);
-implement [scene-player-play.md](scene-player/completed/scene-player-play.md).
+Programmatic **play authoring** shipped (multi-style cue chains + thin
+context). Live homepage: `src/js/play/homepage.mjs`. Design + implement
+archived under [scene-player.md](scene-player.md)
+([play-plan](scene-player/completed/scene-player-play-plan.md),
+[play](scene-player/completed/scene-player-play.md)).
 
 ```text
-// sketch — see play-authoring plan for full styles
-ctx.on("appStart").delay(3s).activate(roles)
-ctx.on(roles.events.completed).delay(2s).activate(email)
+ctx.on("appStart").delay(3s).activate(roles).storm(3)
 // storm(seconds) = VRA window so pool columns begin within that time
 ```
 
-MVP may still use timers; **API shape** should not block event-driven
-cues. Keep scene objects dumb enough that **ScenePlayer** owns sequencing.
+Scene objects stay mode/event dumb; **ScenePlayer** owns sequencing.
 
 #### Points from layout
 
@@ -321,7 +321,7 @@ Configuration.mjs       // card + email via layout
 | **F** | [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md) | E + Rain | Storm glue from layout **done** |
 | **G** | later | F | Percent anchors (not filed until needed) |
 | **Rain** | [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP **done** |
-| **SP** | [scene-player-mvp.md](../tasks/scene-player-mvp.md) | Rain + F | ScenePlayer MVP |
+| **SP** | [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md) | Rain + F | ScenePlayer MVP **done** |
 
 Completed plan-linked tasks →
 `agents/plans/alignment-anchors/completed/`.
@@ -356,11 +356,9 @@ Completed plan-linked tasks →
 
 ## Session notes
 
-**2026-07-15 — ScenePlayer loop + first-pass fix (product):**
+**2026-07-15 — Product follow-on wrapup:**
 
-- `ScenePlayer` / `cardQuoteLoop`: roles/email ↔ quote hide/reveal loop
-- Storm delayed via `startStorm()`; roles/email start hidden
-- Rain first-pass waits (no free-random until all cols spawned once)
-- Pre-activation drops ignored (`spawnAt` ≥ `modeEnteredAt`)
-- Quote centered, ≤3 lines; rain max −20%, peak ~3s
-- See task session note: `tasks/scene-player-mvp.md`
+- Alignment A–F + Rain still complete on this plan.
+- ScenePlayer play authoring + paint ownership shipped on
+  [scene-player.md](scene-player.md) (`play/homepage.mjs`).
+- Residual product: optional browser paint eyeball.

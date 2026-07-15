@@ -136,7 +136,6 @@ Kickoff: **`ctx.start()`** ≡ `ctx.emit("appStart")`.
 - `cardQuoteLoop` / Phase kept for legacy
 - Smokes (ScenePlayer/DropScene/Rain/SceneManager) + `npm run build` green
 
-**Next agent**
-1. Optional browser eyeball paint task if needed
-2. Do not re-open play API design
-3. Parent commits after review
+**Wrapup**
+Archived under plan `completed/`. Optional residual: paint eyeball
+([scene-player-logical-grid-paint.md](../../../tasks/scene-player-logical-grid-paint.md)).

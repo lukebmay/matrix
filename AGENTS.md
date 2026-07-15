@@ -13,13 +13,13 @@
 Vanilla JS Matrix rain **business-card homepage** for lukemay.com.
 Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 
-**Status:** Runnable on `refactor_07-2026` (finish of mid-refactor).
-Incomplete human WIP preserved on `refactor_incomplete-mid-refactor`.
+**Status:** Runnable on `refactor_07-2026` (ScenePlayer play + paint
+ownership shipped). Incomplete human WIP preserved on
+`refactor_incomplete-mid-refactor`.
 
 **Next:** Optional browser eyeball
 [tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md);
-deploy + job-search polish. Play authoring shipped
-([plans/scene-player/completed/scene-player-play.md](plans/scene-player/completed/scene-player-play.md)).
+deploy + job-search polish.
 
 **Plan:** [plans/scene-player.md](plans/scene-player.md).
 
@@ -61,17 +61,15 @@ deploy + job-search polish. Play authoring shipped
 6. Drops = motion; Dom paints from mode + points.
 7. No video path.
 
-**Tasks:**
-[rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md)
-(done),
-[scene-player-mvp.md](tasks/scene-player-mvp.md)
-(MVP loop),
-[scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)
-(paint rewrite; browser eyeball),
-[scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md)
-(design locked),
-[scene-player-play.md](plans/scene-player/completed/scene-player-play.md)
-(shipped — context/chains + storm + homepage).
+**Tasks / plan work:**
+
+| Item | Status |
+| --- | --- |
+| [rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md) | Done |
+| [scene-player-mvp.md](plans/scene-player/completed/scene-player-mvp.md) | Done |
+| [scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md) | Design locked |
+| [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
+| [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
 
 ### Stack
 
@@ -82,10 +80,11 @@ deploy + job-search polish. Play authoring shipped
 | Rate | `VariableRateAccumulator` + softSquare / pulse rateFns |
 | Deploy | monorepo `scripts/deploy/matrix.py` |
 
-### Architecture (target)
+### Architecture
 
 ```text
-ScenePlayer (cues: time + scene events)
+play/homepage.mjs (Style C chains)
+  → ScenePlayer.context (delay | on/wait | activate | hide | storm | loop)
   → DropScenes (mode, columnsSelected, events)
   → Rain / Storm picks + bidirectional sets
   → Drops
@@ -97,6 +96,7 @@ SceneManager (logical grid) + DomManager (paint)
 | --- | --- |
 | DropScene | points, columns, columnsSelected, mode, events |
 | ScenePlayer | pause-aware clock + play context / cue chains |
+| play/homepage.mjs | Live homepage Style C play |
 | SceneManager | logical grid + tip resolve |
 | Rain / Storm | weather rates + column pick |
 | layout/* | positionables; Grid; DomGrid |
@@ -112,7 +112,7 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Browser polish on reveal timing / paint eyeball if needed
+1. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
 2. Deploy + job-search polish.
 3. Optional later: frame-`dt` unified animation clock.

@@ -1,9 +1,9 @@
 # Task — ScenePlayer phases (animation machine)
 
-**Status:** Done (MVP shipped; play authoring supersedes residual)  
-**Plan:** [scene-player.md](../plans/scene-player.md)  
+**Status:** Done (archived)  
+**Plan:** [scene-player.md](../../scene-player.md)  
 **Depends on:** rain-storm-column-coverage, alignment F  
-**Priority:** Product sequencing
+**Follow-on:** [scene-player-play.md](scene-player-play.md) (shipped)
 
 ## Goal
 
@@ -21,19 +21,17 @@ Developer-facing **ScenePlayer**: timed/event cues that drive DropScene modes.
 
 ## Residual
 
-**Paint browser eyeball** → [scene-player-logical-grid-paint.md](scene-player-logical-grid-paint.md)
+**Paint browser eyeball** →
+[scene-player-logical-grid-paint.md](../../../tasks/scene-player-logical-grid-paint.md)
 
-**Play authoring** → shipped  
-[scene-player-play.md](../plans/scene-player/completed/scene-player-play.md)
-(homepage uses `src/js/play/homepage.mjs`; `cardQuoteLoop` legacy only).
+**Play authoring** → shipped ([scene-player-play.md](scene-player-play.md)).
 
 ## Session note
 
-**2026-07-15 — MVP complete; play supersedes interim loop**
+**2026-07-15 — MVP complete; archived**
 
-Homepage no longer uses `cardQuoteLoop`; Style C play context in
-`src/js/play/homepage.mjs`. MVP `Phase` / `loopPhases` / `cardQuoteLoop`
-remain exported for legacy/tests.
+Homepage uses Style C play in `src/js/play/homepage.mjs`. MVP
+`Phase` / `loopPhases` / `cardQuoteLoop` remain exported for legacy/tests.
 
 ### APIs
 

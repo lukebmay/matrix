@@ -1,10 +1,9 @@
 # Task — Logical grid + DOM paint (SceneManager fix)
 
-**Status:** Implement session done (smokes + build green; **browser eyeball still required**)  
+**Status:** Code done (smokes + build green; **optional browser eyeball**)  
 **Plan:** [scene-player.md](../plans/scene-player.md)  
-**Priority:** **Next** — human eyeball of card → quote → loop paint  
-**Depends on:** DropScene modes, Rain first-pass, ScenePlayer phase loop (exist but
-paint ownership is broken)
+**Priority:** Optional residual — human eyeball of card → quote → loop  
+**Depends on:** DropScene modes, Rain first-pass, ScenePlayer (shipped)
 
 ## Goal
 
@@ -198,28 +197,24 @@ Event DSL, clearView utilities, percent anchors, deploy, visual timeline.
 
 *(overwrite each session)*
 
-**2026-07-15 — Audit + hide-paint fix**
+**2026-07-15 — Wrapup (code done; optional eyeball)**
 
-Ownership model verified against task rules. One real bug fixed:
+Ownership model verified + hide-paint fix shipped. Play authoring also
+shipped (`src/js/play/homepage.mjs`); homepage no longer uses
+`cardQuoteLoop`.
 
-| Issue | Fix |
+| Issue fixed earlier | Fix |
 | --- | --- |
-| Hide tip cleared logical but DOM kept intentional char as “rain” (`rainIfEmpty` only replaced blanks) | `paintFromLogical`: if cell had `m-revealed`, force `randomChar()` when empty |
-
-Also: SceneManager smoke covers pre-activation `dropAffects` (no reveal/hide).
+| Hide tip cleared logical but DOM kept intentional char as “rain” | `paintFromLogical`: if cell had `m-revealed`, force `randomChar()` when empty |
 
 | Module | Role |
 | --- | --- |
-| `SceneManager` | Logical intentional only; hide deletes; rain never writes; resolve newest reveal → hide |
-| `DomManager` | Tip-once multi-row; trail styles only; hide replaces content glyph |
-| `Drop` | Motion only (`spawnAt`) |
-| `ScenePlayer` | `forceStableHidden` clears logical + blanks DOM |
-| Spaces | Not owned (`TextLine.cells`) → **rain gaps between words** (documented, not blank ownership) |
+| `SceneManager` | Logical intentional only; hide deletes; rain never writes |
+| `DomManager` | Tip-once multi-row; hide replaces content glyph |
+| `ScenePlayer` | `forceStableHidden` + play `context` chains |
+| Spaces | Not owned → **rain gaps between words** |
 
-Smokes: SceneManager, DropScene, ScenePlayer, Rain. `npm test` + `npm run build` green. Headless chrome loads rain; not a substitute for sequence eyeball.
-
-**Next agent**
-1. Browser eyeball: card → quote → gap → loop (roles/email/quote dual paint).
-2. Tick “No garbled dual paint” or fix remaining visual bugs.
-3. When paint passes: complete this task; residual → `scene-player-play.md`
-   (design already locked).
+**Still open (human only)**
+1. Browser eyeball: card → quote → loop (tick dual-paint checkbox if clean).
+2. When eyeball passes: mark this task Done and archive under
+   `plans/scene-player/completed/`.
