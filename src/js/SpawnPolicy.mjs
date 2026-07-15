@@ -8,10 +8,11 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-import { rangeArray, randomChoice } from "./util.mjs";
+import { randomChoice } from "./util.mjs";
 
-// Spawn policy: rate accumulator + column pool. Finite policies track
-// remaining columns; markCovered() lets baseline satisfy a reveal column.
+// Spawn policy: rate accumulator + column pool.
+// Finite reveal policies optionally take getEligibleColumns() so remaining
+// work tracks unrevealed content (not just "we already spawned there").
 function SpawnPolicy(...args) {
   if (!new.target) return new SpawnPolicy(...args);
   const self = this;
@@ -19,6 +20,7 @@ function SpawnPolicy(...args) {
   const {
     name,
     columns = null, // null → all columns (baseline)
+    getEligibleColumns = null, // () => Iterable<number> for dynamic pools
     accumulator,
     infinite = true,
     priority = 0,
@@ -30,20 +32,37 @@ function SpawnPolicy(...args) {
   self.infinite = infinite;
   self.accumulator = accumulator;
 
-  const allCols = columns ? new Set(columns) : null;
-  let remaining = allCols ? new Set(allCols) : null;
+  const staticCols = columns ? new Set(columns) : null;
+  // Static remaining when not using getEligibleColumns.
+  let remaining = staticCols ? new Set(staticCols) : null;
 
   self.isActive = false;
   self.isComplete = false;
 
-  self.eligibleColumns = () => {
-    if (infinite) return allCols; // null means full grid
+  const currentEligible = () => {
+    if (infinite) return null; // full grid
+    if (typeof getEligibleColumns === "function") {
+      return new Set(getEligibleColumns());
+    }
     return remaining;
   };
 
+  self.eligibleColumns = () => currentEligible();
+
+  // Column no longer needs a reveal drop (content already shown there).
   self.markCovered = (col) => {
-    if (infinite || !remaining) return false;
-    if (!remaining.has(col)) return false;
+    if (infinite) return false;
+    if (typeof getEligibleColumns === "function") {
+      // Dynamic pool: completion checked via empty eligible set.
+      const left = currentEligible();
+      if (!left || left.size === 0) {
+        self.isComplete = true;
+        self.isActive = false;
+        return true;
+      }
+      return left.has(col) === false;
+    }
+    if (!remaining || !remaining.has(col)) return false;
     remaining.delete(col);
     if (remaining.size === 0) {
       self.isComplete = true;
@@ -52,11 +71,30 @@ function SpawnPolicy(...args) {
     return true;
   };
 
+  self.syncCompletion = () => {
+    if (infinite || !self.isActive) return;
+    const left = currentEligible();
+    if (left && left.size === 0) {
+      self.isComplete = true;
+      self.isActive = false;
+    }
+  };
+
   self.pickColumns = (count, freeColumns) => {
-    if (count <= 0 || !self.isActive) return [];
-    const pool = infinite
-      ? freeColumns
-      : freeColumns.filter((c) => remaining.has(c));
+    if (count <= 0 || !self.isActive || self.isComplete) return [];
+
+    let pool;
+    if (infinite) {
+      pool = freeColumns;
+    } else {
+      const eligible = currentEligible();
+      if (!eligible || eligible.size === 0) {
+        self.isComplete = true;
+        self.isActive = false;
+        return [];
+      }
+      pool = freeColumns.filter((c) => eligible.has(c));
+    }
     if (pool.length === 0) return [];
 
     const picked = [];
@@ -65,22 +103,28 @@ function SpawnPolicy(...args) {
       const col = randomChoice(available);
       available.delete(col);
       picked.push(col);
-      if (!infinite) {
-        remaining.delete(col);
-      }
-    }
-    if (!infinite && remaining.size === 0) {
-      self.isComplete = true;
-      self.isActive = false;
+      // Do not remove from remaining on spawn — only when content is revealed.
     }
     return picked;
   };
 
   self.activate = () => {
     if (self.isComplete && !infinite) return;
+    // Re-check: baseline may have already revealed everything.
+    if (!infinite) {
+      const left = currentEligible();
+      if (left && left.size === 0) {
+        self.isComplete = true;
+        self.isActive = false;
+        return;
+      }
+    }
     self.isActive = true;
-    if (!infinite && allCols) {
-      remaining = new Set(allCols);
+    if (!infinite && staticCols && !getEligibleColumns) {
+      remaining = new Set(staticCols);
+      self.isComplete = false;
+      self.accumulator.reset();
+    } else if (!infinite) {
       self.isComplete = false;
       self.accumulator.reset();
     }

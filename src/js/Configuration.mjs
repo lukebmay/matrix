@@ -79,52 +79,90 @@ function Configuration(...args) {
   htmlEl.style.setProperty("--rows", `${self.ROWS}`);
   htmlEl.style.setProperty("--cols", `${self.COLS}`);
 
-  const rates = VariableRateAccumulator.rates;
-
-  // Soft square: recognizable plateaus, not jarring hard edges.
-  // r(t) = avg + amp * tanh(k * sin(ωt))
+  // Soft square with independent min/max so peak can drop without lifting trough.
+  // max reduced ~30% vs prior avg±0.85avg peak (was ~1.85*avg).
   const softSquare =
-    (avg, amp, period = 12, sharpness = 2.4) =>
-    (t) =>
-      Math.max(0, avg + amp * Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period)));
+    (minRate, maxRate, period = 14, sharpness = 2.6) =>
+    (t) => {
+      const w = Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period)); // [-1,1]
+      const u = (w + 1) / 2; // [0,1]
+      return minRate + (maxRate - minRate) * u;
+    };
 
-  // Burst for reveal: higher average over a short window.
   const revealPulse =
     (avg, amp, period = 6) =>
     (t) =>
       Math.max(0, avg + amp * Math.max(0, Math.sin((t * Math.PI * 2) / period)));
 
   self.createScene = () => {
+    // Placeholder for unfinished portfolio destinations.
+    const site = "https://www.lukemay.com";
+
+    // One reveal group; each line has its own link.
     const roles = DisplayText({
-      href: "https://isu.lukemay.com/resume",
-      texts: [
-        ["Luke Benjamin May       ", [2, -4], "horizontal"],
-        ["Full Stack Web Developer", [3, -4], "horizontal"],
-        ["Software Engineer       ", [4, -4], "horizontal"],
+      lines: [
+        {
+          text: "Luke Benjamin May",
+          location: [2, -4],
+          orientation: "horizontal",
+          href: `${site}/resume`,
+        },
+        {
+          text: "Full Stack Web Developer",
+          location: [3, -4],
+          orientation: "horizontal",
+          href: `${site}/game-of-life`,
+        },
+        {
+          text: "Software Engineer",
+          location: [4, -4],
+          orientation: "horizontal",
+          href: site,
+        },
+        {
+          text: "Agentic Engineer",
+          location: [5, -4],
+          orientation: "horizontal",
+          href: site,
+        },
+        {
+          text: "Graduate CS Instructor",
+          location: [6, -4],
+          orientation: "horizontal",
+          href: "https://isu.lukemay.com",
+        },
+        {
+          text: "YouTube",
+          location: [7, -4],
+          orientation: "horizontal",
+          href: "https://www.youtube.com/lukebeenjammin",
+        },
       ],
     });
-    // Mark complete after hover-force; optional duration not required for paint.
-    roles.isComplete = false;
-    roles.complete = () => {
-      roles.isComplete = true;
-    };
 
     const email = DisplayText({
-      href: "https://www.lukemay.com/resume",
-      texts: [
-        ["lukebmay at gmail dot com", [-3, 3], "horizontal"],
-        ["LukeBMay at gmail", [-3, 3], "vertical"],
+      lines: [
+        {
+          text: "lukebmay at gmail dot com",
+          location: [-3, 3],
+          orientation: "horizontal",
+          href: `${site}/resume`,
+        },
+        {
+          text: "LukeBMay at gmail",
+          location: [-3, 3],
+          orientation: "vertical",
+          href: `${site}/resume`,
+        },
       ],
     });
-    email.isComplete = false;
-    email.complete = () => {
-      email.isComplete = true;
-    };
 
     const contentLayers = [roles, email];
 
-    // Avg drops/sec for ambient; soft-square wave is visibly wavy.
+    // Baseline: keep low troughs (often ≥1 drop, brief gaps); peak ~30% lower.
     const baselineAvg = Math.max(2, self.COLS / 14);
+    const baselineMin = baselineAvg * 0.15;
+    const baselineMax = baselineAvg * 1.3; // was ~1.85*avg
 
     const baseline = SpawnPolicy({
       name: "baseline",
@@ -133,23 +171,20 @@ function Configuration(...args) {
       priority: 0,
       activateAfterMs: 0,
       accumulator: VariableRateAccumulator(
-        baselineAvg,
+        (baselineMin + baselineMax) / 2,
         Infinity,
-        softSquare(baselineAvg, baselineAvg * 0.85, 14, 2.6),
+        softSquare(baselineMin, baselineMax, 14, 2.6),
       ),
     });
 
-    const rolesCols = Array.from(roles.columns);
-    const emailCols = Array.from(email.columns);
-
     const rolesReveal = SpawnPolicy({
       name: "reveal-roles",
-      columns: rolesCols,
+      getEligibleColumns: () => roles.unrevealedColumns(),
       infinite: false,
       priority: 10,
       activateAfterMs: 3500,
       accumulator: VariableRateAccumulator(
-        Math.max(rolesCols.length, 1),
+        Math.max(roles.columns.size, 1),
         5,
         revealPulse(8, 10, 5),
       ),
@@ -157,12 +192,12 @@ function Configuration(...args) {
 
     const emailReveal = SpawnPolicy({
       name: "reveal-email",
-      columns: emailCols,
+      getEligibleColumns: () => email.unrevealedColumns(),
       infinite: false,
       priority: 10,
       activateAfterMs: 9000,
       accumulator: VariableRateAccumulator(
-        Math.max(emailCols.length, 1),
+        Math.max(email.columns.size, 1),
         5,
         revealPulse(8, 10, 5),
       ),
