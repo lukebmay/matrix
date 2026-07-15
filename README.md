@@ -9,19 +9,22 @@ assets as the public homepage.
 
 ## Story
 
-Ambient rain runs forever with a **wavy spawn rate** (soft square wave —
-noticeable plateaus, not flat noise and not a hard on/off square). After a
-few seconds, **reveal waves** add extra drops limited to the columns of
-each text group (roles, then email) so visitors are not waiting for pure
-luck.
-
-Rules that matter for the feel:
+**Rain** runs forever (wavy rate; first-pass without replacement so columns
+light evenly). **DropScenes** hold text points and a **mode**: stable
+`hidden` / `revealed`, or active `revealing` / `hiding`. Only active modes
+are driven by drops (show or hide glyphs; column sets drain without
+replacement). Prefer separate reveal vs hide scenes. Optional **Storms**
+speed an active scene. Rain↔Storm column sets update both ways. Long-term,
+a **Symphony** of timed/event cues sequences scenes (simple animation
+machine).
 
 | Rule | Detail |
 | --- | --- |
-| **Additive spawns** | Baseline and reveal policies both run; not mode-switched |
-| **One drop per column** | Never two live drops in the same column |
-| **Shared coverage** | If baseline already drops on a reveal column, that reveal marks it covered and does not need another |
+| **Modes** | hidden → revealing → revealed; revealed → hiding → hidden |
+| **Hiding** | Reset column set; hide as drops cover columns |
+| **Rain first-pass** | Without replacement, then free random |
+| **Bidirectional sets** | Active scenes only |
+| **Symphony** | Event/time cues (follow-on task) |
 
 Drops only move. Glyphs and links live on a content layer; the DOM painter
 shows the static character when a tip crosses that cell.
