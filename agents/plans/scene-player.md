@@ -1,11 +1,12 @@
 # Plan — ScenePlayer & scene paint
 
-**Status:** In progress (logical/DOM ownership rewrite shipped; **browser eyeball**)  
+**Status:** In progress (paint rewrite shipped; play design **locked**)  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
-**Next task:** Eyeball [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
-then finish design in [scene-player-play-plan.md](../tasks/scene-player-play-plan.md)
-→ implement `scene-player-play` after sign-off.
+**Next task:** [scene-player-play.md](../tasks/scene-player-play.md)
+(play context + chains + storm window + homepage migrate).  
+Optional parallel: browser eyeball
+[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md).
 
 ## Goal
 
@@ -30,7 +31,7 @@ Rain never writes content into the logical grid.
 
 ```text
 Play (homepage.mjs) via ScenePlayer.context / cue chains
-  → delay | on/when | activate | hide | storm(seconds) | loop
+  → delay | on/wait | activate | hide | storm(seconds) | loop
 ScenePlayer (pause-aware clock)
   → DropScene.enterMode / startStorm (VRA coverage window)
 SceneManager
@@ -54,7 +55,7 @@ DropManager
 - Drop must be post-activation (`dropAffects`) when provided.  
 - Glyph change only when tip **enters** a cell (once per drop).
 
-### Phases (shipped — interim)
+### Phases (shipped — interim until play task)
 
 | Piece | Role |
 | --- | --- |
@@ -63,10 +64,20 @@ DropManager
 | `cardRevealPhase` / `quotePhase` | Legacy fixed-duration builders |
 | `cardQuoteLoop` | Event-driven interim homepage loop |
 
-**Target replace:** play context + cue chains (see play-authoring plan).
-Homepage should read as steps / event reactions, not option bags on a
-named factory. `storm(seconds)` = VRA window so pool columns *begin*
-within that time.
+**Target replace:** play context + cue chains — design locked in
+[completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
+Implement: [scene-player-play.md](../tasks/scene-player-play.md).
+
+### Play authoring (locked)
+
+| Piece | Choice |
+| --- | --- |
+| Verb | `.on(event)`; alias `.wait` ≡ same |
+| Events | `started` + `completed` (existing DropScene); optional `scene.events.*` |
+| Storm | Coverage VRA window; rebuild accumulator per call |
+| Skins | A multi-chain + C linear; homepage **C** at `src/js/play/homepage.mjs` |
+| Context | Thin `player.context({ scenes })` |
+| Out of v1 | Frame-dt clock, Style D async, visual timeline |
 
 ### Quote layout
 
@@ -80,30 +91,26 @@ Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 | Pause + brightness quickfixes | Partial |
 | SceneManager first pass + phases + event loop | Shipped; paint rewrite done |
 | [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md) | Ownership rewrite done; browser eyeball |
-| [scene-player-play-plan.md](../tasks/scene-player-play-plan.md) | **In progress** — ScenePlayer play API design |
-| `scene-player-play.md` (suggested) | After sign-off: context + chains + storm window; migrate homepage |
+| [scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md) | **Design locked** |
+| [scene-player-play.md](../tasks/scene-player-play.md) | **Next implement** — context + chains + storm window; migrate homepage |
 
 ## Residual
 
 - Browser confirmation of card/quote loop paint  
-- **Play authoring** — multi-style chains + thin `context({ scenes })`  
-- **`storm(seconds)`** — VRA coverage window (all pool cols begin in window)  
-- `clearScene` / `clearView` as first-class schedulable actions  
-- Animation clock unified with frame `dt` (not only setTimeout remaining)  
+- **Play authoring implement** (locked design → code)  
+- Animation clock unified with frame `dt` (after play surface)  
 - Word-space cells in TextLine (blank ownership when revealed) — currently rain gaps  
-
-Design detail: [scene-player-play-plan.md](../tasks/scene-player-play-plan.md).
 
 ## Session note
 
-**2026-07-15 — Paint audit + hide DOM fix**
+**2026-07-15 — Play design locked**
 
-Logical/DOM ownership verified. Fixed hide tip leaving intentional chars on
-DOM (`DomManager.paintFromLogical` now re-rolls when clearing `m-revealed`).
-Smokes + build green. Paint task still needs **human browser eyeball**.
+Open questions resolved (`.on`+`.wait`, `started`/`completed`, storm
+subject + VRA rebuild, `src/js/play/homepage.mjs`). Design archived at
+[scene-player/completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
+Implement task: [scene-player-play.md](../tasks/scene-player-play.md).
 
-**Next**
-1. Eyeball [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md)
-   card → quote → loop; complete task when clean.  
-2. Play authoring design/sign-off in [scene-player-play-plan.md](../tasks/scene-player-play-plan.md).  
-3. Implement `scene-player-play` after approval.
+**Next agent**
+1. Implement play context/chains + storm coverage + homepage migrate only.  
+2. No frame-dt clock, Style D, deploy, or reopening design.  
+3. Eyeball paint remains optional/parallel if human available.

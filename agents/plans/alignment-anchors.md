@@ -122,9 +122,9 @@ or “after 20s → start roles hiding.”
 #### ScenePlayer (developer interface) — end goal
 
 Programmatic **play authoring** (multi-style cue chains + thin context),
-not ad-hoc `setTimeout` soup in Configuration. Design:
-[scene-player-play-plan.md](../tasks/scene-player-play-plan.md)
-(path historical).
+not ad-hoc `setTimeout` soup in Configuration. Design locked:
+[scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md);
+implement [scene-player-play.md](../tasks/scene-player-play.md).
 
 ```text
 // sketch — see play-authoring plan for full styles

@@ -221,4 +221,5 @@ Smokes: SceneManager, DropScene, ScenePlayer, Rain. `npm test` + `npm run build`
 **Next agent**
 1. Browser eyeball: card → quote → gap → loop (roles/email/quote dual paint).
 2. Tick “No garbled dual paint” or fix remaining visual bugs.
-3. When paint passes: complete this task; residual → `scene-player-play-plan.md`.
+3. When paint passes: complete this task; residual → `scene-player-play.md`
+   (design already locked).

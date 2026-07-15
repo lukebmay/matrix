@@ -22,9 +22,11 @@ Developer-facing **ScenePlayer**: timed/event cues that drive DropScene modes.
 
 **Paint browser eyeball** → [scene-player-logical-grid-paint.md](scene-player-logical-grid-paint.md)
 
-**Play authoring (design)** → [scene-player-play-plan.md](scene-player-play-plan.md)  
+**Play authoring** → [scene-player-play.md](scene-player-play.md)  
+(design locked:
+[scene-player-play-plan.md](../plans/scene-player/completed/scene-player-play-plan.md)).
 Multi-style play context + cue chains; `storm(seconds)` coverage window.
-Replaces magic `cardQuoteLoop` / phase factories. Interim loop until that ships.
+Replaces magic `cardQuoteLoop` / phase factories.
 
 ## Session note
 
