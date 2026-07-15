@@ -43,6 +43,9 @@ function Matrix(...args) {
     self.isRunning = false;
     if (runTimeoutId) clearTimeout(runTimeoutId);
     if (autopauseTimeoutId) clearTimeout(autopauseTimeoutId);
+  };
+  self.destroy = () => {
+    self.stop();
     for (const p of state.spawnPolicies ?? []) {
       p.cancel?.();
     }

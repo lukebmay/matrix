@@ -39,7 +39,7 @@ function Application(...args) {
   };
 
   self.restart = () => {
-    self.matrix?.stop();
+    self.matrix?.destroy?.() ?? self.matrix?.stop();
     state.config = Configuration();
     self.matrix = Matrix();
     self.matrix.start();
