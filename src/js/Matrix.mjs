@@ -43,10 +43,13 @@ function Matrix(...args) {
     self.isRunning = true;
     state.scenePlayer?.unpause?.();
     runTimeoutId = setTimeout(updateMatrix, cfg.FRAME_DELAY);
-    autopauseStartedAt = Date.now();
-    autopauseTimeoutId = setTimeout(() => {
-      self.pause();
-    }, Math.max(0, autopauseRemainingMs));
+    // Kiosk / AUTOPAUSE_TIME 0: never arm portfolio autopause.
+    if (cfg.AUTOPAUSE_TIME > 0) {
+      autopauseStartedAt = Date.now();
+      autopauseTimeoutId = setTimeout(() => {
+        self.pause();
+      }, Math.max(0, autopauseRemainingMs));
+    }
     then = Date.now() - pauseDifference;
   };
   self.stop = () => {

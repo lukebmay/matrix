@@ -14,6 +14,7 @@ import Rain from "./Rain.mjs";
 import SceneManager from "./SceneManager.mjs";
 import ScenePlayer from "./ScenePlayer.mjs";
 import { homepagePlay } from "./play/homepage.mjs";
+import { resolveKiosk } from "./kiosk.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 import Grid from "./layout/Grid.mjs";
 import TextLine from "./layout/TextLine.mjs";
@@ -87,7 +88,10 @@ function Configuration(...args) {
   self.DROP_LENGTH_MAX = Math.floor(threadAvgLength * (1 + threadLengthVariance));
 
   self.FRAME_DELAY = 90;
-  self.AUTOPAUSE_TIME = 10 * 60 * 1000;
+  // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.
+  self.KIOSK = resolveKiosk();
+  // 0 = off (kiosk); portfolio default ~10 minutes.
+  self.AUTOPAUSE_TIME = self.KIOSK ? 0 : 10 * 60 * 1000;
   // Play-chain: force-settle stuck revealing/hiding after this wait on completed.
   self.COMPLETION_WATCHDOG_MS = 60_000;
   // Optional full page reload for multi-day wall runs; 0 = off.

@@ -7,6 +7,14 @@ Submodule of the [lukemay.com](https://github.com/lukebmay/lukemay.com)
 monorepo. Deployed to `/matrix/`; the monorepo **root** shell loads these
 assets as the public homepage.
 
+**Kiosk / wall mode** (no autopause, no click-pause, ignore tab hide):
+
+| URL | Notes |
+| --- | --- |
+| `/matrix/kiosk/` | Always available under the project deploy |
+| `/kiosk/` | Root shell when matrix is the homepage |
+| `?kiosk=1` / `#kiosk` | Same app without a dedicated path |
+
 ## Story
 
 **Rain** runs forever (wavy rate; first-pass without replacement so columns

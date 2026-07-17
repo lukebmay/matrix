@@ -9,9 +9,7 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Kiosk activation only
-[tasks/kiosk-long-running.md](tasks/kiosk-long-running.md)
-(watchdog + soft-reload shipped); then hover
+**Next:** Hover
 [tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
 optional paint eyeball; deploy + job-search polish.
 
@@ -70,7 +68,7 @@ optional paint eyeball; deploy + job-search polish.
 | [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
 | [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
-| [kiosk-long-running.md](tasks/kiosk-long-running.md) | Partial — watchdog/soft-reload done; kiosk detect left |
+| [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
 | [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
 
 ## Stack
@@ -114,11 +112,9 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Kiosk activation only (watchdog/soft-reload already shipped)
-   ([tasks/kiosk-long-running.md](tasks/kiosk-long-running.md)).
-2. Hover hasten reveal / hide re-reveal
+1. Hover hasten reveal / hide re-reveal
    ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
-3. Optional browser polish / paint eyeball
+2. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
-4. Deploy + job-search polish.
-5. Optional later: frame-`dt` unified animation clock.
+3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
+4. Optional later: frame-`dt` unified animation clock.

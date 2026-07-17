@@ -19,6 +19,8 @@ function Application(...args) {
   self.matrix = null;
 
   self.onClick = (event) => {
+    // Wall mode: ignore casual click-to-pause (content links still navigate).
+    if (state.config?.KIOSK) return;
     if (!event.clickHandled && !event.clickHandeled) {
       self.togglePause();
     }
@@ -62,6 +64,8 @@ function Application(...args) {
   };
 
   document.addEventListener("visibilitychange", () => {
+    // Kiosk keeps the loop alive (wall tab is always open; ignore flaky hide).
+    if (state.config?.KIOSK) return;
     if (document.visibilityState === "visible" && !self.matrix?.isPaused) {
       self.matrix?.start();
     } else if (!self.matrix?.isPaused) {
