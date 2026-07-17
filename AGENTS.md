@@ -17,13 +17,14 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Hover
-[tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
+**Next:** Hover hasten / extend / re-reveal
+([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md));
 optional paint eyeball; deploy + job-search polish.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
-**Plan:** [plans/scene-player.md](plans/scene-player.md).
+**Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
+[plans/interactive-play.md](plans/interactive-play.md) (runtime shipped).
 
 ### Product rules
 
@@ -77,7 +78,10 @@ optional paint eyeball; deploy + job-search polish.
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
 | [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
 | [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
-| [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
+| [interactive-play.md](plans/interactive-play.md) | Runtime shipped — Unit/Thread + sugar |
+| [interactive-play_design.md](plans/interactive-play/completed/interactive-play_design.md) | Done — design lock |
+| [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
+| [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | **Next** — unit hover policies |
 
 ### Stack
 
@@ -91,8 +95,9 @@ optional paint eyeball; deploy + job-search polish.
 ### Architecture
 
 ```text
-play/homepage.mjs (Style C chains)
-  → ScenePlayer.context (delay | on/wait | activate | hide | storm | loop)
+play/homepage.mjs (Unit/Thread sugar)
+  → play/runtime.mjs (reveal/hide/hold units, thread.run|spawn|delay|loop)
+  → ScenePlayer (pause-aware timers + clear)
   → DropScenes (mode, columnsSelected, events)
   → Rain / Storm picks + bidirectional sets
   → Drops
@@ -104,7 +109,8 @@ SceneManager (logical grid) + DomManager (paint)
 | --- | --- |
 | DropScene | points, columns, columnsSelected, mode, events |
 | ScenePlayer | pause-aware clock + play context / cue chains |
-| play/homepage.mjs | Live homepage Style C play |
+| play/runtime.mjs | Unit/Thread factories + sugar |
+| play/homepage.mjs | Live homepage Unit/Thread play |
 | SceneManager | logical grid + tip resolve |
 | Rain / Storm | weather rates + column pick |
 | layout/* | positionables; Grid; DomGrid |
@@ -120,12 +126,12 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Hover hasten reveal / hide re-reveal
+1. Hover hasten / extend hold / hide re-reveal
    ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
 2. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
 3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
-4. Optional later: frame-`dt` unified animation clock.
+4. Optional later: quote playlist, ASCII portrait, frame-`dt` clock.
 
 ---
 # general.md

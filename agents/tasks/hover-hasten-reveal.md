@@ -1,9 +1,10 @@
 # Task — Hover hastens reveal; hide re-reveals
 
-**Status:** Ready  
-**Plan:** standalone (interaction polish)  
-**Priority:** P1 — clickable links during hide; snappy reveal UX  
-**Depends on:** DropScene modes, ScenePlayer play, DomManager link handlers
+**Status:** Ready (next)  
+**Plan:** [plans/interactive-play.md](../plans/interactive-play.md)  
+**Priority:** P1 — next after Unit/Thread runtime  
+**Depends on:** [interactive-play_runtime.md](../plans/interactive-play/completed/interactive-play_runtime.md)
+(Unit/Thread + homepage migrate — done)
 
 ## Goal
 
@@ -27,22 +28,18 @@ when `!layer.isComplete`, which is a partial “finish reveal” hack. It does
 
 Without re-reveal on hide, users can lose a link mid-click as glyphs vanish.
 
-## Design sketch (implementer fills in)
+## Design sketch (unit APIs — no DomManager policy)
 
-1. **Detect mode** for the content group under the pointer (roles / email /
-   quote reveal+hide pair, or shared card hide points).
-2. **If revealing / incomplete:** hasten — reveal remaining points for that
-   line or whole group (prefer SceneManager / DropScene APIs over fake drops
-   if possible; keep paint ownership).
-3. **If hiding:**
-   - Abort or reset the hide scene: full text back to revealed/logical
-   - Restart hide from scratch (`enterMode("hiding")` reset of
-     `columnsSelected`, storm again, timeline-friendly with ScenePlayer)
-   - Practical bar: user can click a link before hide wins again
-4. **Do not** speed up column coverage or force-clear cells on hover while
-   hiding.
-5. Wire from DomManager link handlers or a small interaction helper; avoid
-   fighting ScenePlayer cue chains (may need a “user interrupt” path).
+See [plans/interactive-play.md](../plans/interactive-play.md).
+
+1. **Binder:** pointer over group cells → unit `hover` (DomManager hit-test
+   only; policies live on units).
+2. **Revealing:** `hasten` / force settle same gen → one `completed` (prefer
+   group default; line optional).
+3. **Hiding:** force reveal sibling content; `hideUnit.restart()` (no
+   `completed` on abort); re-storm via unit `onStart`.
+4. **Hold:** optional `onHover: "extend"` re-arms hold timer.
+5. **Never** hasten hide coverage; never leave zombie waits (runtime gen).
 
 ## Do
 
@@ -63,7 +60,7 @@ Without re-reveal on hide, users can lose a link mid-click as glyphs vanish.
 
 ## Session note
 
-(not started — next session)
+(not started)
 
-**Prior session left:** settled glow crisp fix shipped in `src/style.css`
-(non-link black `1px`+`2px` + color-mix halo; links unchanged). Start here.
+**Blocked on:** [interactive-play_runtime.md](interactive-play_runtime.md).
+Do not implement DomManager tip-force as the product solution.

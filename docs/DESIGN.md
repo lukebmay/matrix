@@ -153,14 +153,37 @@ answer key.
 
 `delay | on/wait | activate | hide | storm | clear | call | loop`
 
-Homepage Style C is one linear chain: card reveal → hold → hide → quote →
-hide → loop. Loop bumps a generation id, force-hides scenes, clears chain
-listeners, and re-runs from the top without waiting for a second
-`appStart`.
-
 Cues use real `setTimeout` under the hood but **pause** freezes remaining
 delay. Tab hide stops the matrix frame loop; unhide resumes — unless kiosk
 mode keeps the loop alive (see long-running / kiosk below).
+
+Legacy Style C cue chains (`ctx.on("appStart").activate…`) still work for
+smokes and escape hatches. The live homepage uses the Unit/Thread runtime.
+
+### Interactive play (Unit / Thread runtime)
+
+The show is not a pure timeline: hover must hasten reveal, extend hold, and
+re-reveal mid-hide without advancing the wrong beat. Design:
+`agents/plans/interactive-play.md`. Runtime: `src/js/play/runtime.mjs`.
+
+| Idea | Choice |
+| --- | --- |
+| Substrate | **Events** (delay = timer emit + wait) |
+| Nouns | **Unit** (lifecycle) + **Thread** (linear waits) + DropScene (dumb) |
+| Factories | `revealUnit` / `hideUnit` / `holdUnit` wire scene `completed` under the hood |
+| Sugar | `run` / `spawn` / `delay` / `loop` → start + wait `completed` (or not) |
+| Cancel | Generation + dispose waiters (`off` + `player.clear`) — not cancellable Promises |
+| `completed` | Success of current run only; abort/restart does not emit it |
+| Hover | Next — unit policies; DomManager hit-tests only |
+
+**`run` vs `spawn`:** `thread.run(u)` starts `u` and waits for its
+`completed`. `thread.spawn(u)` starts without waiting (homepage: roles
+reveal overlaps email). Parent waits are gen-scoped; unit restart does
+**not** emit a spurious `completed`, so the parent advances once on the
+next real finish.
+
+**Hold extend:** `holdUnit` stores `onHover: "extend"` and exposes
+`rearm(ms)` for the hover task — no DomManager policy shortcut.
 
 ---
 

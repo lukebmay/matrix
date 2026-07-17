@@ -8,8 +8,15 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-// Style C linear homepage play (card → quote → loop).
-// Kickoff: ctx.start() emits synthetic "appStart".
+// Homepage play via Unit/Thread sugar (card → quote → loop).
+// Equivalent timing to prior Style C chain; hover policies later.
+
+import {
+  revealUnit,
+  hideUnit,
+  holdUnit,
+  thread,
+} from "./runtime.mjs";
 
 export function homepagePlay(player, scenes, opts = {}) {
   const ctx = player.context({
@@ -32,44 +39,57 @@ export function homepagePlay(player, scenes, opts = {}) {
   const quoteHideStormSec = opts.quoteHideStormSec ?? 3;
   const restartGapMs = opts.restartGapMs ?? 0;
 
-  ctx
-    .on("appStart")
+  const roles = revealUnit(ctx, s.rolesReveal, { name: "roles" });
+  const email = revealUnit(ctx, s.emailReveal, { name: "email" });
+  const cardHide = hideUnit(ctx, s.cardHide, { name: "cardHide" });
+  const quoteReveal = revealUnit(ctx, s.quoteReveal, { name: "quote" });
+  const quoteHide = hideUnit(ctx, s.quoteHide, { name: "quoteHide" });
+  const afterEmail = holdUnit(ctx, {
+    name: "afterEmail",
+    ms: cardHoldAfterEmailMs,
+    onHover: "extend",
+  });
+  const quoteHold = holdUnit(ctx, {
+    name: "quoteHold",
+    ms: quoteHoldMs,
+    onHover: "extend",
+  });
+
+  roles.onStart((t) => t.storm(rolesStormSec));
+  email.onStart((t) => t.storm(emailStormSec));
+  cardHide.onStart((t) => t.storm(cardHideStormSec));
+  quoteReveal.onStart((t) => t.storm(quoteStormSec));
+  quoteHide.onStart((t) => t.storm(quoteHideStormSec));
+
+  // Email starts 2s after roles (concurrent); main line waits email only.
+  const show = thread(ctx, { name: "show" })
     .clearView()
     .delay(rolesAtMs)
-    .activate(s.rolesReveal)
-    .storm(rolesStormSec)
+    .spawn(roles)
     .delay(emailAfterRolesMs)
-    .activate(s.emailReveal)
-    .storm(emailStormSec)
-    .on(s.emailReveal.events.completed)
-    .delay(cardHoldAfterEmailMs)
+    .run(email)
+    .run(afterEmail)
     .call(() => {
       s.rolesReveal.stopStorm?.();
       s.emailReveal.stopStorm?.();
     })
     .clear(s.quoteHide)
     .clear(s.quoteReveal)
-    .hide(s.cardHide)
-    .storm(cardHideStormSec)
-    .on(s.cardHide.events.completed)
+    .run(cardHide)
     .call(() => {
       if (s.rolesReveal.mode !== "hidden") s.rolesReveal.enterMode("hidden");
       if (s.emailReveal.mode !== "hidden") s.emailReveal.enterMode("hidden");
     })
     .delay(afterCardGoneMs)
-    .activate(s.quoteReveal)
-    .storm(quoteStormSec)
-    .on(s.quoteReveal.events.completed)
-    .delay(quoteHoldMs)
+    .run(quoteReveal)
+    .run(quoteHold)
     .call(() => s.quoteReveal.stopStorm?.())
     .clear(s.cardHide)
-    .hide(s.quoteHide)
-    .storm(quoteHideStormSec)
-    .on(s.quoteHide.events.completed)
+    .run(quoteHide)
     .delay(restartGapMs)
     .loop();
 
-  ctx.start();
+  show.start();
   return player;
 }
 

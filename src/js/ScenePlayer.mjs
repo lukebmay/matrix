@@ -50,6 +50,16 @@ function ScenePlayer(...args) {
     return arm(entry, ms);
   };
 
+  // Drop one armed cue (Unit/Thread delay dispose).
+  self.clear = (id) => {
+    if (id == null) return false;
+    const entry = pending.get(id);
+    if (!entry) return false;
+    if (entry.timeoutId != null) clearTimeout(entry.timeoutId);
+    pending.delete(id);
+    return true;
+  };
+
   self.pause = () => {
     if (cancelled || paused) return;
     paused = true;
@@ -217,6 +227,7 @@ function createPlayContext(player, opts = {}) {
   const ctx = {
     scenes,
     player,
+    completionWatchdogMs,
 
     emit(name, detail) {
       const set = synthetic.get(name);
