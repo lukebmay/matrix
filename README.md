@@ -34,6 +34,8 @@ shows the static character when a tip crosses that cell.
 Runnable on branch `refactor_07-2026` (AI finish of the mid-refactor).
 Human WIP snapshot: `refactor_incomplete-mid-refactor`.
 
+**Design decisions** (the fun *why*): [docs/DESIGN.md](docs/DESIGN.md).
+
 ## Run / build
 
 ```bash

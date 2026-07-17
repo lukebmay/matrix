@@ -276,22 +276,34 @@ function DropScene(...args) {
 
   self.syncCompletion = () => settleIfDone();
 
-  // Storm pick: without replacement from columnsSelected ∩ free.
-  self.pickColumns = (count, freeColumns) => {
+  // Storm pick: free ∩ columnsSelected first, then stackable occupied selected.
+  // stackableColumns: occupied cols still in selection (DropManager may stack).
+  self.pickColumns = (count, freeColumns, stackableColumns = []) => {
     if (count <= 0 || !self.isActive || !self.stormAccumulator) return [];
     if (self.columnsSelected.size === 0) {
       settleIfDone();
       return [];
     }
-    const pool = freeColumns.filter((c) => self.columnsSelected.has(c));
-    if (pool.length === 0) return [];
+    const freePool = freeColumns.filter((c) => self.columnsSelected.has(c));
+    const stackPool = (stackableColumns ?? []).filter(
+      (c) => self.columnsSelected.has(c) && !freePool.includes(c),
+    );
 
     const picked = [];
-    const available = new Set(pool);
-    for (let i = 0; i < count && available.size > 0; i++) {
-      const col = randomChoice(available);
-      available.delete(col);
+    const freeAvail = new Set(freePool);
+    for (let i = 0; i < count && freeAvail.size > 0; i++) {
+      const col = randomChoice(freeAvail);
+      freeAvail.delete(col);
       picked.push(col);
+    }
+    if (picked.length < count) {
+      const stackAvail = new Set(stackPool);
+      for (const c of picked) stackAvail.delete(c);
+      for (let i = picked.length; i < count && stackAvail.size > 0; i++) {
+        const col = randomChoice(stackAvail);
+        stackAvail.delete(col);
+        picked.push(col);
+      }
     }
     return picked;
   };

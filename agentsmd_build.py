@@ -38,7 +38,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 AGENTS_DIR = PROJECT_ROOT / "agents"
 
 # Durable rules only. Order is intentional for prefix caching:
-# project → general rules → security → scripting → comments → presentation.
+# project → general rules → security → scripting → comments → docs → presentation.
 # Language guides (agents/languages/) are on-demand — not in core (token cost).
 CORE_PREPEND: List[str] = [
     "project.md",
@@ -46,6 +46,7 @@ CORE_PREPEND: List[str] = [
     "security.md",
     "scripting.md",
     "comments.md",
+    "documentation.md",
     "ansi-colors.md",
     "markdown.md",
 ]

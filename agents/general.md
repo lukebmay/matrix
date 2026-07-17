@@ -1,6 +1,6 @@
 # General Agent Guidelines
 
-Follow `agents/` as needed. Do **not** load every file up front — `agentsmd_build.py` composes the stable core into root `AGENTS.md`. Examples: `security.md`, `scripting.md`, `scripts-build.md` (when adding multi-file tools or changing `build-scripts.py`), `comments.md`, `ansi-colors.md`, `markdown.md`.
+Follow `agents/` as needed. Do **not** load every file up front — `agentsmd_build.py` composes the stable core into root `AGENTS.md`. Examples: `security.md`, `scripting.md`, `scripts-build.md` (when adding multi-file tools or changing `build-scripts.py`), `comments.md`, `documentation.md`, `ansi-colors.md`, `markdown.md`. Interesting design decisions live in `docs/DESIGN.md` (see `documentation.md`).
 
 **Language / stack style:** when relevant, read `agents/languages/<name>.md` (languages, web-frontend/backend, DBs, containers). **Project** style/formatter/LSP configs always win over those defaults.
 

@@ -13,7 +13,9 @@ Good: `# Grok` · `# Bun` · `# Update check (quiet on no-op)` · `# Secrets`
 
 Bad: `# Grok (PATH/fpath + config symlink; light enough for zshenv)` · long “expensive: …” banners
 
-Design, history, and rationale → `agents/plans/` (e.g. `plans/shellrc-dispatcher.md`), **not** source comments.
+Design, history, and rationale → `docs/DESIGN.md` (interesting decisions) and
+`agents/plans/` (execution plans). **Not** long source comments. See
+`documentation.md`.
 
 When touching old verbose comments, trim them in the same change.
 

@@ -176,50 +176,59 @@ function DomManager(...args) {
       clearColumnTrail(c);
     }
 
-    const activeCols = new Set();
-
+    // Group live drops by column so multi-tip stacks paint as a union trail.
+    const dropsByCol = new Map();
     for (const d of dropManager.getDrops()) {
-      const r = d.getRow();
-      const c = d.col;
-      const l = d.length;
-      const pr = lastTipRow.has(d) ? lastTipRow.get(d) : null;
-      activeCols.add(c);
+      let list = dropsByCol.get(d.col);
+      if (!list) {
+        list = [];
+        dropsByCol.set(d.col, list);
+      }
+      list.push(d);
+    }
 
-      const colEl = grid.getColumn(c);
-      if (colEl) colEl.setAttribute("data-drop-id", d.id);
-
-      // Resolve every newly entered row (handles multi-row jumps).
-      const from = pr == null ? 0 : pr + 1;
-      const to = Math.min(r, cfg.ROWS - 1);
-      for (let row = from; row <= to; row++) {
-        if (row < 0) continue;
-        const el = grid.get(row, c);
-        if (el) applyTipEnter(row, c, el, d);
+    for (const [c, colDrops] of dropsByCol) {
+      // Resolve tip-enter per drop (spawn-order; stacker may cover pre-activation).
+      for (const d of colDrops) {
+        const r = d.getRow();
+        const pr = lastTipRow.has(d) ? lastTipRow.get(d) : null;
+        const from = pr == null ? 0 : pr + 1;
+        const to = Math.min(r, cfg.ROWS - 1);
+        for (let row = from; row <= to; row++) {
+          if (row < 0) continue;
+          const el = grid.get(row, c);
+          if (el) applyTipEnter(row, c, el, d);
+        }
+        lastTipRow.set(d, r);
       }
 
-      // Trail CSS: tip at r, body above, clear rest of column.
-      if (pr != null && pr >= 0 && pr < cfg.ROWS && pr !== r) {
-        const lastTipEl = grid.get(pr, c);
-        if (lastTipEl) {
-          lastTipEl.classList.remove("m-drop-tip");
-          lastTipEl.classList.add("m-drop");
-          paintFromLogical(pr, c, lastTipEl, { rainIfEmpty: true });
+      // Union trail CSS: any tip → m-drop-tip; else body; else clear trail.
+      const tipRows = new Set();
+      const trailRows = new Set();
+      for (const d of colDrops) {
+        const r = d.getRow();
+        const l = d.length;
+        if (r >= 0 && r < cfg.ROWS) tipRows.add(r);
+        for (let i = 0; i < cfg.ROWS; i++) {
+          if (i < r && i > r - l) trailRows.add(i);
         }
+      }
+      for (const tr of tipRows) trailRows.delete(tr);
+
+      const colEl = grid.getColumn(c);
+      if (colEl) {
+        colEl.setAttribute("data-drop-id", colDrops[colDrops.length - 1].id);
       }
 
       for (let i = 0; i < cfg.ROWS; i++) {
         const el = grid.get(i, c);
         if (!el) continue;
 
-        const inTrail = i < r && i > r - l;
-        const isTip = i === r && r >= 0 && r < cfg.ROWS;
-
-        if (isTip) {
+        if (tipRows.has(i)) {
           el.classList.add("m-drop-tip");
           el.classList.remove("m-drop");
-          // Re-sync when tip sits on the same row for multiple frames.
-          if (from > to) paintFromLogical(i, c, el, { rainIfEmpty: true });
-        } else if (inTrail) {
+          paintFromLogical(i, c, el, { rainIfEmpty: true });
+        } else if (trailRows.has(i)) {
           el.classList.add("m-drop");
           el.classList.remove("m-drop-tip");
           paintFromLogical(i, c, el, { rainIfEmpty: true });
@@ -231,12 +240,10 @@ function DomManager(...args) {
           }
         }
       }
-
-      lastTipRow.set(d, r);
     }
 
     for (let c = 0; c < cfg.COLS; c++) {
-      if (!activeCols.has(c)) {
+      if (!dropsByCol.has(c)) {
         const colEl = grid.getColumn(c);
         if (colEl?.hasAttribute("data-drop-id")) {
           clearColumnTrail(c);

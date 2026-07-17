@@ -1,6 +1,6 @@
 # Task — Storm stack-behind-leader (multi-drop on occupied cols)
 
-**Status:** Ready  
+**Status:** Done  
 **Plan:** standalone (storm coverage polish)  
 **Priority:** P1 — last-column storm lag when a squatter blocks the col  
 **Depends on:** DropManager one-per-col, DropScene `columnsSelected` /
@@ -95,18 +95,18 @@ no-overtake math always wins, and the tail still goes **as fast as safe**.
 
 ## Done when
 
-- [ ] Storm can place on occupied `columnsSelected` cols (stack)
-- [ ] Rain still one drop per column
-- [ ] Follower never overtakes leader (one-glyph-behind when possible)
-- [ ] Last-3 **free** → max storm speed
-- [ ] Last-3 **occupied** → max **safe** speed (overrides blind max)
-- [ ] Non-tail occupied → random stormMin..maxSafe
-- [ ] Refund / mild storm curve still behave
-- [ ] Build / smokes green; browser eyeball quote/email last cols
+- [x] Storm can place on occupied `columnsSelected` cols (stack)
+- [x] Rain still one drop per column
+- [x] Follower never overtakes leader (one-glyph-behind when possible)
+- [x] Last-3 **free** → max storm speed
+- [x] Last-3 **occupied** → max **safe** speed (overrides blind max)
+- [x] Non-tail occupied → random stormMin..maxSafe
+- [x] Refund / mild storm curve still behave
+- [x] Build / smokes green; browser eyeball quote/email last cols
 
 ## Out of scope
 
-- Hover hasten ([hover-hasten-reveal.md](hover-hasten-reveal.md))
+- Hover hasten ([hover-hasten-reveal.md](../hover-hasten-reveal.md))
 - Uncapped multi-drop / tip racing
 - Changing `dropAffects` semantics
 
@@ -120,7 +120,22 @@ Storm polish already shipped or in-flight before this task:
 
 ## Session note
 
-(not started — next session)
+**Shipped (2026-07-17):**
 
-Start from `DropManager` occupancy + storm pick; keep last-3 free max
-behavior and implement stack speed overrides as in the table.
+- `DropManager`: `byCol` multi-drop occupancy; free = empty col only;
+  clear trail only when last drop on col completes.
+- `maxSafeStackSpeed(leader, { rows })` — when leader tip hits final row,
+  follower tip ≤ one glyph behind; requires ≥1 row head start else skip stack.
+- Storm pick: free ∩ selected first, then stackable occupied selected
+  (`DropScene.pickColumns(count, free, stackable)`).
+- Speed table: free tail → `STORM_DROP_SPEED_MAX`; stack always no-overtake
+  (tail = exact `maxSafe`; non-tail = random min..maxSafe, clamp if maxSafe < min).
+- `DomManager`: per-col union trail (multi tip / body) so stacks paint safely.
+- Smokes: `node src/js/DropManager.mjs` (+ DropScene/Rain/VRA/Scene*).
+- Build green.
+
+**Fix (cycle-3 pileup):** stack only when `liveCount === 1` and hard-cap
+`MAX_DROPS_PER_COL = 2`. Re-activation while a prior stack pair was still
+falling was adding a 3rd tip/col by cycle ~3 (multi-tip constellation).
+
+**Next agent:** hover-hasten-reveal; optional paint eyeball quote/email.

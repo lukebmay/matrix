@@ -9,11 +9,13 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Storm stack-behind-leader
-[tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md);
+**Next:** Kiosk / long-running
+[tasks/kiosk-long-running.md](tasks/kiosk-long-running.md);
 then hover
 [tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
 optional paint eyeball; deploy + job-search polish.
+
+**Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plan:** [plans/scene-player.md](plans/scene-player.md).
 
@@ -49,7 +51,7 @@ optional paint eyeball; deploy + job-search polish.
 2. Optional **Storms** on active content scenes.
 3. Additive Rain + Storm; Rain **one live drop per column**. Storms may
    **stack** on occupied `columnsSelected` cols (no-overtake speed) —
-   see [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md).
+   see [tasks/completed/storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md).
 4. **Bidirectional sets** on spawn: Rain↔active scene `columnsSelected`
    and Rain first-pass (stable scenes untouched).
 5. **Events** on scenes (`started`, `dropSelected`, point show/hide,
@@ -67,7 +69,8 @@ optional paint eyeball; deploy + job-search polish.
 | [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
 | [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
-| [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md) | Ready — storm multi-drop; no-overtake stack speed |
+| [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
+| [kiosk-long-running.md](tasks/kiosk-long-running.md) | Ready — wall mode; no autopause; watchdog |
 | [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
 
 ## Stack
@@ -111,8 +114,8 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Storm stack-behind-leader (occupied-col multi-drop)
-   ([tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md)).
+1. Kiosk / long-running wall mode
+   ([tasks/kiosk-long-running.md](tasks/kiosk-long-running.md)).
 2. Hover hasten reveal / hide re-reveal
    ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
 3. Optional browser polish / paint eyeball

@@ -17,11 +17,13 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Storm stack-behind-leader
-[tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md);
+**Next:** Kiosk / long-running
+[tasks/kiosk-long-running.md](tasks/kiosk-long-running.md);
 then hover
 [tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
 optional paint eyeball; deploy + job-search polish.
+
+**Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plan:** [plans/scene-player.md](plans/scene-player.md).
 
@@ -57,7 +59,7 @@ optional paint eyeball; deploy + job-search polish.
 2. Optional **Storms** on active content scenes.
 3. Additive Rain + Storm; Rain **one live drop per column**. Storms may
    **stack** on occupied `columnsSelected` cols (no-overtake speed) —
-   see [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md).
+   see [tasks/completed/storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md).
 4. **Bidirectional sets** on spawn: Rain↔active scene `columnsSelected`
    and Rain first-pass (stable scenes untouched).
 5. **Events** on scenes (`started`, `dropSelected`, point show/hide,
@@ -75,7 +77,8 @@ optional paint eyeball; deploy + job-search polish.
 | [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
 | [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
-| [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md) | Ready — storm multi-drop; no-overtake stack speed |
+| [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
+| [kiosk-long-running.md](tasks/kiosk-long-running.md) | Ready — wall mode; no autopause; watchdog |
 | [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
 
 ### Stack
@@ -119,8 +122,8 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Storm stack-behind-leader (occupied-col multi-drop)
-   ([tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md)).
+1. Kiosk / long-running wall mode
+   ([tasks/kiosk-long-running.md](tasks/kiosk-long-running.md)).
 2. Hover hasten reveal / hide re-reveal
    ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
 3. Optional browser polish / paint eyeball
@@ -134,7 +137,7 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## General Agent Guidelines
 
-Follow `agents/` as needed. Do **not** load every file up front — `agentsmd_build.py` composes the stable core into root `AGENTS.md`. Examples: `security.md`, `scripting.md`, `scripts-build.md` (when adding multi-file tools or changing `build-scripts.py`), `comments.md`, `ansi-colors.md`, `markdown.md`.
+Follow `agents/` as needed. Do **not** load every file up front — `agentsmd_build.py` composes the stable core into root `AGENTS.md`. Examples: `security.md`, `scripting.md`, `scripts-build.md` (when adding multi-file tools or changing `build-scripts.py`), `comments.md`, `documentation.md`, `ansi-colors.md`, `markdown.md`. Interesting design decisions live in `docs/DESIGN.md` (see `documentation.md`).
 
 **Language / stack style:** when relevant, read `agents/languages/<name>.md` (languages, web-frontend/backend, DBs, containers). **Project** style/formatter/LSP configs always win over those defaults.
 
@@ -490,7 +493,9 @@ Good: `# Grok` · `# Bun` · `# Update check (quiet on no-op)` · `# Secrets`
 
 Bad: `# Grok (PATH/fpath + config symlink; light enough for zshenv)` · long “expensive: …” banners
 
-Design, history, and rationale → `agents/plans/` (e.g. `plans/shellrc-dispatcher.md`), **not** source comments.
+Design, history, and rationale → `docs/DESIGN.md` (interesting decisions) and
+`agents/plans/` (execution plans). **Not** long source comments. See
+`documentation.md`.
 
 When touching old verbose comments, trim them in the same change.
 
@@ -510,6 +515,48 @@ When touching old verbose comments, trim them in the same change.
 **Production:** for other developers — no chat addresses, no session history. Structure, non-obvious logic, external constraints. Light section headers OK.
 
 **Teaching:** more context OK while explaining; if landing in a file, still write production-style comments. Separate “final code” from tutorial narration.
+
+---
+# documentation.md
+---
+
+## Documentation
+
+### Design decisions → `docs/DESIGN.md`
+
+Record **interesting design decisions** in project-root
+[`docs/DESIGN.md`](../docs/DESIGN.md) (create the file if missing).
+
+| Put it in DESIGN.md when… | Keep it out when… |
+| --- | --- |
+| A future reader would ask *why* we did it this way | Pure task checklist / session scratch |
+| Tradeoffs, rejected alternatives, funny constraints | Volatile “next commit” TODOs |
+| Architecture metaphors that unlock the codebase | API laundry lists better as code |
+| Lessons from production bugs (e.g. cycle-3 stack pileup) | Secrets, deploy hosts, private URLs |
+
+Tone: **interesting and entertaining for developers** — clear, opinionated,
+light wit OK. Not a marketing page; not a changelog dump.
+
+#### What goes where
+
+| Doc | Role |
+| --- | --- |
+| **`docs/DESIGN.md`** | Durable “why” for humans (and agents onboarding) |
+| **`agents/plans/`** | Execution plans, task tables, session handoffs |
+| **`agents/tasks/`** | Session-sized work; acceptance; short notes |
+| **`agents/archive/`** | Searchable summaries after ship |
+| **Source comments** | Minimal *why* only — see `comments.md` |
+
+When a task ships a non-obvious choice, **update DESIGN.md in the same
+change** (or the wrap-up commit). Do not leave the only explanation in chat
+or a completed task file.
+
+#### Hygiene
+
+- Prefer short titled sections over one giant essay.
+- Link to tasks/archive when useful; do not duplicate full task checklists.
+- Update or delete stale claims when code changes.
+- No secrets; no real credentials (see `security.md`).
 
 ---
 # ansi-colors.md
