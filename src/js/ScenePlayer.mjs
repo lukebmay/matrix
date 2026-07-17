@@ -134,7 +134,7 @@ const SCENE_EVENT_NAMES = new Set([
 ]);
 
 // Storm coverage VRA: remaining pool cols begin within `seconds`.
-// Mild half-sine (75%→max→75%) so the last unit is not stranded in a trough.
+// Mild ease-in (75%→max, no tail dip) so the last unit is not slow-parked.
 const configureStormCoverage = (scene, seconds) => {
   if (!scene) return;
   const pool =

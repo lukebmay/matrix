@@ -138,6 +138,15 @@ function VariableRateAccumulator(
     return effectiveAmount;
   };
 
+  // Return units that advance() issued but could not be spawned (occupied cols, etc.).
+  // Keeps finite storm budgets from evaporating while columns still need coverage.
+  self.refund = (n) => {
+    const k = Math.min(Math.max(0, Math.floor(n)), issued);
+    if (k <= 0) return;
+    issued -= k;
+    remainder += k;
+  };
+
   self.reset = () => {
     remainder = 0;
     currentTime = 0;
@@ -205,14 +214,16 @@ VariableRateAccumulator.rates = {
       return minRate + (maxRate - minRate) * u;
     },
 
-  // Storm spawn curve: mild half-sine bump floorFrac*max → max → floorFrac*max.
-  // No deep troughs; VRA normalizer makes absolute scale free (shape only).
+  // Storm spawn: ease-in floorFrac*max → max (no tail dip; denser late so last
+  // unit is not parked in a slower trough). Scale free — VRA normalizes.
   stormMild:
     (duration = 5, floorFrac = 0.75, maxRate = 1) =>
     (t) => {
       const d = Math.max(duration, 1e-6);
       const u = Math.min(Math.max(t / d, 0), 1);
-      return maxRate * (floorFrac + (1 - floorFrac) * Math.sin(Math.PI * u));
+      // 1 - cos(π/2 u): ease-in 0→1 (rate highest at end of window).
+      const rise = 1 - Math.cos((Math.PI / 2) * u);
+      return maxRate * (floorFrac + (1 - floorFrac) * rise);
     },
 };
 
@@ -262,12 +273,13 @@ if (import.meta.main) {
     { name: "quadratic", fn: rates.quadratic(8), avgRate: 12 },
   ];
 
-  // Storm mild: endpoints at 75% max, peak at max; no deep trough.
+  // Storm mild: 75% → max ease-in; no tail dip.
   {
     const fn = rates.stormMild(5, 0.75, 1);
     assert.ok(Math.abs(fn(0) - 0.75) < 1e-9, `stormMild start ${fn(0)}`);
-    assert.ok(Math.abs(fn(2.5) - 1) < 1e-9, `stormMild mid ${fn(2.5)}`);
-    assert.ok(Math.abs(fn(5) - 0.75) < 1e-9, `stormMild end ${fn(5)}`);
+    assert.ok(fn(2.5) > 0.75 && fn(2.5) < 1, `stormMild mid ${fn(2.5)}`);
+    assert.ok(Math.abs(fn(5) - 1) < 1e-9, `stormMild end ${fn(5)}`);
+    assert.ok(fn(4) > fn(1), "stormMild denser later");
   }
 
   // Finite flush: exact unit count even when remainder would strand the last drop.
@@ -277,6 +289,27 @@ if (import.meta.main) {
     for (let i = 0; i < 40; i++) total += acc.advance(0.05);
     assert.equal(total, 7, `finite storm flush total ${total}`);
     assert.ok(acc.isComplete(), "finite complete after window");
+  }
+
+  // Refund: blocked spawns do not consume the finite budget permanently.
+  {
+    const acc = new VariableRateAccumulator(4, 1, rates.constant(1));
+    let got = 0;
+    for (let i = 0; i < 20; i++) {
+      const want = acc.advance(0.05);
+      // Simulate: only 1 free column while VRA wants more.
+      const spawn = Math.min(want, 1);
+      if (want > spawn) acc.refund(want - spawn);
+      got += spawn;
+    }
+    // After window, keep refunding until all 4 succeed across frames.
+    for (let i = 0; i < 10 && got < 4; i++) {
+      const want = acc.advance(0.05);
+      const spawn = Math.min(want, 1);
+      if (want > spawn) acc.refund(want - spawn);
+      got += spawn;
+    }
+    assert.equal(got, 4, `refund eventually covers all units got=${got}`);
   }
 
   for (const tc of infiniteTestCases) {

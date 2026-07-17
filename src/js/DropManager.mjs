@@ -81,12 +81,9 @@ function DropManager(...args) {
 
   const startNewDrops = (elapsedSeconds) => {
     let free = freeColumns();
-    if (free.length === 0) return;
-
     const sources = spawnSources();
-    for (const source of sources) {
-      if (free.length === 0) break;
 
+    for (const source of sources) {
       source.syncCompletion?.();
       if (source.isComplete && !source.infinite) continue;
       // DropScene: isActive is a getter; SpawnPolicy/Rain: boolean or getter.
@@ -94,22 +91,50 @@ function DropManager(...args) {
         typeof source.isActive === "function" ? source.isActive() : source.isActive;
       if (!active) continue;
 
+      // Storm done covering once selection is empty (rain may have helped).
+      if (source.stormEnabled && source.columnsSelected?.size === 0) {
+        source.stopStorm?.();
+        continue;
+      }
+
+      const acc = source.stormAccumulator ?? source.accumulator;
       const want = advanceSource(source, elapsedSeconds);
       if (want <= 0) continue;
 
-      const dropOpts =
-        source.stormEnabled === true
-          ? {
-              speedMin: cfg.STORM_DROP_SPEED_MIN ?? cfg.DROP_SPEED_MIN,
-              speedMax: cfg.STORM_DROP_SPEED_MAX ?? cfg.DROP_SPEED_MAX,
-            }
-          : {};
+      // No free columns: still tick VRA (above) but refund so budget is not lost.
+      if (free.length === 0) {
+        acc?.refund?.(want);
+        continue;
+      }
+
+      const stormMin = cfg.STORM_DROP_SPEED_MIN ?? cfg.DROP_SPEED_MIN;
+      const stormMax = cfg.STORM_DROP_SPEED_MAX ?? cfg.DROP_SPEED_MAX;
+      // Last few storm columns always fall at max speed (test / finish fast).
+      const stormTailMax = 3;
 
       const cols = source.pickColumns(want, free);
+      let spawned = 0;
       for (const col of cols) {
+        let dropOpts = {};
+        if (source.stormEnabled === true) {
+          const remaining = source.columnsSelected?.size ?? 0;
+          dropOpts =
+            remaining > 0 && remaining <= stormTailMax
+              ? { speed: stormMax }
+              : { speedMin: stormMin, speedMax: stormMax };
+        }
         if (spawnOn(col, dropOpts)) {
+          spawned += 1;
           free = free.filter((c) => c !== col);
         }
+      }
+
+      // VRA issues "want" even when cols are blocked; refund so budget survives.
+      const missed = want - spawned;
+      if (missed > 0) acc?.refund?.(missed);
+
+      if (source.stormEnabled && source.columnsSelected?.size === 0) {
+        source.stopStorm?.();
       }
     }
   };

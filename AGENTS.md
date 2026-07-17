@@ -17,7 +17,9 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Hover reveal/hide interaction
+**Next:** Storm stack-behind-leader
+[tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md);
+then hover
 [tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
 optional paint eyeball; deploy + job-search polish.
 
@@ -53,7 +55,9 @@ optional paint eyeball; deploy + job-search polish.
 1. **Rain** forever; soft-square rate; first-pass **without replacement**
    then free random.
 2. Optional **Storms** on active content scenes.
-3. Additive Rain + Storm; **one live drop per column**.
+3. Additive Rain + Storm; Rain **one live drop per column**. Storms may
+   **stack** on occupied `columnsSelected` cols (no-overtake speed) —
+   see [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md).
 4. **Bidirectional sets** on spawn: Rain↔active scene `columnsSelected`
    and Rain first-pass (stable scenes untouched).
 5. **Events** on scenes (`started`, `dropSelected`, point show/hide,
@@ -71,6 +75,7 @@ optional paint eyeball; deploy + job-search polish.
 | [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
 | [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
+| [storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md) | Ready — storm multi-drop; no-overtake stack speed |
 | [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
 
 ### Stack
@@ -114,12 +119,14 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Hover hasten reveal / hide re-reveal
+1. Storm stack-behind-leader (occupied-col multi-drop)
+   ([tasks/storm-stack-behind-leader.md](tasks/storm-stack-behind-leader.md)).
+2. Hover hasten reveal / hide re-reveal
    ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
-2. Optional browser polish / paint eyeball
+3. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
-3. Deploy + job-search polish.
-4. Optional later: frame-`dt` unified animation clock.
+4. Deploy + job-search polish.
+5. Optional later: frame-`dt` unified animation clock.
 
 ---
 # general.md
