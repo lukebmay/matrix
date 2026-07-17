@@ -64,9 +64,9 @@ function DropManager(...args) {
     }
   };
 
-  const spawnOn = (col) => {
+  const spawnOn = (col, opts = {}) => {
     if (occupied.has(col)) return null;
-    const drop = Drop({ col });
+    const drop = Drop({ col, ...opts });
     drops.add(drop);
     occupied.add(col);
     notifySpawnColumn(col);
@@ -97,9 +97,17 @@ function DropManager(...args) {
       const want = advanceSource(source, elapsedSeconds);
       if (want <= 0) continue;
 
+      const dropOpts =
+        source.stormEnabled === true
+          ? {
+              speedMin: cfg.STORM_DROP_SPEED_MIN ?? cfg.DROP_SPEED_MIN,
+              speedMax: cfg.STORM_DROP_SPEED_MAX ?? cfg.DROP_SPEED_MAX,
+            }
+          : {};
+
       const cols = source.pickColumns(want, free);
       for (const col of cols) {
-        if (spawnOn(col)) {
+        if (spawnOn(col, dropOpts)) {
           free = free.filter((c) => c !== col);
         }
       }

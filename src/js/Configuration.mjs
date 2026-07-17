@@ -76,6 +76,10 @@ function Configuration(...args) {
 
   self.DROP_SPEED_MIN = 8;
   self.DROP_SPEED_MAX = 20;
+  // Storm: floor +25% of span; max unchanged.
+  const dropSpeedSpan = self.DROP_SPEED_MAX - self.DROP_SPEED_MIN;
+  self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.25 * dropSpeedSpan;
+  self.STORM_DROP_SPEED_MAX = self.DROP_SPEED_MAX;
 
   const threadAvgLength = self.ROWS * 0.4;
   const threadLengthVariance = 0.5;
@@ -113,11 +117,6 @@ function Configuration(...args) {
       const u = (w + 1) / 2; // [0,1]
       return minRate + (maxRate - minRate) * u;
     };
-
-  const revealPulse =
-    (avg, amp, period = 6) =>
-    (t) =>
-      Math.max(0, avg + amp * Math.max(0, Math.sin((t * Math.PI * 2) / period)));
 
   self.createScene = () => {
     const site = "https://www.lukemay.com";
@@ -241,11 +240,12 @@ function Configuration(...args) {
       ),
     });
 
+    // Placeholder until ScenePlayer.storm rebuilds.
     const revealStorm = (colCount) =>
       VariableRateAccumulator(
         Math.max(colCount, 1),
         5,
-        revealPulse(8, 10, 5),
+        VariableRateAccumulator.rates.stormMild(5),
       );
 
     // Roles / email start deactivated; ScenePlayer activates on a timed loop.

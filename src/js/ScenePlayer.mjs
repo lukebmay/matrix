@@ -133,7 +133,8 @@ const SCENE_EVENT_NAMES = new Set([
   "stormStop",
 ]);
 
-// Storm coverage: rebuild VRA so remaining pool columns begin within `seconds`.
+// Storm coverage VRA: remaining pool cols begin within `seconds`.
+// Mild half-sine (75%→max→75%) so the last unit is not stranded in a trough.
 const configureStormCoverage = (scene, seconds) => {
   if (!scene) return;
   const pool =
@@ -142,11 +143,10 @@ const configureStormCoverage = (scene, seconds) => {
       : (scene.columns?.size ?? 0);
   const units = Math.max(pool, 1);
   const durationSeconds = Math.max(Number(seconds) || 0, 0.001);
-  const period = Math.max(durationSeconds, 0.5);
   scene.stormAccumulator = VariableRateAccumulator(
     units,
     durationSeconds,
-    VariableRateAccumulator.rates.easeInOutSine(8, 6, period),
+    VariableRateAccumulator.rates.stormMild(durationSeconds),
   );
   scene.startStorm();
 };

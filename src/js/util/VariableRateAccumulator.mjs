@@ -57,6 +57,7 @@ function VariableRateAccumulator(
   let remainder = 0;
   let currentTime = 0;
   let normalizer = null;
+  let issued = 0; // raw units emitted by integration (before credit)
 
   const computeNormalizer = () => {
     if (normalizer !== null) return;
@@ -108,8 +109,23 @@ function VariableRateAccumulator(
     const delta = ((rate1 + rate2) / 2) * deltaSeconds * normalizer;
 
     remainder += delta;
-    const rawAmount = Math.floor(remainder);
-    remainder -= rawAmount; // fully consume integration progress (time always advances)
+    let rawAmount = Math.floor(remainder);
+    remainder -= rawAmount;
+
+    // Finite window: never overshoot units; flush any shortfall at the end.
+    if (!isInfinite) {
+      const room = Math.max(0, units - issued);
+      if (rawAmount > room) {
+        remainder += rawAmount - room;
+        rawAmount = room;
+      }
+      if (now >= durationSeconds && issued + rawAmount < units) {
+        rawAmount = units - issued;
+        remainder = 0;
+      }
+    }
+
+    issued += rawAmount;
 
     const effectiveAmount = Math.max(0, rawAmount - credit);
 
@@ -125,13 +141,14 @@ function VariableRateAccumulator(
   self.reset = () => {
     remainder = 0;
     currentTime = 0;
+    issued = 0;
   };
 
   /**
    * Returns true when a finite scene has fully completed its accumulation.
    */
   self.isComplete = () => {
-    return !isInfinite && currentTime >= durationSeconds && remainder < 1;
+    return !isInfinite && currentTime >= durationSeconds && issued >= units;
   };
 }
 
@@ -178,6 +195,25 @@ VariableRateAccumulator.rates = {
     (avg, amp, period = 12, sharpness = 2.4) =>
     (t) =>
       Math.max(0, avg + amp * Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period))),
+
+  // Soft square on [minRate, maxRate].
+  softSquareRange:
+    (minRate, maxRate, period = 12, sharpness = 2.6) =>
+    (t) => {
+      const w = Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period));
+      const u = (w + 1) / 2;
+      return minRate + (maxRate - minRate) * u;
+    },
+
+  // Storm spawn curve: mild half-sine bump floorFrac*max → max → floorFrac*max.
+  // No deep troughs; VRA normalizer makes absolute scale free (shape only).
+  stormMild:
+    (duration = 5, floorFrac = 0.75, maxRate = 1) =>
+    (t) => {
+      const d = Math.max(duration, 1e-6);
+      const u = Math.min(Math.max(t / d, 0), 1);
+      return maxRate * (floorFrac + (1 - floorFrac) * Math.sin(Math.PI * u));
+    },
 };
 
 export { VariableRateAccumulator };
@@ -225,6 +261,23 @@ if (import.meta.main) {
     { name: "pulse", fn: rates.pulse(3, 12), avgRate: 6 },
     { name: "quadratic", fn: rates.quadratic(8), avgRate: 12 },
   ];
+
+  // Storm mild: endpoints at 75% max, peak at max; no deep trough.
+  {
+    const fn = rates.stormMild(5, 0.75, 1);
+    assert.ok(Math.abs(fn(0) - 0.75) < 1e-9, `stormMild start ${fn(0)}`);
+    assert.ok(Math.abs(fn(2.5) - 1) < 1e-9, `stormMild mid ${fn(2.5)}`);
+    assert.ok(Math.abs(fn(5) - 0.75) < 1e-9, `stormMild end ${fn(5)}`);
+  }
+
+  // Finite flush: exact unit count even when remainder would strand the last drop.
+  {
+    const acc = new VariableRateAccumulator(7, 2, rates.stormMild(2));
+    let total = 0;
+    for (let i = 0; i < 40; i++) total += acc.advance(0.05);
+    assert.equal(total, 7, `finite storm flush total ${total}`);
+    assert.ok(acc.isComplete(), "finite complete after window");
+  }
 
   for (const tc of infiniteTestCases) {
     const acc = new VariableRateAccumulator(tc.avgRate, Infinity, tc.fn);

@@ -27,7 +27,10 @@ function Drop(...args) {
 
   self._row = 0.0;
   self.length = Math.floor(randomInterval(cfg.DROP_LENGTH_MIN, cfg.DROP_LENGTH_MAX));
-  self.speed = randomInterval(cfg.DROP_SPEED_MIN, cfg.DROP_SPEED_MAX);
+  const speedMin = opts.speedMin ?? cfg.DROP_SPEED_MIN;
+  const speedMax = opts.speedMax ?? cfg.DROP_SPEED_MAX;
+  self.speed =
+    typeof opts.speed === "number" ? opts.speed : randomInterval(speedMin, speedMax);
 
   self.isComplete = false;
 
