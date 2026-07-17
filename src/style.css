@@ -79,21 +79,24 @@ body {
     0 0 25px var(--col-hi),
     0 0 5px var(--col-med);
 }
-/* Settled revealed text — calm, not tip-bright. Glow only with m-revealed. */
+/* Settled glow: outer halo + tight black so mid-green glyphs stay crisp. */
 .m-static.m-revealed {
   position: relative;
   z-index: 3;
   color: var(--col-med);
   text-shadow:
-    0 0 12px var(--col-med),
-    0 0 4px var(--col-low);
+    0 0 1px #000,
+    0 0 2px #000,
+    0 0 10px color-mix(in srgb, var(--col-med) 90%, white),
+    0 0 18px color-mix(in srgb, var(--col-med) 90%, white);
 }
+/* Links: bright fill already reads sharp; outer-only is enough. */
 .m-static.m-revealed.m-link {
   color: var(--col-link);
   cursor: pointer;
   text-shadow:
-    0 0 12px var(--col-link),
-    0 0 4px var(--col-low);
+    0 0 14px color-mix(in srgb, var(--col-link) 90%, white),
+    0 0 24px color-mix(in srgb, var(--col-link) 90%, white);
 }
 /* Tip over revealed text still wins (super bright while tip is here). */
 .m-static.m-revealed.m-drop-tip,

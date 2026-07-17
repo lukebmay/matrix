@@ -9,9 +9,9 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Optional browser eyeball
-[tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md);
-deploy + job-search polish.
+**Next:** Hover reveal/hide interaction
+[tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md);
+optional paint eyeball; deploy + job-search polish.
 
 **Plan:** [plans/scene-player.md](plans/scene-player.md).
 
@@ -62,6 +62,8 @@ deploy + job-search polish.
 | [scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md) | Design locked |
 | [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
 | [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
+| [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
+| [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | Ready — hasten reveal; hide → re-reveal + storm |
 
 ## Stack
 
@@ -104,7 +106,9 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Optional browser polish / paint eyeball
+1. Hover hasten reveal / hide re-reveal
+   ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
+2. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
-2. Deploy + job-search polish.
-3. Optional later: frame-`dt` unified animation clock.
+3. Deploy + job-search polish.
+4. Optional later: frame-`dt` unified animation clock.
