@@ -1,8 +1,8 @@
 # Task — Kiosk mode + long-running safety
 
-**Status:** Ready  
+**Status:** Partial — long-running hardens shipped; kiosk activation still Ready  
 **Plan:** standalone (wall display / 24-7)  
-**Priority:** P1 — next after storm stack; portfolio tab vs wall diverge  
+**Priority:** P1 — kiosk slice left for a simple agent  
 **Depends on:** Matrix autopause, Application click/visibility, ScenePlayer loops
 
 ## Goal
@@ -10,6 +10,9 @@
 Ship a **kiosk / wall mode** so the homepage can run unattended for hours or
 days on a simple always-on display, without portfolio-tab safeguards freezing
 the show. Also harden the few long-running risks that are not memory leaks.
+
+**Long-running hardens are done** (watchdog, soft-reload config, smokes).
+Remaining work is **kiosk detect + gate autopause/click/visibility only**.
 
 ## Why
 
@@ -48,17 +51,15 @@ Kiosk on ⇒ all portfolio “polite pause” features off.
    hide if useful for laptop lids; for pure wall, either leave as-is (tab
    always visible) or optional `kioskKeepAlive` that ignores hide.
 
-### Long-running hardens
+### Long-running hardens — DONE
 
-1. **Play-chain watchdog** — if a DropScene stays `revealing`/`hiding` with
-   empty `columnsSelected` (or no progress) longer than N seconds (e.g. 30–60s),
-   force settle / `forceStableHidden` / restart play chain so the loop cannot
-   wait forever on `completed`.
-2. **Optional soft reload** — periodic `location.reload()` (e.g. daily) as
-   insurance against browser heap creep; off by default or long interval;
-   document for wall operators.
-3. Smoke or comment checklist: drops still capped (rain 1/col, storm ≤2/col);
-   no new unbounded structures.
+1. **Play-chain watchdog** — `completionWatchdogMs` (default 60s) on play-context
+   waits for scene `completed`; `DropScene.forceSettle` + `forceSettleActive`
+   (logical apply/clear + repaint) so the loop cannot hang forever.
+2. **Optional soft reload** — `Configuration.SOFT_RELOAD_MS` (default `0`);
+   `Application.run` arms `location.reload()` when &gt; 0. Documented in DESIGN.md.
+3. Smokes: DropScene forceSettle, SceneManager applyLogicalForScene, ScenePlayer
+   watchdog + disabled path; occupancy checklist in DESIGN.md.
 
 ### Out of scope (unless cheap)
 
@@ -68,27 +69,39 @@ Kiosk on ⇒ all portfolio “polite pause” features off.
 
 ## Do
 
-1. Kiosk detect + config surface.
-2. Gate autopause and click-pause (and optional visibility policy).
-3. Watchdog for stuck ScenePlayer / DropScene completion.
-4. Optional reload interval (config + doc).
-5. Update [docs/DESIGN.md](../../docs/DESIGN.md) kiosk section + acceptance.
-6. Smokes if pure-node testable; browser eyeball kiosk query.
-7. Session note; mark done.
+1. ~~Watchdog for stuck ScenePlayer / DropScene completion.~~
+2. ~~Optional reload interval (config + doc).~~
+3. ~~Smokes + DESIGN.md long-running section.~~
+4. **Remaining:** Kiosk detect + config surface.
+5. **Remaining:** Gate autopause and click-pause (and optional visibility policy).
+6. **Remaining:** DESIGN.md kiosk activation section + acceptance; browser eyeball.
+7. Session note; mark done when kiosk ships.
 
 ## Done when
 
 - [ ] Kiosk mode disables autopause
 - [ ] Kiosk mode disables click-to-pause (links policy documented)
 - [ ] Portfolio default still auto-pauses / click-pauses as today
-- [ ] Stuck-scene / hung-chain path recovers within watchdog window
-- [ ] Optional reload documented (on or off with clear default)
-- [ ] DESIGN.md records the decisions
-- [ ] Build / relevant smokes green
+- [x] Stuck-scene / hung-chain path recovers within watchdog window
+- [x] Optional reload documented (on or off with clear default)
+- [x] DESIGN.md records long-running decisions (kiosk switch still open)
+- [x] Build / relevant smokes green
 
 ## Session note
 
-(not started — next session)
+**2026-07-17 — long-running only (kiosk deferred)**
 
-Start from `Matrix.mjs` autopause + `Application.mjs` click/visibility; add
-watchdog near ScenePlayer / homepage chain completion waits.
+Shipped completion watchdog + soft-reload hook; left kiosk activation for a
+simpler agent.
+
+| API / path | Notes |
+| --- | --- |
+| `DropScene.forceSettle()` | Active → stable + `completed` (`forced: true`) |
+| `forceSettleActive` (ScenePlayer) | Logical apply/clear + forceSettle + repaint |
+| `SceneManager.applyLogicalForScene` | Force-reveal logical write |
+| context `completionWatchdogMs` | Default 60s; `0` off; Config `COMPLETION_WATCHDOG_MS` |
+| `SOFT_RELOAD_MS` | Default 0; Application one-shot reload when &gt; 0 |
+
+**Next agent (kiosk only):** detect `?kiosk=1` / `#kiosk` / config; gate
+`Matrix` autopause + `Application` click (and optional visibility); leave
+watchdog/reload alone unless wiring a kiosk default for soft reload.

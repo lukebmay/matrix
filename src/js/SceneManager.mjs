@@ -39,6 +39,23 @@ function SceneManager(...args) {
     return cleared;
   };
 
+  // Write all non-space scene cells into logical (watchdog force-reveal). Returns keys.
+  self.applyLogicalForScene = (scene) => {
+    const keys = [];
+    if (!scene?.cellMap) return keys;
+    for (const [key, cell] of scene.cellMap) {
+      if (cell.char == null || cell.char === "" || cell.char === " ") continue;
+      logical.set(key, {
+        char: cell.char,
+        style: cell.style ?? scene.defaultStyle ?? null,
+        href: cell.href ?? null,
+        lineId: cell.lineId,
+      });
+      keys.push(key);
+    }
+    return keys;
+  };
+
   self.clearAllLogical = () => {
     logical.clear();
   };
@@ -254,6 +271,12 @@ if (isMain) {
   const cleared = sm.clearLogicalForScene(revA);
   assert.ok(cleared.includes("1,2"));
   assert.equal(sm.isContentRevealed(1, 2), false);
+
+  // applyLogicalForScene: watchdog force-reveal path
+  const appliedKeys = sm.applyLogicalForScene(revA);
+  assert.ok(appliedKeys.includes("1,2"));
+  assert.equal(sm.getLogical(1, 2)?.char, "A");
+  assert.equal(sm.isContentRevealed(1, 2), true);
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
   console.log(`SceneManager smoke tests passed! ${green("✓")}`);

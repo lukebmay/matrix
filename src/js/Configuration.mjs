@@ -88,6 +88,10 @@ function Configuration(...args) {
 
   self.FRAME_DELAY = 90;
   self.AUTOPAUSE_TIME = 10 * 60 * 1000;
+  // Play-chain: force-settle stuck revealing/hiding after this wait on completed.
+  self.COMPLETION_WATCHDOG_MS = 60_000;
+  // Optional full page reload for multi-day wall runs; 0 = off.
+  self.SOFT_RELOAD_MS = 0;
 
   self.LOW_COLOR = "#001600";
   self.MED_COLOR = "#119922";
@@ -317,6 +321,7 @@ function Configuration(...args) {
         afterCardGoneMs: 3_000,
         quoteHoldMs: 5_000,
         restartGapMs: 0,
+        completionWatchdogMs: self.COMPLETION_WATCHDOG_MS,
       },
     );
 

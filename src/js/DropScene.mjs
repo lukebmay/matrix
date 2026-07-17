@@ -276,6 +276,33 @@ function DropScene(...args) {
 
   self.syncCompletion = () => settleIfDone();
 
+  // Force active mode to its stable end (emits completed). Unblocks hung play waits.
+  self.forceSettle = () => {
+    if (!ACTIVE.has(self.mode)) return false;
+    self.columnsSelected = new Set();
+    self.stormEnabled = false;
+    self.modeEnteredAt = null;
+
+    if (self.mode === "revealing") {
+      for (const p of self.points) p.revealed = true;
+      self.mode = "revealed";
+      self.isComplete = true;
+      emit("completed", { scene: self, mode: "revealed", forced: true });
+      emit("modeEnter", { scene: self, mode: "revealed" });
+      return true;
+    }
+
+    if (self.mode === "hiding") {
+      for (const p of self.points) p.revealed = false;
+      self.mode = "hidden";
+      self.isComplete = true;
+      emit("completed", { scene: self, mode: "hidden", forced: true });
+      emit("modeEnter", { scene: self, mode: "hidden" });
+      return true;
+    }
+    return false;
+  };
+
   // Storm pick: free ∩ columnsSelected first, then stackable occupied selected.
   // stackableColumns: occupied cols still in selection (DropManager may stack).
   self.pickColumns = (count, freeColumns, stackableColumns = []) => {
@@ -457,6 +484,45 @@ if (isMain) {
   assert.equal(glued.isComplete, true);
   // Stable: no set drain
   assert.equal(glued.onColumnSpawned(10), false);
+
+  // forceSettle: stuck revealing → revealed + completed
+  const stuckRev = DropScene({
+    name: "stuck-rev",
+    points: [
+      { r: 0, c: 0, char: "S", revealed: false },
+      { r: 0, c: 1, char: "T", revealed: false },
+    ],
+  });
+  const forceEv = [];
+  stuckRev.on("completed", (d) => forceEv.push(d));
+  stuckRev.enterMode("revealing");
+  stuckRev.onColumnSpawned(0);
+  // Leave col 1 + points unfinished.
+  assert.equal(stuckRev.forceSettle(), true);
+  assert.equal(stuckRev.mode, "revealed");
+  assert.equal(stuckRev.isComplete, true);
+  assert.equal(stuckRev.columnsSelected.size, 0);
+  assert.ok(stuckRev.points.every((p) => p.revealed));
+  assert.equal(forceEv[0]?.mode, "revealed");
+  assert.equal(forceEv[0]?.forced, true);
+  assert.equal(stuckRev.forceSettle(), false, "stable: no re-force");
+
+  // forceSettle: stuck hiding → hidden + completed
+  const stuckHide = DropScene({
+    name: "stuck-hide",
+    points: [
+      { r: 1, c: 0, char: "H", revealed: true },
+      { r: 1, c: 1, char: "I", revealed: true },
+    ],
+  });
+  const hideEv = [];
+  stuckHide.on("completed", (d) => hideEv.push(d));
+  stuckHide.enterMode("hiding");
+  assert.equal(stuckHide.forceSettle(), true);
+  assert.equal(stuckHide.mode, "hidden");
+  assert.ok(stuckHide.points.every((p) => !p.revealed));
+  assert.equal(hideEv[0]?.mode, "hidden");
+  assert.equal(hideEv[0]?.forced, true);
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
   console.log(`DropScene smoke tests passed! ${green("✓")}`);

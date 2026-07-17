@@ -93,8 +93,12 @@ function ScenePlayer(...args) {
   }
 }
 
+// Default wait on scene.completed before force-settling a stuck active mode.
+const DEFAULT_COMPLETION_WATCHDOG_MS = 60_000;
+
 // Abort active reveal/hide or settle revealed → hidden; clear logical + blank DOM.
 // Without this, phase transitions leave stale glyphs (garbled quote/card).
+// Does not emit completed — use forceSettleActive to unblock play waits.
 const forceStableHidden = (scene) => {
   if (!scene) return;
   scene.stopStorm?.();
@@ -109,6 +113,25 @@ const forceStableHidden = (scene) => {
   const keys = state.sceneManager?.clearLogicalForScene?.(scene) ?? [];
   scene.enterMode("hidden");
   if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
+};
+
+// Finish a stuck revealing/hiding scene and emit completed (play-chain recovery).
+const forceSettleActive = (scene) => {
+  if (!scene) return false;
+  scene.stopStorm?.();
+  if (scene.mode === "revealing") {
+    const keys = state.sceneManager?.applyLogicalForScene?.(scene) ?? [];
+    const ok = scene.forceSettle?.() ?? false;
+    if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
+    return ok;
+  }
+  if (scene.mode === "hiding") {
+    const keys = state.sceneManager?.clearLogicalForScene?.(scene) ?? [];
+    const ok = scene.forceSettle?.() ?? false;
+    if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
+    return ok;
+  }
+  return false;
 };
 
 // One-shot: scene "completed" with optional mode filter.
@@ -153,6 +176,13 @@ const configureStormCoverage = (scene, seconds) => {
 
 function createPlayContext(player, opts = {}) {
   const scenes = opts.scenes ?? {};
+  const completionWatchdogMs = (() => {
+    const raw = opts.completionWatchdogMs;
+    if (raw === 0) return 0;
+    if (raw == null) return DEFAULT_COMPLETION_WATCHDOG_MS;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : DEFAULT_COMPLETION_WATCHDOG_MS;
+  })();
   let ctxCancelled = false;
   const synthetic = new Map();
   const allOffs = new Set();
@@ -301,7 +331,29 @@ function createPlayContext(player, opts = {}) {
       switch (step.type) {
         case "wait": {
           const spec = resolveEvent(step.event, lastSubject);
-          armOne(spec, gen, () => runFrom(index + 1));
+          let advanced = false;
+          armOne(spec, gen, () => {
+            advanced = true;
+            runFrom(index + 1);
+          });
+          // Stuck revealing/hiding: force settle so completed unblocks the chain.
+          if (
+            completionWatchdogMs > 0 &&
+            spec.kind === "scene" &&
+            spec.name === "completed" &&
+            spec.scene
+          ) {
+            const sc = spec.scene;
+            player.at(completionWatchdogMs, () => {
+              if (!chainAlive(gen) || advanced) return;
+              if (forceSettleActive(sc)) return;
+              // Already stable but no completed (e.g. abort path): hard-advance.
+              if (!advanced && chainAlive(gen)) {
+                advanced = true;
+                runFrom(index + 1);
+              }
+            });
+          }
           return;
         }
         case "delay": {
@@ -699,7 +751,9 @@ export {
   quotePhase,
   cardQuoteLoop,
   forceStableHidden,
+  forceSettleActive,
   configureStormCoverage,
+  DEFAULT_COMPLETION_WATCHDOG_MS,
 };
 export default ScenePlayer;
 
@@ -884,6 +938,67 @@ if (isMain) {
   await new Promise((r) => setTimeout(r, 5));
   assert.equal(w.mode, "revealing", "wait ≡ on");
   pW.cancel();
+
+  // --- completion watchdog: stuck reveal unblocks chain ---
+  const hung = mkScene("hung", [0, 1]);
+  const next = mkScene("next", [0]);
+  const pWd = ScenePlayer();
+  const ctxWd = pWd.context({
+    scenes: { hung, next },
+    completionWatchdogMs: 40,
+  });
+  let afterHang = false;
+  ctxWd
+    .on("appStart")
+    .activate(hung)
+    .on(hung.events.completed)
+    .activate(next)
+    .call(() => {
+      afterHang = true;
+    });
+  ctxWd.start();
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(hung.mode, "revealing");
+  assert.equal(next.mode, "hidden");
+  // Do not cover columns / points — wait for watchdog.
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(hung.mode, "revealed", "watchdog force-settled hung reveal");
+  assert.equal(next.mode, "revealing", "chain advanced after watchdog");
+  assert.equal(afterHang, true);
+  pWd.cancel();
+
+  // Watchdog disabled (0): chain stays stuck
+  const hung2 = mkScene("hung2", [0]);
+  const pOff = ScenePlayer();
+  const ctxOff = pOff.context({
+    scenes: { hung2 },
+    completionWatchdogMs: 0,
+  });
+  let never = false;
+  ctxOff
+    .on("appStart")
+    .activate(hung2)
+    .on(hung2.events.completed)
+    .call(() => {
+      never = true;
+    });
+  ctxOff.start();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(hung2.mode, "revealing");
+  assert.equal(never, false, "watchdog 0: no force settle");
+  pOff.cancel();
+
+  // forceSettleActive hides with completed
+  const hideSc = mkScene("hideSc", [0, 1]);
+  hideSc.enterMode("hiding");
+  for (const p of hideSc.points) p.revealed = true;
+  let hideDone = false;
+  hideSc.on("completed", () => {
+    hideDone = true;
+  });
+  assert.equal(forceSettleActive(hideSc), true);
+  assert.equal(hideSc.mode, "hidden");
+  assert.equal(hideDone, true);
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
   console.log(`ScenePlayer smoke tests passed! ${green("✓")}`);

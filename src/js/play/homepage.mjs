@@ -12,7 +12,11 @@
 // Kickoff: ctx.start() emits synthetic "appStart".
 
 export function homepagePlay(player, scenes, opts = {}) {
-  const ctx = player.context({ scenes });
+  const ctx = player.context({
+    scenes,
+    // 0 disables; omit uses ScenePlayer default (60s).
+    completionWatchdogMs: opts.completionWatchdogMs,
+  });
   const s = ctx.scenes;
 
   const rolesAtMs = opts.rolesAtMs ?? 3_000;

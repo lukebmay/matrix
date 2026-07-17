@@ -52,6 +52,13 @@ function Application(...args) {
     self.matrix.start();
     window.addEventListener("click", self.onClick);
     window.addEventListener("resize", self.onResize, true);
+    // Optional multi-day insurance; off when SOFT_RELOAD_MS is 0 / unset.
+    const reloadMs = state.config.SOFT_RELOAD_MS;
+    if (reloadMs > 0) {
+      window.setTimeout(() => {
+        location.reload();
+      }, reloadMs);
+    }
   };
 
   document.addEventListener("visibilitychange", () => {

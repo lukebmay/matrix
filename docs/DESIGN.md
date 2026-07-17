@@ -207,23 +207,45 @@ loop — crude, portable, and weirdly correct for “hacker terminal on a wall.�
 
 ---
 
-## Long-running / wall display (pending kiosk task)
+## Long-running safety (watchdog shipped; kiosk still pending)
 
 Today’s portfolio defaults include **10-minute autopause**, **click-to-pause**,
 and **stop when the tab is hidden**. Fine for lukemay.com in a browser;
-hostile to a 24/7 wall Pi.
+hostile to a 24/7 wall Pi — kiosk mode (disable those) is still a separate
+slice of [kiosk-long-running.md](../agents/tasks/kiosk-long-running.md).
 
-Known non-leak risks:
+### Completion watchdog (shipped)
 
-- Autopause freezes the show
-- Click freezes the show
-- Play chain can wait forever if `completed` never fires (watchdog planned)
-- Browser heap can still creep over days (optional soft reload planned)
+Play chains wait on DropScene `completed`. If a scene stays `revealing` /
+`hiding` forever (empty selection but points never painted, or columns never
+drained), the loop freezes.
 
-Drop occupancy is bounded; logical map is cleared on hide/loop. The scary
-bits are **policy timers** and **stuck completion**, not unbounded arrays.
+| Piece | Role |
+| --- | --- |
+| `DropScene.forceSettle()` | Active → stable end + emit `completed` (`forced: true`) |
+| `SceneManager.applyLogicalForScene` | Watchdog force-reveal writes logical cells |
+| `ScenePlayer` wait on `*.events.completed` | After `COMPLETION_WATCHDOG_MS` (default 60s), `forceSettleActive` |
+| Config `COMPLETION_WATCHDOG_MS` | Wired through `homepagePlay`; `0` disables |
 
-See [agents/tasks/kiosk-long-running.md](../agents/tasks/kiosk-long-running.md).
+`forceStableHidden` still does **not** emit `completed` (abort/clear path).
+Recovery that must unblock a wait uses `forceSettle` / `forceSettleActive`.
+
+### Soft reload (optional, off by default)
+
+`Configuration.SOFT_RELOAD_MS` (default `0`). When &gt; 0, `Application.run`
+arms a one-shot `location.reload()`. Wall operators can set e.g. daily
+(`24 * 60 * 60 * 1000`) as heap-creep insurance; portfolio stays off.
+
+### Bounded occupancy (checklist)
+
+| Cap | Where |
+| --- | --- |
+| Rain: one live drop per column | DropManager / Rain |
+| Storm: ≤2 live drops per column | DropManager stack-behind-leader |
+| Logical map cleared on hide / loop / force paths | SceneManager + ScenePlayer |
+
+Scary bits for multi-day runs: **policy timers** (kiosk) and **stuck
+completion** (watchdog), not unbounded arrays.
 
 ---
 
