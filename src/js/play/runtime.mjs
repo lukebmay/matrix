@@ -15,6 +15,8 @@ import {
   configureStormCoverage,
   forceSettleActive,
   forceStableHidden,
+  forceStableRevealed,
+  softLeaveActive,
   DEFAULT_COMPLETION_WATCHDOG_MS,
 } from "../ScenePlayer.mjs";
 
@@ -214,6 +216,7 @@ function createUnit(ctx, opts = {}) {
   const bus = createBus();
   const waiters = createWaiterSet();
   let gen = 0;
+  let running = false;
   const onStartFns = [];
   let hoverPolicy = opts.onHover ?? null;
   let customCompleteWhen = null;
@@ -224,6 +227,7 @@ function createUnit(ctx, opts = {}) {
 
   const complete = (g) => {
     if (gen !== g) return;
+    running = false;
     waiters.dispose();
     bus.emit("completed", { unit: self, gen: g });
   };
@@ -262,6 +266,9 @@ function createUnit(ctx, opts = {}) {
     get gen() {
       return gen;
     },
+    get running() {
+      return running;
+    },
     get hoverPolicy() {
       return hoverPolicy;
     },
@@ -288,6 +295,7 @@ function createUnit(ctx, opts = {}) {
       waiters.dispose();
       gen += 1;
       const g = gen;
+      running = true;
 
       bus.emit("start", { unit: self, gen: g });
 
@@ -322,6 +330,7 @@ function createUnit(ctx, opts = {}) {
     stop() {
       waiters.dispose();
       gen += 1;
+      running = false;
       bus.emit("cancelled", { unit: self });
       return self;
     },
@@ -331,25 +340,82 @@ function createUnit(ctx, opts = {}) {
       return self.start();
     },
 
-    // Hold re-arm (hover extend later).
+    // Hold re-arm (extend-on-hover).
     rearm(ms) {
-      if (kind !== "hold") return self;
+      if (kind !== "hold" || !running) return self;
       waiters.dispose();
       const g = gen;
       armHoldTimer(Math.max(0, Number(ms ?? holdMs) || 0), g);
       return self;
     },
 
+    // Same-gen reveal settle → one completed (prefer over restart).
+    hasten() {
+      if (kind !== "reveal" || !scene) return self;
+      if (scene.mode === "revealing") forceSettleActive(scene);
+      return self;
+    },
+
     forceRevealed() {
       if (!scene) return self;
-      if (scene.mode === "revealing") forceSettleActive(scene);
-      else if (scene.mode !== "revealed") scene.enterMode("revealed");
+      forceStableRevealed(scene);
       return self;
     },
 
     forceHidden() {
       if (!scene) return self;
       forceStableHidden(scene);
+      return self;
+    },
+
+    // Policy dispatch from binder (no DomManager business logic).
+    handleHover() {
+      const policy = hoverPolicy;
+      if (policy == null) return self;
+
+      if (kind === "hold") {
+        const extend =
+          policy === "extend" ||
+          (typeof policy === "object" &&
+            (policy.whileHolding === "extend" || policy.onHover === "extend"));
+        if (extend && running) self.rearm(holdMs);
+        return self;
+      }
+
+      if (typeof policy === "function") {
+        try {
+          policy(self);
+        } catch {
+          // ignore
+        }
+        return self;
+      }
+
+      if (typeof policy !== "object") return self;
+
+      const mode = scene?.mode;
+
+      if (mode === "revealing" && policy.whileRevealing === "hasten") {
+        self.hasten();
+        return self;
+      }
+
+      if (mode === "hiding" && policy.whileHiding != null) {
+        if (typeof policy.whileHiding === "function") {
+          try {
+            policy.whileHiding(self);
+          } catch {
+            // ignore
+          }
+        } else if (policy.whileHiding === "restart") {
+          softLeaveActive(scene);
+          for (const p of scene.points ?? []) p.revealed = true;
+          forceStableRevealed(scene);
+          self.restart();
+        }
+        return self;
+      }
+
       return self;
     },
   };
@@ -606,7 +672,9 @@ export {
   attachPlayRuntime,
   createUnit,
   forceStableHidden,
+  forceStableRevealed,
   forceSettleActive,
+  softLeaveActive,
   configureStormCoverage,
 };
 
@@ -905,6 +973,128 @@ if (isMain) {
     await sleep(5);
     assert.equal(completes, 0, "stop/restart: no completed");
     player.cancel();
+  }
+
+  // --- hover hasten reveal (same gen, one completed) ---
+  {
+    const sc = mkScene("hast", [0, 1, 2]);
+    const player = ScenePlayer();
+    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+
+    const u = revealUnit(ctx, sc, { name: "hast" });
+    u.onHover({ whileRevealing: "hasten" });
+    let advances = 0;
+    thread(ctx).run(u).call(() => {
+      advances += 1;
+    }).start();
+    assert.equal(sc.mode, "revealing");
+    u.handleHover();
+    await sleep(5);
+    assert.equal(sc.mode, "revealed", "hasten settles reveal");
+    assert.equal(advances, 1, "hasten: one parent advance");
+    u.handleHover();
+    await sleep(5);
+    assert.equal(advances, 1, "hasten after settle is no-op");
+    player.cancel();
+  }
+
+  // --- hover mid-hide: re-reveal + restart, never hasten hide ---
+  {
+    const rev = mkScene("cardR", [0, 1]);
+    const hide = DropScene({
+      name: "cardH",
+      points: rev.points,
+    });
+    for (const p of rev.points) p.revealed = true;
+    const player = ScenePlayer();
+    const ctx = player.context({
+      scenes: { rev, hide },
+      completionWatchdogMs: 0,
+    });
+
+    const revealU = revealUnit(ctx, rev, { name: "rev" });
+    const hideU = hideUnit(ctx, hide, { name: "hide" });
+    hideU.onStart((side) => side.storm(1));
+    hideU.onHover({
+      whileHiding: () => {
+        softLeaveActive(hide);
+        revealU.forceRevealed();
+        hideU.restart();
+      },
+    });
+
+    let hideCompletes = 0;
+    let advanced = false;
+    hideU.on("completed", () => {
+      hideCompletes += 1;
+    });
+    thread(ctx)
+      .run(hideU)
+      .call(() => {
+        advanced = true;
+      })
+      .start();
+
+    assert.equal(hide.mode, "hiding");
+    // Partial hide progress
+    hide.notifyPointHidden(0, 0);
+    assert.equal(rev.points[0].revealed, false);
+
+    hideU.handleHover();
+    await sleep(5);
+
+    assert.equal(advanced, false, "hide hover must not complete aborted run");
+    assert.equal(hide.mode, "hiding", "hide restarted");
+    assert.equal(hide.stormEnabled, true, "storm re-armed on restart");
+    assert.ok(
+      rev.points.every((p) => p.revealed),
+      "full re-reveal after hide hover",
+    );
+    assert.equal(hideCompletes, 0, "no completed until real settle");
+
+    // Finish the restarted hide
+    for (const c of [...hide.columns]) hide.onColumnSpawned(c);
+    for (const p of hide.points) hide.notifyPointHidden(p.r, p.c);
+    await sleep(5);
+    assert.equal(hide.mode, "hidden");
+    assert.equal(advanced, true, "parent advances once after real hide");
+    assert.equal(hideCompletes, 1);
+    player.cancel();
+  }
+
+  // --- hold extend on hover ---
+  {
+    const player = ScenePlayer();
+    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
+
+    let done = false;
+    const h = holdUnit(ctx, { name: "hov", ms: 30, onHover: "extend" });
+    h.on("completed", () => {
+      done = true;
+    });
+    h.start();
+    await sleep(20);
+    h.handleHover();
+    await sleep(20);
+    assert.equal(done, false, "hover extend keeps hold alive");
+    await sleep(25);
+    assert.equal(done, true, "hold completes after full rearm");
+    player.cancel();
+  }
+
+  // --- softLeaveActive does not emit completed ---
+  {
+    const sc = mkScene("soft", [0]);
+    for (const p of sc.points) p.revealed = true;
+    sc.enterMode("hiding");
+    let n = 0;
+    sc.on("completed", () => {
+      n += 1;
+    });
+    assert.equal(softLeaveActive(sc), true);
+    assert.equal(sc.mode, "hidden");
+    assert.equal(n, 0, "soft leave: no completed");
+    assert.equal(softLeaveActive(sc), false, "stable: no-op");
   }
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;

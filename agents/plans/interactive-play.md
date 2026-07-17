@@ -1,10 +1,10 @@
 # Plan — Interactive play authoring
 
-**Status:** Runtime shipped — hover next  
+**Status:** Hover shipped — playlist next  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026` (or current product branch)  
 **Related:** [scene-player.md](scene-player.md) (shipped cue chains),
-[tasks/hover-hasten-reveal.md](../tasks/hover-hasten-reveal.md) (after runtime)
+[hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) (done)
 
 ## Goal
 
@@ -28,7 +28,7 @@ Homepage evolution targets:
 | Homepage Style C | One linear chain in `src/js/play/homepage.mjs` |
 | Layout groups | `rolesGroup`, `emailGroup`, `quoteGroup` → DropScene points |
 | Hover (partial) | DomManager link `mouseover` force-applies tip on incomplete **line** only |
-| Ready task | [hover-hasten-reveal.md](../tasks/hover-hasten-reveal.md) — hasten reveal; hide → re-reveal + storm reset |
+| Hover | [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) — hasten / extend / re-reveal — **done** |
 
 ### Pain points
 
@@ -537,7 +537,7 @@ Open: whether `segment` is a real object or just labeled ranges on one chain.
 | Item | Relationship |
 | --- | --- |
 | [interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md) | **Done** — Unit/Thread runtime + homepage migrate |
-| [hover-hasten-reveal.md](../tasks/hover-hasten-reveal.md) | **Next** — policies on units only |
+| [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) | **Done** — unit hover policies |
 | scene-player plan | Foundation; this plan extends authoring + interaction |
 | Quotes playlist / portrait | Later interlude content tasks |
 
@@ -545,7 +545,7 @@ Open: whether `segment` is a real object or just labeled ranges on one chain.
 
 1. ~~Design lock~~ → [completed/interactive-play_design.md](interactive-play/completed/interactive-play_design.md)  
 2. ~~Unit/Thread runtime~~ + homepage migrate → [completed/interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md)  
-3. **Hover** (hasten / extend hold / re-reveal+restart) on unit APIs  
+3. ~~Hover~~ (hasten / extend hold / re-reveal+restart) → [completed/hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md)  
 4. Quote playlist interlude  
 5. ASCII portrait interlude kind  
 
@@ -573,30 +573,27 @@ No DomManager policy shortcut.
 | --- | --- |
 | [interactive-play_design.md](interactive-play/completed/interactive-play_design.md) | **Done** — design locked 2026-07-17 |
 | [interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md) | **Done** — runtime + homepage 2026-07-17 |
-| [hover-hasten-reveal.md](../tasks/hover-hasten-reveal.md) | **Next** — unit hover policies |
+| [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) | **Done** — unit hover policies 2026-07-17 |
 | quote playlist | Later |
 | ascii portrait interlude | Later |
 
 ## Session note
 
-**2026-07-17 — Runtime shipped**
+**2026-07-17 — Hover shipped**
 
-Unit/Thread runtime in `src/js/play/runtime.mjs`; homepage migrated to sugar
-(`spawn` roles, `run` email/holds/hides, `loop`). Smokes cover chain advance,
-restart without double-complete, stop/cancel dispose, loop gen, delay pause,
-hold rearm. `ScenePlayer.clear(id)` for timer dispose.
+Unit hover policies + binder. DomManager no longer force-tips incomplete
+lines; CSS link hover only.
 
-**Key APIs for hover agent**
-
-| API | Use |
+| Piece | Path / API |
 | --- | --- |
-| `revealUnit` / `hideUnit` / `holdUnit` | Factories; completion wired |
-| `u.onStart(t => t.storm(n))` | Side thread (no gate) |
-| `u.onHover(policy)` | Stores policy — wire binder next |
-| `u.rearm(ms)` / `u.restart()` / `u.forceRevealed()` | Hold extend; hide re-reveal |
-| `thread.run` / `spawn` / `delay` / `loop` | Main show line |
+| Binder | `play/hover.mjs` → `bindHover([{ unit, cells }])` |
+| Dispatch | `unit.handleHover()` / `hasten()` / `rearm` / hide callback |
+| Abort hide | `softLeaveActive(scene)` — no `completed` |
+| Re-show | `forceStableRevealed` → logical + paint |
+| Homepage | hasten roles/email/quote; card/quote hide re-reveal+restart; hold extend |
+| Smokes | runtime hasten / hide restart / hold extend / softLeave |
 
 **Next agent bullets**
-1. Read [hover-hasten-reveal.md](../tasks/hover-hasten-reveal.md).  
-2. Bind hover → unit policies only (hasten / extend / re-reveal+restart).  
-3. Do **not** put product policy in DomManager.
+1. Quote playlist interlude (content slot after card hide).  
+2. Optional paint eyeball; deploy + job-search polish.  
+3. Keep hover policies on units — do not reintroduce DomManager tip-force.

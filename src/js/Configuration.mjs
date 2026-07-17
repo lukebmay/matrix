@@ -88,6 +88,8 @@ function Configuration(...args) {
   self.DROP_LENGTH_MAX = Math.floor(threadAvgLength * (1 + threadLengthVariance));
 
   self.FRAME_DELAY = 90;
+  // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
+  self.TIME_SCALE = 1;
   // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.
   self.KIOSK = resolveKiosk();
   // 0 = off (kiosk); portfolio default ~10 minutes.

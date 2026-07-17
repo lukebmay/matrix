@@ -95,10 +95,16 @@ function Matrix(...args) {
   state.grid = DomGrid();
   state.dropManager = DropManager();
   state.domManager = DomManager();
+  // Homepage hover binds cells; grid must exist first.
+  state.scenePlayer?.attachHover?.();
 
   const updateMatrix = () => {
     const now = Date.now();
-    const elapsedSeconds = (now - then) / 1000;
+    const scale =
+      typeof cfg.TIME_SCALE === "number" && cfg.TIME_SCALE > 0
+        ? cfg.TIME_SCALE
+        : 1;
+    const elapsedSeconds = ((now - then) / 1000) * scale;
     state.dropManager.updateDrops(elapsedSeconds);
     state.domManager.updateDom();
     then = now;

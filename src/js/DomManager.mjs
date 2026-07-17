@@ -137,17 +137,8 @@ function DomManager(...args) {
           }
         };
 
-        const onMouseOver = (event) => {
-          const targetEl = event.target;
-          if (!layer.isComplete && targetEl.textContent.trim() !== "") {
-            const fakeDrop = { spawnAt: performance.now() };
-            for (const q of linePositions) {
-              const cell = grid.get(q.r, q.c);
-              if (!cell) continue;
-              state.sceneManager?.applyTip?.(q.r, q.c, fakeDrop);
-              paintFromLogical(q.r, q.c, cell, { rainIfEmpty: false });
-            }
-          }
+        // Style only — hasten / re-reveal live on play units (bindHover).
+        const onMouseOver = () => {
           for (const q of linePositions) {
             const cell = grid.get(q.r, q.c);
             if (cell?.classList.contains("m-revealed")) {

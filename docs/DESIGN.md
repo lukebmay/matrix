@@ -174,7 +174,7 @@ re-reveal mid-hide without advancing the wrong beat. Design:
 | Sugar | `run` / `spawn` / `delay` / `loop` → start + wait `completed` (or not) |
 | Cancel | Generation + dispose waiters (`off` + `player.clear`) — not cancellable Promises |
 | `completed` | Success of current run only; abort/restart does not emit it |
-| Hover | Next — unit policies; DomManager hit-tests only |
+| Hover | Unit policies + `bindHover` hit-test; DomManager style only |
 
 **`run` vs `spawn`:** `thread.run(u)` starts `u` and waits for its
 `completed`. `thread.spawn(u)` starts without waiting (homepage: roles
@@ -182,8 +182,23 @@ reveal overlaps email). Parent waits are gen-scoped; unit restart does
 **not** emit a spurious `completed`, so the parent advances once on the
 next real finish.
 
-**Hold extend:** `holdUnit` stores `onHover: "extend"` and exposes
-`rearm(ms)` for the hover task — no DomManager policy shortcut.
+### Hover: policies on units, not DomManager
+
+Old DomManager link `mouseover` force-tipped incomplete lines — a partial
+“finish reveal” hack that ignored hide phases and storm restart.
+
+| Phase | Policy |
+| --- | --- |
+| Revealing | `hasten` → same-gen `forceSettleActive` → one `completed` |
+| Holding | `onHover: "extend"` → `rearm(ms)` full window |
+| Hiding | **Never** hasten hide. `softLeaveActive` → re-reveal → **look-hold** |
+| | (default 5s, re-arm on re-hover) → `hideUnit.restart()` + storm |
+| Revealed / style | DomManager `.m-link-hover` only |
+
+Binder (`play/hover.mjs`) maps content cells → `unit.handleHover()`.
+Hide abort must not emit `completed` or the parent thread jumps to the
+quote. Shared card points mean hide re-reveal force-shows roles **and**
+email before restarting `cardHide`.
 
 ---
 

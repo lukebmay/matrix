@@ -11,6 +11,14 @@
 import state from "./State.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 
+// Wall ms for a logical play delay (TIME_SCALE < 1 slows cues).
+const scaledDelayMs = (ms) => {
+  const raw = Math.max(0, Number(ms) || 0);
+  const scale = state.config?.TIME_SCALE;
+  if (typeof scale !== "number" || !(scale > 0) || scale === 1) return raw;
+  return raw / scale;
+};
+
 // Pause-aware timed cue runner for DropScene mode/storm sequences.
 function ScenePlayer(...args) {
   if (!new.target) return new ScenePlayer(...args);
@@ -27,13 +35,16 @@ function ScenePlayer(...args) {
 
   const arm = (entry, delayMs) => {
     const id = entry.id;
-    const dueAt = performance.now() + Math.max(0, delayMs);
+    const wallMs = scaledDelayMs(delayMs);
+    const dueAt = performance.now() + wallMs;
     entry.dueAt = dueAt;
+    // Logical remaining for pause (unpause re-scales via arm).
+    entry.logicalMs = Math.max(0, Number(delayMs) || 0);
     delete entry.remaining;
     entry.timeoutId = setTimeout(() => {
       pending.delete(id);
       if (!cancelled && !paused) entry.fn();
-    }, Math.max(0, delayMs));
+    }, wallMs);
     pending.set(id, entry);
     return id;
   };
@@ -68,7 +79,12 @@ function ScenePlayer(...args) {
       if (entry.timeoutId != null) {
         clearTimeout(entry.timeoutId);
         entry.timeoutId = null;
-        entry.remaining = Math.max(0, (entry.dueAt ?? now) - now);
+        // Convert wall remaining back to logical ms for TIME_SCALE.
+        const wallLeft = Math.max(0, (entry.dueAt ?? now) - now);
+        const scale = state.config?.TIME_SCALE;
+        const s =
+          typeof scale === "number" && scale > 0 && scale !== 1 ? scale : 1;
+        entry.remaining = wallLeft * s;
         delete entry.dueAt;
       }
     }
@@ -78,7 +94,7 @@ function ScenePlayer(...args) {
     if (cancelled || !paused) return;
     paused = false;
     for (const entry of [...pending.values()]) {
-      arm(entry, entry.remaining ?? 0);
+      arm(entry, entry.remaining ?? entry.logicalMs ?? 0);
     }
   };
 
@@ -142,6 +158,44 @@ const forceSettleActive = (scene) => {
     return ok;
   }
   return false;
+};
+
+// Leave revealing/hiding without completed (hide-hover abort before re-reveal).
+// Points unchanged so callers can re-show content then restart hide.
+const softLeaveActive = (scene) => {
+  if (!scene) return false;
+  if (scene.mode !== "revealing" && scene.mode !== "hiding") return false;
+  scene.stopStorm?.();
+  const next = scene.mode === "revealing" ? "revealed" : "hidden";
+  scene.mode = next;
+  scene.stormEnabled = false;
+  scene.columnsSelected = new Set();
+  scene.modeEnteredAt = null;
+  scene.isComplete = next === "revealed";
+  return true;
+};
+
+// Ensure points + logical + paint show content (shared-point hide re-reveal).
+const forceStableRevealed = (scene) => {
+  if (!scene) return;
+  scene.stopStorm?.();
+  if (scene.mode === "revealing") {
+    forceSettleActive(scene);
+    return;
+  }
+  if (scene.mode === "hiding") {
+    softLeaveActive(scene);
+  }
+  for (const p of scene.points ?? []) p.revealed = true;
+  if (scene.mode !== "revealed") {
+    scene.mode = "revealed";
+    scene.isComplete = true;
+    scene.stormEnabled = false;
+    scene.columnsSelected = new Set();
+    scene.modeEnteredAt = null;
+  }
+  const keys = state.sceneManager?.applyLogicalForScene?.(scene) ?? [];
+  if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
 };
 
 // One-shot: scene "completed" with optional mode filter.
@@ -762,7 +816,9 @@ export {
   quotePhase,
   cardQuoteLoop,
   forceStableHidden,
+  forceStableRevealed,
   forceSettleActive,
+  softLeaveActive,
   configureStormCoverage,
   DEFAULT_COMPLETION_WATCHDOG_MS,
 };

@@ -1,9 +1,9 @@
 # Task — Hover hastens reveal; hide re-reveals
 
-**Status:** Ready (next)  
-**Plan:** [plans/interactive-play.md](../plans/interactive-play.md)  
-**Priority:** P1 — next after Unit/Thread runtime  
-**Depends on:** [interactive-play_runtime.md](../plans/interactive-play/completed/interactive-play_runtime.md)
+**Status:** Done (2026-07-17)  
+**Plan:** [plans/interactive-play.md](../../interactive-play.md)  
+**Priority:** P1 — after Unit/Thread runtime  
+**Depends on:** [interactive-play_runtime.md](interactive-play_runtime.md)
 (Unit/Thread + homepage migrate — done)
 
 ## Goal
@@ -30,7 +30,7 @@ Without re-reveal on hide, users can lose a link mid-click as glyphs vanish.
 
 ## Design sketch (unit APIs — no DomManager policy)
 
-See [plans/interactive-play.md](../plans/interactive-play.md).
+See [plans/interactive-play.md](../../interactive-play.md).
 
 1. **Binder:** pointer over group cells → unit `hover` (DomManager hit-test
    only; policies live on units).
@@ -51,16 +51,31 @@ See [plans/interactive-play.md](../plans/interactive-play.md).
 
 ## Done when
 
-- [ ] Hover during reveal finishes (or clearly hastens) that text for interaction
-- [ ] Hover during hide **never** hastens hide coverage
-- [ ] Hover during hide re-reveals full text and restarts hide + storm from scratch
-- [ ] Links remain clickable after a hide-context hover
-- [ ] Paint still owned by logical grid + Dom paint path
-- [ ] Build / smokes green
+- [x] Hover during reveal finishes (or clearly hastens) that text for interaction
+- [x] Hover during hide **never** hastens hide coverage
+- [x] Hover during hide re-reveals full text and restarts hide + storm from scratch
+- [x] Links remain clickable after a hide-context hover
+- [x] Paint still owned by logical grid + Dom paint path
+- [x] Build / smokes green
 
 ## Session note
 
-(not started)
+**2026-07-17 — Shipped**
 
-**Blocked on:** [interactive-play_runtime.md](interactive-play_runtime.md).
-Do not implement DomManager tip-force as the product solution.
+| Piece | Detail |
+| --- | --- |
+| Binder | `src/js/play/hover.mjs` — cell → `unit.handleHover()` only |
+| Policies | `homepage.mjs`: hasten on reveal units; hide re-reveal + restart; hold extend |
+| Runtime | `hasten()`, `handleHover()`, `running`, stronger `forceRevealed` |
+| ScenePlayer | `softLeaveActive` (no completed), `forceStableRevealed` (logical + paint) |
+| DomManager | Tip-force on link hover **removed**; CSS `.m-link-hover` kept |
+| Smokes | runtime: hasten, hide re-reveal restart, hold extend, softLeave |
+
+**Hide path:** `softLeaveActive(hide)` → sibling `forceRevealed()` →
+`hideUnit.restart()` (onStart re-storms). Abort never emits `completed`.
+
+**Fix 2026-07-17:** `bindHover` ran in `createScene` before `state.grid` /
+DomManager filled cells — listeners never attached. Defer via
+`player.attachHover()` after DomGrid+DomManager in `Matrix.mjs`.
+
+**Next:** quote playlist interlude; optional paint eyeball; deploy polish.

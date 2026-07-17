@@ -17,14 +17,13 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Hover hasten / extend / re-reveal
-([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md));
-optional paint eyeball; deploy + job-search polish.
+**Next:** Quote playlist interlude; optional paint eyeball; deploy +
+job-search polish.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
-[plans/interactive-play.md](plans/interactive-play.md) (runtime shipped).
+[plans/interactive-play.md](plans/interactive-play.md) (runtime + hover).
 
 ### Product rules
 
@@ -78,10 +77,10 @@ optional paint eyeball; deploy + job-search polish.
 | [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
 | [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
 | [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
-| [interactive-play.md](plans/interactive-play.md) | Runtime shipped — Unit/Thread + sugar |
+| [interactive-play.md](plans/interactive-play.md) | Runtime + hover shipped |
 | [interactive-play_design.md](plans/interactive-play/completed/interactive-play_design.md) | Done — design lock |
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
-| [hover-hasten-reveal.md](tasks/hover-hasten-reveal.md) | **Next** — unit hover policies |
+| [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
 
 ### Stack
 
@@ -126,12 +125,11 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Hover hasten / extend hold / hide re-reveal
-   ([tasks/hover-hasten-reveal.md](tasks/hover-hasten-reveal.md)).
+1. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 2. Optional browser polish / paint eyeball
    ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
 3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
-4. Optional later: quote playlist, ASCII portrait, frame-`dt` clock.
+4. Optional later: ASCII portrait, frame-`dt` clock.
 
 ---
 # general.md

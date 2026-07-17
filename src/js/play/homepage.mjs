@@ -9,14 +9,15 @@
  */
 
 // Homepage play via Unit/Thread sugar (card → quote → loop).
-// Equivalent timing to prior Style C chain; hover policies later.
 
 import {
   revealUnit,
   hideUnit,
   holdUnit,
   thread,
+  softLeaveActive,
 } from "./runtime.mjs";
+import { bindHover } from "./hover.mjs";
 
 export function homepagePlay(player, scenes, opts = {}) {
   const ctx = player.context({
@@ -38,6 +39,8 @@ export function homepagePlay(player, scenes, opts = {}) {
   const quoteStormSec = opts.quoteStormSec ?? 3;
   const quoteHideStormSec = opts.quoteHideStormSec ?? 3;
   const restartGapMs = opts.restartGapMs ?? 0;
+  // After hide-hover re-reveal, hold full text this long before hide restarts.
+  const hideLookHoldMs = opts.hideLookHoldMs ?? 5_000;
 
   const roles = revealUnit(ctx, s.rolesReveal, { name: "roles" });
   const email = revealUnit(ctx, s.emailReveal, { name: "email" });
@@ -60,6 +63,56 @@ export function homepagePlay(player, scenes, opts = {}) {
   cardHide.onStart((t) => t.storm(cardHideStormSec));
   quoteReveal.onStart((t) => t.storm(quoteStormSec));
   quoteHide.onStart((t) => t.storm(quoteHideStormSec));
+
+  // Hover policies on units only (binder is hit-test).
+  roles.onHover({ whileRevealing: "hasten" });
+  email.onHover({ whileRevealing: "hasten" });
+  quoteReveal.onHover({ whileRevealing: "hasten" });
+
+  // Hide hover: re-reveal, look-hold, then restart hide (re-hover re-arms hold).
+  const lookHoldTimers = new Map();
+  const clearLookHold = (hideU) => {
+    const id = lookHoldTimers.get(hideU);
+    if (id != null) player.clear(id);
+    lookHoldTimers.delete(hideU);
+  };
+  const armLookHold = (hideU) => {
+    clearLookHold(hideU);
+    const id = player.at(hideLookHoldMs, () => {
+      lookHoldTimers.delete(hideU);
+      hideU.restart();
+    });
+    if (id != null) lookHoldTimers.set(hideU, id);
+  };
+  const hideHoverReReveal = (hideU, revealUnits) => {
+    const sc = hideU.scene;
+    const midHide = sc?.mode === "hiding";
+    const holding = lookHoldTimers.has(hideU);
+    if (!midHide && !holding) return;
+    if (midHide) softLeaveActive(sc);
+    for (const u of revealUnits) u.forceRevealed();
+    armLookHold(hideU);
+  };
+
+  cardHide.onHover(() => hideHoverReReveal(cardHide, [roles, email]));
+  quoteHide.onHover(() => hideHoverReReveal(quoteHide, [quoteReveal]));
+
+  // Bind after DomGrid exists (Matrix creates grid after createScene).
+  const hoverBindings = [
+    { unit: roles, cells: s.rolesReveal.points },
+    { unit: email, cells: s.emailReveal.points },
+    { unit: afterEmail, cells: s.cardHide.points },
+    { unit: cardHide, cells: s.cardHide.points },
+    { unit: quoteReveal, cells: s.quoteReveal.points },
+    { unit: quoteHold, cells: s.quoteReveal.points },
+    { unit: quoteHide, cells: s.quoteHide.points },
+  ];
+  let unbindHover = () => {};
+  player.attachHover = () => {
+    unbindHover();
+    unbindHover = bindHover(hoverBindings);
+    return unbindHover;
+  };
 
   // Email starts 2s after roles (concurrent); main line waits email only.
   const show = thread(ctx, { name: "show" })
@@ -88,6 +141,14 @@ export function homepagePlay(player, scenes, opts = {}) {
     .run(quoteHide)
     .delay(restartGapMs)
     .loop();
+
+  const baseCancel = ctx.cancel.bind(ctx);
+  ctx.cancel = () => {
+    for (const hideU of [...lookHoldTimers.keys()]) clearLookHold(hideU);
+    unbindHover();
+    unbindHover = () => {};
+    baseCancel();
+  };
 
   show.start();
   return player;
