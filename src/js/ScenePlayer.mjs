@@ -198,17 +198,6 @@ const forceStableRevealed = (scene) => {
   if (keys.length) state.domManager?.repaintKeys?.(keys, { rainIfEmpty: false });
 };
 
-// One-shot: scene "completed" with optional mode filter.
-const onceCompleted = (scene, mode, fn) => {
-  if (!scene || typeof fn !== "function") return () => {};
-  const off = scene.on("completed", (d) => {
-    if (mode != null && d.mode !== mode) return;
-    off();
-    fn(d);
-  });
-  return off;
-};
-
 const SCENE_EVENT_NAMES = new Set([
   "started",
   "completed",
@@ -220,37 +209,24 @@ const SCENE_EVENT_NAMES = new Set([
   "stormStop",
 ]);
 
-// Weather scale / mid-session ratchet: stretch storm windows (fewer concurrent).
-const weatherStormDurationScale = () => {
-  const cfg = state.config;
-  const constrained =
-    state.weatherScale === true ||
-    (state.weatherScale == null && cfg?.WEATHER_SCALE === true);
-  if (!constrained) return 1;
-  const s = cfg?.WEATHER_STORM_DURATION_SCALE;
-  return typeof s === "number" && s > 1 ? s : 2;
-};
-
-// Storm coverage VRA: remaining pool cols begin within `seconds`.
-// Mild ease-in (75%→max, no tail dip) so the last unit is not slow-parked.
-// Constrained devices multiply duration so the same unit budget spreads out.
+// Storm coverage VRA: remaining columnsSelected over `seconds` (play length).
+// stormMild: high floor → apex at end. VRA normalizes so ∫ = column count.
+// Skip when nothing left to cover (rain may have already drained the set).
+// Same window on constrained devices (no weather-scale duration stretch).
 const configureStormCoverage = (scene, seconds) => {
-  if (!scene) return;
-  const pool =
-    scene.columnsSelected?.size > 0
-      ? scene.columnsSelected.size
-      : (scene.columns?.size ?? 0);
-  const units = Math.max(pool, 1);
-  const durationSeconds = Math.max(
-    (Number(seconds) || 0) * weatherStormDurationScale(),
-    0.001,
-  );
+  if (!scene) return false;
+  // Only remaining work — do not fall back to full columns when selection is empty.
+  const pool = scene.columnsSelected?.size ?? 0;
+  if (pool <= 0) return false;
+  const units = pool;
+  const durationSeconds = Math.max(Number(seconds) || 0, 0.001);
   scene.stormAccumulator = VariableRateAccumulator(
     units,
     durationSeconds,
     VariableRateAccumulator.rates.stormMild(durationSeconds),
   );
   scene.startStorm();
+  return true;
 };
 
 function createPlayContext(player, opts = {}) {
@@ -629,207 +605,10 @@ function loopPhases(player, phases, opts = {}) {
   return player;
 }
 
-// Roles then email reveals + delayed storms.
-function cardRevealPhase(scenes, opts = {}) {
-  const { rolesReveal, emailReveal, cardHide } = scenes;
-  const rolesAt = opts.rolesAtMs ?? 3_000;
-  const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
-  const rolesStormAfterMs = opts.rolesStormAfterMs ?? 3_000;
-  const emailStormAfterMs = opts.emailStormAfterMs ?? 5_000;
-  const cardMs = opts.cardPhaseMs ?? 20_000;
-
-  return Phase("card-reveal", () => ({
-    durationMs: cardMs,
-    schedule: (t) => {
-      t(rolesAt, () => {
-        forceStableHidden(cardHide);
-        rolesReveal.enterMode("revealing");
-      });
-      t(rolesAt + emailAfterRolesMs, () => emailReveal.enterMode("revealing"));
-      t(rolesAt + rolesStormAfterMs, () => rolesReveal.startStorm());
-      t(
-        rolesAt + emailAfterRolesMs + emailStormAfterMs,
-        () => emailReveal.startStorm(),
-      );
-    },
-  }));
-}
-
-// Fixed-duration quote phase (legacy/tests). Prefer play context chains.
-function quotePhase(scenes, opts = {}) {
-  const {
-    rolesReveal,
-    emailReveal,
-    cardHide,
-    quoteReveal,
-    quoteHide,
-  } = scenes;
-  const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
-  const stormAfterActivateMs = opts.stormAfterActivateMs ?? 3_000;
-
-  // Hold + hide kickoff; storm after hide is still within duration.
-  const durationMs = Math.max(quoteHoldMs + stormAfterActivateMs, quoteHoldMs);
-
-  return Phase("quote", () => ({
-    durationMs,
-    schedule: (t) => {
-      t(0, () => {
-        rolesReveal.stopStorm();
-        emailReveal.stopStorm();
-        forceStableHidden(quoteHide);
-        cardHide.enterMode("hiding");
-        quoteReveal.enterMode("revealing");
-      });
-      t(stormAfterActivateMs, () => {
-        cardHide.startStorm();
-        quoteReveal.startStorm();
-      });
-      t(quoteHoldMs, () => {
-        quoteReveal.stopStorm();
-        cardHide.stopStorm();
-        forceStableHidden(cardHide);
-        quoteHide.enterMode("hiding");
-      });
-      t(quoteHoldMs + stormAfterActivateMs, () => {
-        quoteHide.startStorm();
-      });
-    },
-  }));
-}
-
-// Homepage: event-driven card → hide → quote → loop (legacy interim).
-// Prefer src/js/play/homepage.mjs play context.
-function cardQuoteLoop(scenes, opts = {}) {
-  const player = ScenePlayer();
-  const {
-    rolesReveal,
-    emailReveal,
-    cardHide,
-    quoteReveal,
-    quoteHide,
-  } = scenes;
-
-  const rolesAtMs = opts.rolesAtMs ?? 3_000;
-  const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
-  const rolesStormAfterMs = opts.rolesStormAfterMs ?? 3_000;
-  const emailStormAfterMs = opts.emailStormAfterMs ?? 5_000;
-  const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 2_000;
-  const afterCardGoneMs =
-    opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 3_000;
-  const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
-  const restartGapMs = opts.restartGapMs ?? 0;
-  const stormAfterActivateMs = opts.stormAfterActivateMs ?? 3_000;
-
-  let generation = 0;
-  let offs = [];
-
-  const alive = (gen) => !player.isCancelled() && gen === generation;
-
-  const clearOffs = () => {
-    for (const off of offs) off();
-    offs = [];
-  };
-
-  const whenCompleted = (scene, mode, fn) => {
-    offs.push(onceCompleted(scene, mode, fn));
-  };
-
-  const resetAll = () => {
-    forceStableHidden(quoteHide);
-    forceStableHidden(quoteReveal);
-    forceStableHidden(cardHide);
-    forceStableHidden(rolesReveal);
-    forceStableHidden(emailReveal);
-  };
-
-  const runCycle = () => {
-    if (player.isCancelled()) return;
-    const gen = ++generation;
-    clearOffs();
-    resetAll();
-
-    player.at(rolesAtMs, () => {
-      if (!alive(gen)) return;
-      rolesReveal.enterMode("revealing");
-      player.at(rolesStormAfterMs, () => {
-        if (alive(gen)) rolesReveal.startStorm();
-      });
-      player.at(emailAfterRolesMs, () => {
-        if (!alive(gen)) return;
-        emailReveal.enterMode("revealing");
-        player.at(emailStormAfterMs, () => {
-          if (alive(gen)) emailReveal.startStorm();
-        });
-      });
-    });
-
-    whenCompleted(emailReveal, "revealed", () => {
-      if (!alive(gen)) return;
-      player.at(cardHoldAfterEmailMs, () => {
-        if (!alive(gen)) return;
-        rolesReveal.stopStorm();
-        emailReveal.stopStorm();
-        forceStableHidden(quoteHide);
-        forceStableHidden(quoteReveal);
-        cardHide.enterMode("hiding");
-        player.at(stormAfterActivateMs, () => {
-          if (alive(gen)) cardHide.startStorm();
-        });
-      });
-    });
-
-    whenCompleted(cardHide, "hidden", () => {
-      if (!alive(gen)) return;
-      // Card points already cleared by hide; settle reveal scenes to hidden.
-      if (rolesReveal.mode !== "hidden") rolesReveal.enterMode("hidden");
-      if (emailReveal.mode !== "hidden") emailReveal.enterMode("hidden");
-      player.at(afterCardGoneMs, () => {
-        if (!alive(gen)) return;
-        quoteReveal.enterMode("revealing");
-        player.at(stormAfterActivateMs, () => {
-          if (alive(gen)) quoteReveal.startStorm();
-        });
-      });
-    });
-
-    whenCompleted(quoteReveal, "revealed", () => {
-      if (!alive(gen)) return;
-      player.at(quoteHoldMs, () => {
-        if (!alive(gen)) return;
-        quoteReveal.stopStorm();
-        forceStableHidden(cardHide);
-        quoteHide.enterMode("hiding");
-        player.at(stormAfterActivateMs, () => {
-          if (alive(gen)) quoteHide.startStorm();
-        });
-      });
-    });
-
-    whenCompleted(quoteHide, "hidden", () => {
-      if (!alive(gen)) return;
-      player.at(restartGapMs, () => {
-        if (alive(gen)) runCycle();
-      });
-    });
-  };
-
-  const baseCancel = player.cancel.bind(player);
-  player.cancel = () => {
-    clearOffs();
-    baseCancel();
-  };
-
-  runCycle();
-  return player;
-}
-
 export {
   ScenePlayer,
   Phase,
   loopPhases,
-  cardRevealPhase,
-  quotePhase,
-  cardQuoteLoop,
   forceStableHidden,
   forceStableRevealed,
   forceSettleActive,
@@ -968,6 +747,13 @@ if (isMain) {
   let total = 0;
   for (let i = 0; i < 60; i++) total += st.stormAccumulator.advance(0.05);
   assert.ok(total >= 3 && total <= 5, `storm units ~4 got ${total}`);
+
+  // Empty selection: storm is skipped (nothing left to cover).
+  const stEmpty = mkScene("storm-empty", [0, 1]);
+  stEmpty.enterMode("revealing");
+  stEmpty.columnsSelected = new Set();
+  assert.equal(configureStormCoverage(stEmpty, 3), false, "skip empty storm");
+  assert.equal(stEmpty.stormEnabled, false, "no storm when no columns");
 
   // storm on chain with explicit scene
   const st2 = mkScene("st2", [0, 1]);

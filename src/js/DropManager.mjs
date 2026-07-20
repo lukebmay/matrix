@@ -47,13 +47,10 @@ function maxSafeStackSpeed(leader, opts = {}) {
 }
 
 // Owns live drops. Additive Rain + active-scene Storms.
-// Rain: at most one live drop per column.
-// Storm: may stack one second drop on occupied columnsSelected cols (no-overtake)
-// unless weather scale disables stacking (cfg.ALLOW_STORM_STACK / state).
-// Cap 2 live drops/col — re-activations must not pile 3+ across cycles.
-// On spawn col c: drain Rain first-pass and every active scene's columnsSelected.
-// Global concurrent budget (maxActiveDrops) targets ~FRAME_DELAY ms of work:
-// when live count is at max, startNewDrops waits (VRA units refunded).
+// Rain: one live drop per column. Storm: optional second drop (no-overtake)
+// unless weather scale disables stack. Cap 2/col. Spawn drains first-pass and
+// active scene columnsSelected. Concurrent budget clamps max from wall-gap
+// samples. Storm FIFO (stormStartSeq); rain holds while storms have columns.
 const MAX_DROPS_PER_COL = 2;
 
 function DropManager(...args) {
@@ -70,75 +67,54 @@ function DropManager(...args) {
   // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
   const finishedScratch = [];
 
-  // --- Concurrent-drop budget: ladder of (max-2, max-1, max) frame times ---
-  // Sample wall-frame cost while live drops are at the current cap. Climb one
-  // level at a time. Once we have three consecutive costs (n-2, n-1, n), look
-  // for a *major* step-up into n — that knee means n is too high; settle at n-1.
-  // Floor hardMin (default 6). Never cull live drops; spawn waits at the cap.
-  const cols = cfg.COLS || 20;
-  const hardMin = Math.max(1, Number(cfg.ACTIVE_DROPS_MIN) || 6);
-  const hardMax = Math.max(
-    hardMin,
-    Number(cfg.ACTIVE_DROPS_MAX) || Math.min(cols, 32),
+  // Concurrent-drop budget: start at INITIAL (=COLS). Rolling 10-frame wall-gap
+  // avg; each new live peak restarts the sample. Below MIN never clamp; at/above
+  // MIN, clamp max to live when avg ≥ 200ms. Fast machines stay at COLS.
+  const cols = Math.max(1, cfg.COLS || 20);
+  const cfgInitial = Number(cfg.INITIAL_DROP_MAX ?? cfg.ACTIVE_DROPS_MAX);
+  const cfgMin = Number(cfg.MIN_DROP_MAX ?? cfg.ACTIVE_DROPS_MIN);
+  const INITIAL_DROP_MAX = Math.max(
+    1,
+    Number.isFinite(cfgInitial) && cfgInitial > 0
+      ? Math.min(cols, Math.floor(cfgInitial))
+      : cols,
   );
-  const initRaw = Number(cfg.ACTIVE_DROPS_INIT);
-  const steadyInit = Math.min(
-    hardMax,
-    Math.max(hardMin, Number.isFinite(initRaw) ? initRaw : hardMin),
+  // Floor for settled max; never above the ceiling (narrow grids).
+  const MIN_DROP_MAX = Math.min(
+    INITIAL_DROP_MAX,
+    Math.max(1, Number.isFinite(cfgMin) && cfgMin > 0 ? Math.floor(cfgMin) : 12),
   );
+  const ROLLING_FRAMES = 10;
+  const FRAME_AVG_LIMIT_MS = 200;
 
-  // Samples needed at a cap level before judging / climbing.
-  const SAMPLE_NEED = 12;
-  // Absolute ms jump between consecutive levels that counts as "major".
-  const MAJOR_STEP_MS = 10;
-  // Relative jump t[n] > t[n-1] * ratio (with a small absolute floor).
-  const MAJOR_RATIO = 1.18;
-  const MAJOR_RATIO_FLOOR_MS = 5;
-  // Second step much steeper than the first (acceleration).
-  const MAJOR_ACCEL = 1.7;
-  const MAJOR_ACCEL_FLOOR_MS = 6;
-  // Stable hold: re-check triple occasionally; rare re-ladder.
-  const STABLE_RECHECK_TICKS = 45;
-  const RELADDER_TICKS = 200;
+  // Calibrate when config declares a budget (production Configuration does).
+  // Smokes that omit INITIAL/MIN/ACTIVE_DROPS_* open the full cap immediately.
+  // ACTIVE_DROPS_CALIBRATE: false forces open even when those are set.
+  const hasBudgetConfig =
+    cfg.INITIAL_DROP_MAX != null ||
+    cfg.MIN_DROP_MAX != null ||
+    cfg.ACTIVE_DROPS_MIN != null ||
+    cfg.ACTIVE_DROPS_MAX != null;
+  const calibrate =
+    cfg.ACTIVE_DROPS_CALIBRATE !== false &&
+    cfg.ACTIVE_DROPS_CALIBRATE !== 0 &&
+    hasBudgetConfig;
 
-  /** @type {'ladder'|'stable'} */
-  let phase = "ladder";
-  // Start at min (or init); ladder climbs until the triple shows a knee.
-  let maxActiveDrops = steadyInit;
-  // costAt[n] = { ema, n } wall-gap ms while operating at cap n (live >= n).
-  const costAt = new Map();
-  // Rungs we already judged (climb or settle) — one decision per level.
-  const ladderJudged = new Set();
-  let frameEmaMs = 0;
+  /** @type {'climb'|'stable'} */
+  let phase = calibrate ? "climb" : "stable";
+  let maxActiveDrops = INITIAL_DROP_MAX;
+  let peakLive = 0;
+  let framesSincePeak = 0;
+  const frameWindow = [];
   let workEmaMs = 0;
   let frameSamples = 0;
-  let phaseTicks = 0;
-  // Last evaluated triple for debug (max-2, max-1, max costs).
-  let lastTriple = [0, 0, 0];
 
-  // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
   self.getDropsOn = (col) => Array.from(byCol.get(col) ?? []);
   self.getActiveDropCount = () => drops.size;
   self.getMaxActiveDrops = () => maxActiveDrops;
-  self.getFrameEmaMs = () => frameEmaMs;
   self.getWorkEmaMs = () => workEmaMs;
-  // Lowest ladder sample we have (often hardMin) — debug "base" column.
-  self.getBaselineMs = () => {
-    for (let k = hardMin; k <= hardMax; k++) {
-      const e = costAt.get(k);
-      if (e?.n) return e.ema;
-    }
-    return 0;
-  };
   self.getDropBudgetPhase = () => phase;
-  // [cost(max-2), cost(max-1), cost(max)] — 0 if missing.
-  self.getLadderTriple = () => {
-    const m = maxActiveDrops;
-    const c = (k) => costAt.get(k)?.ema ?? 0;
-    return [c(m - 2), c(m - 1), c(m)];
-  };
-  self.getLastKneeTriple = () => lastTriple.slice();
   // Hot path: paint iterates without Array.from.
   self.forEachColumnDrops = (fn) => {
     for (const [c, list] of byCol) {
@@ -163,126 +139,70 @@ function DropManager(...args) {
     return prev * (1 - a) + sample * a;
   };
 
-  const sampleCap = (level, gap) => {
-    const e = costAt.get(level);
-    if (!e) {
-      costAt.set(level, { ema: gap, n: 1 });
-      return;
-    }
-    e.n += 1;
-    e.ema = pushEma(e.ema, gap, e.n, 0.35, 0.12);
+  const windowMean = (buf) => {
+    if (!buf.length) return 0;
+    let s = 0;
+    for (let i = 0; i < buf.length; i++) s += buf[i];
+    return s / buf.length;
   };
 
-  // Major increase across three consecutive levels t0@n-2, t1@n-1, t2@n.
-  const isMajorIncrease = (t0, t1, t2) => {
-    if (!(t0 > 0 && t1 > 0 && t2 > 0)) return false;
-    const d1 = t1 - t0;
-    const d2 = t2 - t1;
-    if (d2 >= MAJOR_STEP_MS) return true;
-    if (t2 > t1 * MAJOR_RATIO && d2 >= MAJOR_RATIO_FLOOR_MS) return true;
-    if (d2 >= MAJOR_ACCEL_FLOOR_MS && d2 > Math.max(d1, 1) * MAJOR_ACCEL) {
-      return true;
-    }
-    return false;
-  };
-
-  const readTriple = (n) => {
-    const c = (k) => costAt.get(k)?.ema ?? 0;
-    return [c(n - 2), c(n - 1), c(n)];
-  };
-
-  const tripleReady = (n) => {
-    if (n < hardMin + 2) return false;
-    const a = costAt.get(n - 2);
-    const b = costAt.get(n - 1);
-    const c = costAt.get(n);
-    return a?.n >= SAMPLE_NEED && b?.n >= SAMPLE_NEED && c?.n >= SAMPLE_NEED;
+  const settleAt = (level) => {
+    maxActiveDrops = Math.max(
+      MIN_DROP_MAX,
+      Math.min(INITIAL_DROP_MAX, Math.floor(level)),
+    );
+    phase = "stable";
+    peakLive = 0;
+    framesSincePeak = 0;
+    frameWindow.length = 0;
   };
 
   // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle.
-  self.noteFrameTiming = (wallGapMs, workMs = 0, _scheduleTargetMs = 0) => {
+  self.noteFrameTiming = (wallGapMs, workMs = 0) => {
     const gap = Number(wallGapMs);
     const work = Number(workMs);
     if (!Number.isFinite(gap) || gap < 0) return;
 
     frameSamples += 1;
-    frameEmaMs = pushEma(frameEmaMs, gap, frameSamples);
     if (Number.isFinite(work) && work >= 0) {
       workEmaMs = pushEma(workEmaMs, work, frameSamples);
     }
 
-    const live = drops.size;
-    phaseTicks += 1;
+    if (phase === "stable") return;
 
-    // Only attribute cost when rain is actually at the cap (full load for level).
-    if (live >= maxActiveDrops && maxActiveDrops > 0) {
-      sampleCap(maxActiveDrops, gap);
+    const live = drops.size;
+
+    frameWindow.push(gap);
+    if (frameWindow.length > ROLLING_FRAMES) frameWindow.shift();
+
+    // New peak live count → restart the post-add sample window.
+    if (live > peakLive) {
+      peakLive = live;
+      framesSincePeak = 0;
     }
 
-    const cur = costAt.get(maxActiveDrops);
-    const enough = cur && cur.n >= SAMPLE_NEED;
+    if (peakLive < 1) return;
 
-    if (phase === "ladder") {
-      if (!enough) return;
-      // One decision per rung (do not climb every subsequent frame).
-      if (ladderJudged.has(maxActiveDrops)) return;
-      ladderJudged.add(maxActiveDrops);
+    framesSincePeak += 1;
+    if (frameWindow.length < ROLLING_FRAMES) return;
 
-      // Need three rungs before a knee decision; otherwise climb.
-      if (tripleReady(maxActiveDrops)) {
-        const [t0, t1, t2] = readTriple(maxActiveDrops);
-        lastTriple = [t0, t1, t2];
-        if (isMajorIncrease(t0, t1, t2)) {
-          // Step into current max is too expensive — hold one below.
-          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
-          phase = "stable";
-          phaseTicks = 0;
-          return;
-        }
-      }
+    const avg = windowMean(frameWindow);
+    const reportDrops = Math.max(live, peakLive);
 
-      // Flat ladder so far: climb if demand is at the cap and room remains.
-      if (maxActiveDrops < hardMax && live >= maxActiveDrops) {
-        maxActiveDrops += 1;
-        phaseTicks = 0;
-        return;
-      }
+    // Below MIN: keep max open at INITIAL.
+    if (reportDrops < MIN_DROP_MAX) return;
 
-      // Can't climb (at hardMax or no demand) — hold.
-      phase = "stable";
-      phaseTicks = 0;
+    // At/above MIN: 200ms rolling avg → this drop count becomes the max.
+    if (avg >= FRAME_AVG_LIMIT_MS) {
+      settleAt(reportDrops);
       return;
     }
 
-    // --- stable: hold; re-check the (max-2, max-1, max) triple periodically ---
-    if (phaseTicks >= STABLE_RECHECK_TICKS && enough && tripleReady(maxActiveDrops)) {
-      const [t0, t1, t2] = readTriple(maxActiveDrops);
-      lastTriple = [t0, t1, t2];
-      if (isMajorIncrease(t0, t1, t2) && maxActiveDrops > hardMin) {
-        maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
-        phaseTicks = 0;
-        return;
-      }
-      phaseTicks = 0;
-    }
-
-    // Rare re-ladder from current (allows slow recovery if the machine calmed).
-    if (
-      phaseTicks >= RELADDER_TICKS &&
-      maxActiveDrops < hardMax &&
-      live >= maxActiveDrops
-    ) {
-      // Keep known costs; open one more step and re-enter ladder.
-      maxActiveDrops += 1;
-      costAt.delete(maxActiveDrops);
-      ladderJudged.delete(maxActiveDrops);
-      phase = "ladder";
-      phaseTicks = 0;
+    // Full grid held without tripping 200ms — lock at INITIAL.
+    if (reportDrops >= INITIAL_DROP_MAX && framesSincePeak >= ROLLING_FRAMES) {
+      settleAt(INITIAL_DROP_MAX);
     }
   };
-
-  // Back-compat alias (JS work only — prefer noteFrameTiming with wall gap).
-  self.noteFrameWork = (workMs) => self.noteFrameTiming(workMs, workMs);
 
   // Remaining spawn slots this tick (0 → wait; refund VRA units).
   const spawnRoom = () => Math.max(0, maxActiveDrops - drops.size);
@@ -327,11 +247,6 @@ function DropManager(...args) {
       if (scene.isActive && scene.stormEnabled && scene.stormAccumulator) {
         sources.push(scene);
       }
-    }
-
-    // Legacy bridge: SpawnPolicy list still supported if present.
-    for (const p of state.spawnPolicies ?? []) {
-      if (p && p !== state.rain && p.isActive && !p.isComplete) sources.push(p);
     }
 
     return sources.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
@@ -393,14 +308,7 @@ function DropManager(...args) {
     return true;
   };
 
-  // Ambient rain thinning when weather escalates mid-session (cfg was full).
-  const ambientRainScale = () => {
-    if (state.weatherScale !== true || cfg.WEATHER_SCALE === true) return 1;
-    const s = cfg.WEATHER_RAIN_PEAK_SCALE;
-    return typeof s === "number" && s > 0 && s < 1 ? s : 0.65;
-  };
-
-  // Any content/rain drain storm currently spawning (pause ambient rain).
+  // Any content/rain drain storm still enabled (columns pending or just emptied).
   const anyStormActive = () => {
     if (state.rain?.stormEnabled) return true;
     for (const scene of state.dropScenes ?? []) {
@@ -409,12 +317,31 @@ function DropManager(...args) {
     return false;
   };
 
-  // Constrained: ambient rain off while storms run (less concurrent paint).
-  // Ratchet mid-session: treat as on unless cfg explicitly false.
-  const pauseRainDuringStorm = () => {
-    if (!weatherConstrained()) return false;
-    return cfg.PAUSE_RAIN_DURING_STORM !== false;
+  // Ambient rain waits until every storm has finished its columns.
+  // Config default true; tests may set false to exercise concurrent rain.
+  const pauseRainDuringStorm = () => cfg.PAUSE_RAIN_DURING_STORM !== false;
+
+  // Earliest-activated storm still enabled (FIFO). Later storms wait.
+  const pickCurrentStorm = () => {
+    const storms = [];
+    if (state.rain?.stormEnabled && state.rain.stormAccumulator) {
+      storms.push(state.rain);
+    }
+    for (const scene of state.dropScenes ?? []) {
+      const active =
+        typeof scene.isActive === "function" ? scene.isActive() : scene.isActive;
+      if (active && scene.stormEnabled && scene.stormAccumulator) {
+        storms.push(scene);
+      }
+    }
+    if (!storms.length) return null;
+    storms.sort((a, b) => (a.stormStartSeq ?? 0) - (b.stormStartSeq ?? 0));
+    return storms[0];
   };
+
+  // True while ambient rain is held at trough (storm columns or drop cap).
+  // On enter: reset rain rate clock to 0 so resume starts quiet.
+  let rainHeldAtTrough = false;
 
   // Exactly one live drop + still selected + head start for no-overtake speed.
   const stackableSelected = (source) => {
@@ -462,7 +389,7 @@ function DropManager(...args) {
     for (const source of sources) {
       source.syncCompletion?.();
       if (source.isComplete && !source.infinite) continue;
-      // DropScene: isActive is a getter; SpawnPolicy/Rain: boolean or getter.
+      // DropScene: isActive is a getter; Rain: boolean.
       const active =
         typeof source.isActive === "function" ? source.isActive() : source.isActive;
       if (!active) continue;
@@ -474,25 +401,34 @@ function DropManager(...args) {
         continue;
       }
 
-      // Global concurrency cap: wait (do not advance rate clocks) until a drop
-      // dies. Higher-priority sources run first (storms before rain), so content
-      // wins the remaining slots when the budget is tight.
-      if (spawnRoom() <= 0) continue;
-
       // Rain: drain storm uses storm acc; ambient uses forever acc.
       // DropScenes only join when stormEnabled (storm acc).
       const isStorm = source.stormEnabled === true;
 
-      // Constrained: freeze ambient rain while any storm is active (do not
-      // advance the soft-square clock — resume cleanly when storms end).
-      if (
-        source === state.rain &&
-        !isStorm &&
-        pauseRainDuringStorm() &&
-        anyStormActive()
-      ) {
-        continue;
+      // Only the earliest-activated storm may spawn; later storms wait (no VRA
+      // advance) until the first finishes its columnsSelected.
+      if (isStorm && source !== pickCurrentStorm()) continue;
+
+      // Ambient rain held at trough while:
+      //  - any storm still has columns to process (or newly added storms), or
+      //  - global max drops is hit (resume from rate 0 when a slot frees).
+      // Reset rain rate clock once on enter so we do not resume mid-peak.
+      if (source === state.rain && !isStorm) {
+        const holdForStorm = pauseRainDuringStorm() && anyStormActive();
+        const holdForCap = spawnRoom() <= 0;
+        if (holdForStorm || holdForCap) {
+          if (!rainHeldAtTrough) {
+            source.accumulator?.reset?.();
+            rainHeldAtTrough = true;
+          }
+          continue;
+        }
+        if (rainHeldAtTrough) rainHeldAtTrough = false;
       }
+
+      // Global concurrency cap: storms wait (do not advance rate clocks) until
+      // a drop dies. Higher-priority / current storm wins remaining slots.
+      if (spawnRoom() <= 0) continue;
 
       const rateAcc =
         source === state.rain && !isStorm
@@ -500,20 +436,6 @@ function DropManager(...args) {
           : (source.stormAccumulator ?? source.accumulator);
       let want = rateAcc?.advance?.(elapsedSeconds) ?? 0;
       if (want <= 0) continue;
-
-      // Mid-session weather scale: thin ambient rain (peak already scaled if
-      // cfg.WEATHER_SCALE was set at construction). Do **not** refund dropped
-      // units — intentional discard; refund would restore the full average.
-      if (source === state.rain && !isStorm) {
-        const peakScale = ambientRainScale();
-        if (peakScale < 1 && want > 0) {
-          const scaled = want * peakScale;
-          const whole = Math.floor(scaled);
-          const frac = scaled - whole;
-          want = whole + (Math.random() < frac ? 1 : 0);
-          if (want <= 0) continue;
-        }
-      }
 
       // Cap want to remaining concurrent slots; refund the rest so budget waits.
       const room = spawnRoom();
@@ -529,7 +451,7 @@ function DropManager(...args) {
       const stackable =
         isStorm && allowStormStack() ? stackableSelected(source) : [];
 
-      // No free columns: rain/legacy refund. Storm may still stack (if allowed).
+      // No free columns: refund. Storm may still stack when allowed.
       if (free.length === 0 && stackable.length === 0) {
         rateAcc?.refund?.(want);
         continue;
@@ -716,7 +638,6 @@ if (isMain) {
 
     stateMod.rain = rain;
     stateMod.dropScenes = [scene];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
 
     const dm = DropManager();
@@ -840,7 +761,6 @@ if (isMain) {
       DROP_LENGTH_MAX: 8,
       ALLOW_STORM_STACK: false,
       WEATHER_SCALE: true,
-      WEATHER_RAIN_PEAK_SCALE: 0.65,
       WEATHER_LENGTH_SCALE: 0.6,
     };
     stateMod.weatherScale = true;
@@ -868,7 +788,6 @@ if (isMain) {
 
     stateMod.rain = rain;
     stateMod.dropScenes = [scene];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
 
     const dm = DropManager();
@@ -902,7 +821,7 @@ if (isMain) {
     stateMod.allowStormStack = null;
   }
 
-  // --- Weather scale: ambient rain paused while a content storm is active ---
+  // --- Ambient rain paused while a content storm still has columns ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: DropScene } = await import("./DropScene.mjs");
@@ -919,12 +838,10 @@ if (isMain) {
       DROP_LENGTH_MIN: 5,
       DROP_LENGTH_MAX: 8,
       ALLOW_STORM_STACK: false,
-      WEATHER_SCALE: true,
       PAUSE_RAIN_DURING_STORM: true,
-      WEATHER_RAIN_PEAK_SCALE: 0.65,
       WEATHER_LENGTH_SCALE: 0.6,
     };
-    stateMod.weatherScale = true;
+    stateMod.weatherScale = null;
     stateMod.allowStormStack = false;
 
     if (typeof globalThis.performance === "undefined") {
@@ -953,7 +870,6 @@ if (isMain) {
 
     stateMod.rain = rain;
     stateMod.dropScenes = [scene];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
 
     const dm = DropManager();
@@ -1024,7 +940,6 @@ if (isMain) {
     });
     stateMod.rain = rain;
     stateMod.dropScenes = [scene];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
     stateMod.sceneManager = SceneManager({ scenes: [scene] });
     stateMod.sceneManager.applyLogicalForScene(scene);
@@ -1073,23 +988,22 @@ if (isMain) {
     assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
   }
 
-  // --- Concurrent budget: ladder triple (max-2,max-1,max); floor MIN; no cull ---
+  // --- Concurrent budget: max starts at COLS; fast path stays there ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: Rain } = await import("./Rain.mjs");
     const { VariableRateAccumulator } = await import("./util.mjs");
 
     stateMod.config = {
-      COLS: 10,
+      COLS: 16,
       ROWS: 20,
       DROP_SPEED_MIN: 8,
       DROP_SPEED_MAX: 18,
       DROP_LENGTH_MIN: 4,
       DROP_LENGTH_MAX: 8,
       FRAME_DELAY: 75,
-      ACTIVE_DROPS_MIN: 6,
-      ACTIVE_DROPS_MAX: 10,
-      ACTIVE_DROPS_INIT: 6,
+      INITIAL_DROP_MAX: 16,
+      MIN_DROP_MAX: 12,
     };
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;
@@ -1099,74 +1013,46 @@ if (isMain) {
     }
 
     const rain = Rain({
-      cols: 10,
+      cols: 16,
       accumulator: VariableRateAccumulator(500, Infinity, () => 100),
     });
     stateMod.rain = rain;
     stateMod.dropScenes = [];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
 
     const dm = DropManager();
-    assert.equal(dm.getMaxActiveDrops(), 6, "starts at INIT/MIN");
-    assert.equal(dm.getDropBudgetPhase(), "ladder");
+    assert.equal(dm.getMaxActiveDrops(), 16, "max starts at INITIAL/COLS");
+    assert.equal(dm.getDropBudgetPhase(), "climb");
 
-    // Fill to cap and feed flat frame times at each rung until climb/settle.
-    // 12 samples per level at constant 40ms → no major increase → climb toward max.
-    const feedLevel = (gapMs, ticks = 14) => {
-      for (let i = 0; i < ticks; i++) {
-        dm.settleDrops(0.05);
-        // noteFrame after settle so live reflects cap
-        dm.noteFrameTiming(gapMs, 2, 75);
-      }
-    };
-    feedLevel(40);
-    // Should have climbed at least once (flat costs).
-    assert.ok(
-      dm.getMaxActiveDrops() >= 6,
-      `ladder max >= min, got ${dm.getMaxActiveDrops()}`,
-    );
+    // Grow live drops with cheap frame times; lock at COLS when full.
+    for (let n = 0; n < 80 && dm.getDropBudgetPhase() === "climb"; n++) {
+      dm.settleDrops(0.05);
+      dm.noteFrameTiming(50, 1);
+    }
+    assert.equal(dm.getDropBudgetPhase(), "stable", "locks after filling COLS");
+    assert.equal(dm.getMaxActiveDrops(), 16, "stays at INITIAL on fast path");
     assert.ok(
       dm.getActiveDropCount() <= dm.getMaxActiveDrops(),
       "live never exceeds maxActive",
     );
-
-    // Force a major step: sample high gap at current top until judged.
-    // Build synthetic triple via many expensive samples at high cap.
-    const before = dm.getMaxActiveDrops();
-    for (let i = 0; i < 40; i++) {
-      dm.settleDrops(0.05);
-      dm.noteFrameTiming(120, 5, 75);
-    }
-    assert.ok(dm.getMaxActiveDrops() >= 6, "never below ACTIVE_DROPS_MIN");
-    // Cap may cut or hold; must not cull live.
-    const liveBefore = dm.getActiveDropCount();
-    dm.settleDrops(0.05);
-    assert.equal(
-      dm.getActiveDropCount(),
-      liveBefore,
-      "shrink does not cull live drops",
-    );
-    void before;
   }
 
-  // --- Ladder triple detects major increase and settles at max-1 ---
+  // --- 200ms 10-frame avg clamps max to current live (at/above MIN) ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: Rain } = await import("./Rain.mjs");
     const { VariableRateAccumulator } = await import("./util.mjs");
 
     stateMod.config = {
-      COLS: 12,
+      COLS: 24,
       ROWS: 20,
       DROP_SPEED_MIN: 8,
       DROP_SPEED_MAX: 18,
       DROP_LENGTH_MIN: 4,
       DROP_LENGTH_MAX: 8,
       FRAME_DELAY: 75,
-      ACTIVE_DROPS_MIN: 6,
-      ACTIVE_DROPS_MAX: 9,
-      ACTIVE_DROPS_INIT: 6,
+      INITIAL_DROP_MAX: 24,
+      MIN_DROP_MAX: 12,
     };
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;
@@ -1174,32 +1060,265 @@ if (isMain) {
       globalThis.performance = { now: () => Date.now() };
     }
     stateMod.rain = Rain({
-      cols: 12,
+      cols: 24,
       accumulator: VariableRateAccumulator(500, Infinity, () => 100),
     });
     stateMod.dropScenes = [];
-    stateMod.spawnPolicies = [];
     stateMod.contentLayers = [];
 
     const dm = DropManager();
-    // Flat 40ms at 6,7,8 → climb; then 40,40,80 at 7,8,9 → major into 9.
-    const step = (gap, n = 14) => {
-      for (let i = 0; i < n; i++) {
-        dm.settleDrops(0.05);
-        dm.noteFrameTiming(gap, 1, 75);
-      }
-    };
-    step(40); // judge 6 → climb
-    step(40); // judge 7 → climb
-    step(40); // judge 8 → climb (triple 6,7,8 flat)
-    assert.ok(dm.getMaxActiveDrops() >= 8, "climbed past 8 on flat costs");
-    step(80); // judge 9 with expensive top → major vs 40,40
-    // After major into 9, settle at 8.
-    assert.ok(
-      dm.getMaxActiveDrops() <= 8,
-      `knee settles at or below 8, got ${dm.getMaxActiveDrops()}`,
+    assert.equal(dm.getMaxActiveDrops(), 24, "starts open at COLS");
+
+    // Grow live with expensive frames; must not clamp before MIN (12).
+    for (let n = 0; n < 200 && dm.getActiveDropCount() < 12; n++) {
+      dm.settleDrops(0.05);
+      dm.noteFrameTiming(250, 1);
+    }
+    assert.ok(dm.getActiveDropCount() >= 12, "reached MIN live drops");
+    assert.equal(dm.getDropBudgetPhase(), "climb", "still open below settle");
+    assert.equal(dm.getMaxActiveDrops(), 24, "max still INITIAL before clamp");
+
+    // Hold live ≥12 for 10 frames at 210ms → clamp to that live count.
+    const liveAtClamp = dm.getActiveDropCount();
+    for (let i = 0; i < 15; i++) {
+      dm.noteFrameTiming(210, 1);
+      if (dm.getDropBudgetPhase() === "stable") break;
+    }
+    assert.equal(dm.getDropBudgetPhase(), "stable", "200ms avg settles");
+    assert.equal(
+      dm.getMaxActiveDrops(),
+      Math.max(12, liveAtClamp),
+      "clamps max to live count at trip",
     );
-    assert.equal(dm.getDropBudgetPhase(), "stable");
+  }
+
+  // --- Rain pause for storm resets rate clock to trough ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+
+    stateMod.config = {
+      COLS: 8,
+      ROWS: 20,
+      DROP_SPEED_MIN: 10,
+      DROP_SPEED_MAX: 20,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 8,
+      FRAME_DELAY: 75,
+      ACTIVE_DROPS_MIN: 8,
+      ACTIVE_DROPS_MAX: 8,
+      PAUSE_RAIN_DURING_STORM: true,
+      ALLOW_STORM_STACK: false,
+    };
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = null;
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    let rainTime = 0;
+    const acc = {
+      advance(dt) {
+        rainTime += dt;
+        return 0;
+      },
+      reset() {
+        rainTime = 0;
+      },
+      refund() {},
+    };
+    const rain = Rain({ cols: 8, accumulator: acc });
+    stateMod.rain = rain;
+    // Fake content storm active.
+    stateMod.dropScenes = [
+      {
+        isActive: true,
+        stormEnabled: true,
+        stormStartSeq: 1,
+        stormAccumulator: {
+          advance: () => 0,
+          refund() {},
+        },
+        columnsSelected: new Set([0, 1]),
+        columns: new Set([0, 1]),
+        priority: 10,
+        infinite: false,
+        isComplete: false,
+        pickColumns: () => [],
+        syncCompletion() {},
+        stopStorm() {
+          this.stormEnabled = false;
+        },
+      },
+    ];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    // Advance rain rate clock a bit first (simulate mid-cycle).
+    acc.advance(3);
+    assert.ok(rainTime > 0, "rain clock advanced");
+    // settleDrops runs startNewDrops — storm active should pause rain + reset.
+    dm.settleDrops(0.05);
+    assert.equal(rainTime, 0, "rain accumulator reset on storm pause");
+  }
+
+  // --- Max drops: ambient rain rate resets to 0 while cap is full ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 4,
+      ROWS: 20,
+      DROP_SPEED_MIN: 1,
+      DROP_SPEED_MAX: 2,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 5,
+      FRAME_DELAY: 75,
+      ACTIVE_DROPS_MIN: 1,
+      ACTIVE_DROPS_MAX: 1,
+      ACTIVE_DROPS_CALIBRATE: false,
+      PAUSE_RAIN_DURING_STORM: true,
+      ALLOW_STORM_STACK: false,
+    };
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    let rainTime = 0;
+    let resetCount = 0;
+    const acc = {
+      advance(dt) {
+        rainTime += dt;
+        return 1;
+      },
+      reset() {
+        rainTime = 0;
+        resetCount += 1;
+      },
+      refund() {},
+    };
+    const rain = Rain({ cols: 4, accumulator: acc });
+    stateMod.rain = rain;
+    stateMod.dropScenes = [];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    // First tick fills the single drop slot.
+    dm.settleDrops(0.05);
+    assert.equal(dm.getDrops().length, 1, "one live drop at cap");
+    // Mid-cycle advance then another tick at cap → must reset, not advance.
+    acc.advance(2);
+    assert.ok(rainTime > 0, "simulated mid-cycle rain time");
+    const resetsBefore = resetCount;
+    dm.settleDrops(0.05);
+    assert.equal(dm.getDrops().length, 1, "still at cap");
+    assert.ok(resetCount > resetsBefore, "rain reset while at max drops");
+    assert.equal(rainTime, 0, "rain rate at trough while cap full");
+  }
+
+  // --- Storm FIFO: second activated storm waits until first finishes columns ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: DropScene } = await import("./DropScene.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 6,
+      ROWS: 20,
+      DROP_SPEED_MIN: 10,
+      DROP_SPEED_MAX: 20,
+      STORM_DROP_SPEED_MIN: 12,
+      STORM_DROP_SPEED_MAX: 20,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 6,
+      FRAME_DELAY: 75,
+      ACTIVE_DROPS_MIN: 20,
+      ACTIVE_DROPS_MAX: 20,
+      ACTIVE_DROPS_CALIBRATE: false,
+      PAUSE_RAIN_DURING_STORM: true,
+      ALLOW_STORM_STACK: false,
+    };
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = false;
+    stateMod.stormStartSeq = 0;
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    // Quiet ambient rain so only storms spawn.
+    const rain = Rain({
+      cols: 6,
+      accumulator: VariableRateAccumulator(0, Infinity, () => 0),
+    });
+    rain.firstPass = new Set();
+
+    const first = DropScene({
+      name: "storm-first",
+      points: [
+        { r: 1, c: 0, char: "A", revealed: false },
+        { r: 1, c: 1, char: "B", revealed: false },
+      ],
+      priority: 10,
+      // High unit budget so a single settle tick yields spawns.
+      stormAccumulator: VariableRateAccumulator(20, 1, () => 1),
+    });
+    const second = DropScene({
+      name: "storm-second",
+      points: [
+        { r: 2, c: 2, char: "C", revealed: false },
+        { r: 2, c: 3, char: "D", revealed: false },
+      ],
+      priority: 10,
+      stormAccumulator: VariableRateAccumulator(20, 1, () => 1),
+    });
+    first.enterMode("revealing");
+    first.startStorm();
+    // Re-arm burst after startStorm reset (same unit window, denser for smoke).
+    first.stormAccumulator = VariableRateAccumulator(20, 1, () => 1);
+    second.enterMode("revealing");
+    second.startStorm();
+    second.stormAccumulator = VariableRateAccumulator(20, 1, () => 1);
+    assert.ok(
+      first.stormStartSeq < second.stormStartSeq,
+      "activation order recorded",
+    );
+
+    stateMod.rain = rain;
+    stateMod.dropScenes = [second, first]; // reverse list order; FIFO by seq
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    dm.settleDrops(0.2);
+
+    // First storm may have spawned; second must not until first is done.
+    assert.equal(
+      second.columnsSelected.size,
+      2,
+      "second storm still full while first unfinished",
+    );
+    assert.equal(
+      dm.getDropsOn(2).length + dm.getDropsOn(3).length,
+      0,
+      "no drops on second storm cols yet",
+    );
+    assert.ok(
+      first.columnsSelected.size < 2 ||
+        dm.getDropsOn(0).length + dm.getDropsOn(1).length >= 1,
+      "first storm made progress",
+    );
+
+    // Finish first by covering its columns.
+    first.columnsSelected = new Set();
+    first.stopStorm();
+    dm.settleDrops(0.2);
+    assert.ok(
+      dm.getDropsOn(2).length + dm.getDropsOn(3).length >= 1 ||
+        second.columnsSelected.size < 2,
+      "second storm starts after first completes",
+    );
   }
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;

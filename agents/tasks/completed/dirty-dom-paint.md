@@ -1,7 +1,7 @@
 # Task — Dirty DomManager paint
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — high paint thrift on every device  
 **Depends on:** [cheap-glow.md](cheap-glow.md) (done)
 
@@ -36,4 +36,4 @@ frame. Restyle only when the cell’s paint role actually changes.
 - `trailRole` + `trailTheme` WeakMaps; `applyTrailRole` skips clean cells.
 - `paintFromLogical` no longer re-run for every tip/body row each frame.
 - Files: `src/js/DomManager.mjs`, `docs/DESIGN.md`, plan + project status.
-- Next plan slice: hot-path allocations ([plan](../../plans/adaptive-performance.md) slice 4).
+- Next plan slice: hot-path allocations ([plan](../../plans/completed/adaptive-performance.md) slice 4).

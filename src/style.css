@@ -35,6 +35,10 @@ html {
   --col-body: #000000;
   --col-hi: #000000;
   --col-link: #000000;
+  /* Debug HUD accents (theme-tied; ThemeDirector fades with --col-low). */
+  --debug-hi: #c0ffd0;
+  --debug-med: #0d731a;
+  --debug-body: #149428;
   --char-size: 0;
   --char-width: 0;
   --char-height: 0;
@@ -191,32 +195,32 @@ body {
 }
 
 /*
- * Cheap glow (html.m-cheap-glow): quality downgrade for any slower device —
- * narrow viewport, low-power heuristic, or runtime ratchet after slow frames.
- * Trails drop multi-blur (fill only). Tips/settled keep one short shadow; no
- * color-mix. Full neon stacks above stay on without the class.
- * See agents/plans/adaptive-performance.md.
+ * Cheap glow (html.m-cheap-glow): quality thrift for rain only — any slower
+ * device (narrow / low-power heuristic / runtime ratchet). Trails: no shadow.
+ * Tips: one short blur. Settled static text + links keep full multi-blur neon
+ * (painted once on reveal, not every tip step). Tip-over-static uses the tip
+ * thrift (motion path). See agents/plans/completed/adaptive-performance.md.
  */
 html.m-cheap-glow .m-drop {
   text-shadow: none;
 }
-html.m-cheap-glow .m-drop-tip {
-  text-shadow: 0 0 6px var(--drop-hi, var(--col-hi));
-}
-html.m-cheap-glow .m-static.m-revealed {
-  text-shadow:
-    0 0 1px #000,
-    0 0 6px var(--col-body, var(--col-med));
-}
-html.m-cheap-glow .m-static.m-revealed.m-link {
-  text-shadow: 0 0 8px var(--col-link);
-}
+html.m-cheap-glow .m-drop-tip,
 html.m-cheap-glow .m-static.m-revealed.m-drop-tip,
 html.m-cheap-glow .m-static.m-drop-tip {
   text-shadow: 0 0 6px var(--drop-hi, var(--col-hi));
 }
-html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
-  text-shadow: 0 0 8px var(--col-link-hover);
+/* Settled body/link: leave base full-neon rules (no thrift override). */
+
+/*
+ * Flat glow (html.m-flat-glow): second tier after cheap when inter-render gaps
+ * / frame work stay high. Rain tip/trail: no shadow. Settled static + links
+ * still full neon (same as cheap). Tip-over-static stays thrifted with tips.
+ */
+html.m-flat-glow .m-drop,
+html.m-flat-glow .m-drop-tip,
+html.m-flat-glow .m-static.m-revealed.m-drop-tip,
+html.m-flat-glow .m-static.m-drop-tip {
+  text-shadow: none;
 }
 
 /*
@@ -231,9 +235,9 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
   z-index: 10000;
   margin: 0;
   padding: 6px 10px 8px;
-  border: 1px solid rgba(0, 255, 70, 0.35);
+  border: 1px solid color-mix(in srgb, var(--debug-med, var(--col-med)) 55%, transparent);
   border-radius: 2px;
-  color: #00ff46;
+  color: var(--debug-hi, var(--col-hi));
   background: rgba(0, 0, 0, 0.78);
   font-family: "Ubuntu Sans Mono", "Courier Prime", monospace;
   font-size: 12px;
@@ -242,7 +246,7 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
   letter-spacing: 0;
   pointer-events: none;
   user-select: none;
-  text-shadow: 0 0 6px rgba(0, 255, 70, 0.4);
+  text-shadow: none;
 }
 #m-debug .m-debug-table {
   table-layout: fixed;
@@ -265,7 +269,7 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
 }
 #m-debug .m-debug-table th {
   padding-bottom: 3px;
-  color: rgba(0, 255, 70, 0.55);
+  color: color-mix(in srgb, var(--debug-med, var(--col-med)) 70%, transparent);
   font-weight: 400;
   text-align: right;
 }
@@ -274,7 +278,11 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
   width: 5ch;
   max-width: 5ch;
   text-align: left;
-  color: rgba(0, 255, 70, 0.75);
+  color: color-mix(
+    in srgb,
+    var(--debug-body, var(--col-body, var(--col-med))) 85%,
+    transparent
+  );
 }
 #m-debug .m-debug-table th:nth-child(2),
 #m-debug .m-debug-table th:nth-child(3),

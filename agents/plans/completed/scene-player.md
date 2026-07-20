@@ -1,12 +1,9 @@
 # Plan — ScenePlayer & scene paint
 
-**Status:** Mostly complete (play authoring shipped; paint code done;
-**optional browser eyeball** residual)  
+**Status:** Complete (archived 2026-07-20) — paint eyeball confirmed  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
-**Next:** Optional human eyeball
-[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
-then deploy / job-search polish.
+**Next product work:** quote playlist / deploy polish (not this plan).
 
 ## Goal
 
@@ -68,7 +65,7 @@ DropManager
 | Out of v1 | Frame-dt clock, Style D async, visual timeline |
 
 Live homepage: `src/js/play/homepage.mjs` (Configuration wires it).  
-Design: [completed/scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md).
+Design: [completed/scene-player-play-plan.md](../scene-player/completed/scene-player-play-plan.md).
 
 ### Legacy (still exported)
 
@@ -86,16 +83,15 @@ Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 
 | Task | Status |
 | --- | --- |
-| [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md) | **Done** — MVP + superseded by play |
+| [scene-player-mvp.md](../scene-player/completed/scene-player-mvp.md) | **Done** — MVP + superseded by play |
 | Pause + brightness quickfixes | Partial (historical) |
 | SceneManager first pass + phases + event loop | Shipped |
-| [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md) | Code done; **optional browser eyeball** |
-| [scene-player-play-plan.md](scene-player/completed/scene-player-play-plan.md) | **Design locked** |
-| [scene-player-play.md](scene-player/completed/scene-player-play.md) | **Shipped** — context + chains + storm + homepage |
+| [scene-player-logical-grid-paint.md](../scene-player/completed/scene-player-logical-grid-paint.md) | **Done** — code + eyeball |
+| [scene-player-play-plan.md](../scene-player/completed/scene-player-play-plan.md) | **Design locked** |
+| [scene-player-play.md](../scene-player/completed/scene-player-play.md) | **Shipped** — context + chains + storm + homepage |
 
-## Residual
+## Residual (out of plan)
 
-- Optional browser confirmation of card/quote loop paint  
 - Word-space cells in TextLine (rain gaps between words today)  
 - Frame-`dt` unified animation clock (new task if needed)  
 - Deploy + job-search polish  
@@ -105,8 +101,13 @@ Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 **2026-07-15 — Wrapup**
 
 Play authoring + paint ownership shipped on `refactor_07-2026`. MVP and
-play tasks archived under `plans/scene-player/completed/`. Only active
-product residual for this plan: human paint eyeball if desired.
+play tasks archived under `plans/scene-player/completed/`.
+
+**2026-07-20 — Plan complete**
+
+Eyeball confirmed. Paint task archived under
+`plans/scene-player/completed/scene-player-logical-grid-paint.md`.
+No open residual for this plan.
 
 **Key paths**
 
@@ -119,7 +120,7 @@ product residual for this plan: human paint eyeball if desired.
 | `src/js/DomManager.mjs` | DOM paint from logical |
 | `src/js/Configuration.mjs` | Layout + wire `homepagePlay` |
 
-**Next**
-1. Optional eyeball: [scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md)  
+**Next product**
+1. Quote playlist ([interactive-play](../interactive-play.md))  
 2. Deploy / job-search polish  
 3. Frame-dt / Style D only if a new task is filed  

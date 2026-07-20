@@ -21,7 +21,7 @@ function Application(...args) {
   self.onClick = (event) => {
     // Wall mode: ignore casual click-to-pause (content links still navigate).
     if (state.config?.KIOSK) return;
-    if (!event.clickHandled && !event.clickHandeled) {
+    if (!event.clickHandled) {
       self.togglePause();
     }
   };

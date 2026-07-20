@@ -1,7 +1,7 @@
 # Task — Alignment E: Wire Configuration card + email
 
 **Status:** Done  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** D  
 **Next:** [alignment-anchors_f-reveal-glue.md](alignment-anchors_f-reveal-glue.md) (done)
 

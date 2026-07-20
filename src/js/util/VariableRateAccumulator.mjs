@@ -205,11 +205,13 @@ VariableRateAccumulator.rates = {
     (t) =>
       Math.max(0, avg + amp * Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period))),
 
-  // Soft square on [minRate, maxRate].
+  // Soft square on [minRate, maxRate]. t=0 is the trough (minRate).
   softSquareRange:
     (minRate, maxRate, period = 12, sharpness = 2.6) =>
     (t) => {
-      const w = Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period));
+      const w = Math.tanh(
+        sharpness * Math.sin((t * Math.PI * 2) / period - Math.PI / 2),
+      );
       const u = (w + 1) / 2;
       return minRate + (maxRate - minRate) * u;
     },
@@ -224,6 +226,23 @@ VariableRateAccumulator.rates = {
       // 1 - cos(π/2 u): ease-in 0→1 (rate highest at end of window).
       const rise = 1 - Math.cos((Math.PI / 2) * u);
       return maxRate * (floorFrac + (1 - floorFrac) * rise);
+    },
+
+  // Storm cosine trough-start (matches ambient rain shape).
+  // r(t) = r0 + A (1 − cos(2π t / T)), r(0)=r0, mean = r0+A.
+  // Pass meanRate = units/T so ∫_0^T r ≈ units (VRA still normalizes).
+  // If meanRate < startRate, amp=0 → flat startRate (normalizer scales down).
+  stormCosine:
+    (duration = 5, startRate = 2, meanRate = null) =>
+    (t) => {
+      const T = Math.max(duration, 1e-6);
+      const r0 = Math.max(0, Number(startRate) || 0);
+      const mean =
+        meanRate != null && Number.isFinite(meanRate) && meanRate >= 0
+          ? meanRate
+          : r0;
+      const amp = Math.max(0, mean - r0);
+      return r0 + amp * (1 - Math.cos((t * Math.PI * 2) / T));
     },
 };
 
@@ -280,6 +299,21 @@ if (import.meta.main) {
     assert.ok(fn(2.5) > 0.75 && fn(2.5) < 1, `stormMild mid ${fn(2.5)}`);
     assert.ok(Math.abs(fn(5) - 1) < 1e-9, `stormMild end ${fn(5)}`);
     assert.ok(fn(4) > fn(1), "stormMild denser later");
+  }
+
+  // Storm cosine: trough startRate, mean units/T, peak start+2·amp.
+  {
+    const T = 6;
+    const units = 18;
+    const start = 2;
+    const mean = units / T; // 3
+    const fn = rates.stormCosine(T, start, mean);
+    assert.ok(Math.abs(fn(0) - start) < 1e-9, `stormCosine start ${fn(0)}`);
+    assert.ok(Math.abs(fn(T / 2) - (start + 2 * (mean - start))) < 1e-9, "stormCosine peak");
+    const acc = new VariableRateAccumulator(units, T, fn);
+    let total = 0;
+    for (let i = 0; i < 120; i++) total += acc.advance(T / 120);
+    assert.equal(total, units, `stormCosine finite total ${total}`);
   }
 
   // Finite flush: exact unit count even when remainder would strand the last drop.

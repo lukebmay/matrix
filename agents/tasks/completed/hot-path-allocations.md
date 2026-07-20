@@ -1,7 +1,7 @@
 # Task — Hot-path allocations
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — medium gain after dirty paint  
 **Depends on:** [dirty-dom-paint.md](dirty-dom-paint.md) (done)
 
@@ -38,4 +38,4 @@ removed most DOM restyle thrash).
 - Files: `RainGlyphs.mjs`, `util/random.mjs`, `DropManager.mjs`, `DomManager.mjs`,
   `Matrix.mjs` (ratchet fix), plan + DESIGN.
 - Next plan slice: weather scale when quality is low
-  ([plan](../../plans/adaptive-performance.md) slice 5).
+  ([plan](../../plans/completed/adaptive-performance.md) slice 5).

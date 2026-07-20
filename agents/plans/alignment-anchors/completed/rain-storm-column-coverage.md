@@ -1,10 +1,10 @@
 # Task — Rain / Storm / DropScene modes + column sets
 
 **Status:** Done (2026-07-15)  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** layout `cells()` helpful; Grid-wide Rain can stub first  
 **Parallel with:** alignment A–E  
-**After this:** F (layout glue); ScenePlayer shipped ([scene-player.md](../../scene-player.md))
+**After this:** F (layout glue); ScenePlayer shipped ([scene-player.md](../../completed/scene-player.md))
 
 ## Goal
 

@@ -1,7 +1,7 @@
 # Task — Interactive play authoring design lock
 
 **Status:** Active (discussion)  
-**Plan:** [plans/interactive-play.md](../plans/interactive-play.md)  
+**Plan:** [plans/interactive-play.md](../../interactive-play.md)  
 **Priority:** P1 design — unblocks clean hover + future playlist/portrait  
 **Depends on:** ScenePlayer play context (shipped)
 
@@ -24,7 +24,7 @@ See plan for options A/B/C, hover matrix, and content slot shape.
 
 ## Do
 
-1. Read [plans/interactive-play.md](../plans/interactive-play.md) + current
+1. Read [plans/interactive-play.md](../../interactive-play.md) + current
    `ScenePlayer.mjs` / `play/homepage.mjs` / hover task.
 2. Discuss with Luke: jump vs units vs hybrid; hover scope; hold timer.
 3. Record **locked decisions** in the plan (table + rejected alternatives).

@@ -87,13 +87,32 @@ measured from tick-to-tick, not delay-after-work, so the cadence recovers
 as soon as the main thread breathes. We do **not** step every vsync —
 more paint is not free.
 
-**Concurrent drop budget (ladder triple):** floor **`ACTIVE_DROPS_MIN = 6`**.
-While live drops sit at the current cap, sample wall-frame cost for that
-level. Climb one level at a time. Once costs exist for **max−2, max−1, and
-max**, look for a *major* step-up into `max` (absolute jump, relative jump,
-or acceleration vs the prior step). That knee means settle at **max−1** and
-**hold stable** — not “always raise when under 45ms.” Cuts never go below 6.
-Spawn **waits** at the cap (storms still priority over rain).
+**Concurrent drop budget (open → sample → clamp):** find how many live
+drops this *browser* can paint before frames drag — not a fixed “12”.
+
+1. **Open** — max starts at **`INITIAL_DROP_MAX = COLS`**. Ambient rain and
+   storms may fill the grid on a fast machine.
+2. **Sample** — while still climbing, keep a rolling **10-frame wall-gap**
+   window. Each time live count hits a new peak, restart the window so the
+   average reflects the cost *at that occupancy*, not the empty ramp-up.
+3. **Clamp** — once live ≥ **`MIN_DROP_MAX` (12**, or COLS if narrower) and
+   the 10-frame average wall gap is **≥ 200ms**, settle max to that live
+   count. Never clamp below MIN. If the grid fills without tripping 200ms,
+   lock max at COLS (desktop path).
+
+Spawn **waits** at the cap (storms still priority over rain; ambient rain
+resets to trough when held). Work ms still drives interval stretch and the
+quality ratchet; the drop cap is the primary budget.
+
+**Storm drop speed:** 70–100% of the rain speed span (`DROP_SPEED_MIN`…
+`DROP_SPEED_MAX`) so storm tips clear faster and free concurrency slots
+while selection still needs coverage. Stack-behind-leader still clamps to
+no-overtake safe speed.
+
+**Rain pause during storm (constrained):** ambient rain freezes while any
+storm runs. On first pause the soft-square accumulator **resets to t=0**
+(trough / lowest rate) so resume does not restart mid-peak and fight storms
+for slots.
 
 When work still spikes, the interval **stretches** toward `FRAME_DELAY_MAX`
 (~180ms) as a backstop (alongside the quality ratchet). Keep that wide ceiling
@@ -288,38 +307,44 @@ than three stacked 25px shadows on every static cell.
 device, not layout: narrow short-side ≤ 768, static low-power hints
 (`deviceMemory` ≤ 4, `hardwareConcurrency` ≤ 2, `prefers-reduced-motion`,
 `saveData`), or a **runtime ratchet** after several heavy frames (JS work
-≥ ~55% of the **live** target interval, **or** inter-frame wall gap ≥
-interval + that budget). The frame scheduler may stretch the interval first;
-the ratchet only escalates quality after sustained pain. Trails drop
-`text-shadow` (fill only); tip/settled get one short blur and no
-`color-mix`. Capable devices keep full neon without the class. Ratchet only
-escalates (no mid-session flicker back to multi-blur). Escalate toggles the
-**DOM class + a Matrix-local flag** only — `Configuration` is frozen, so the
-ratchet must not assign `cfg.IS_CHEAP_GLOW`.
+≥ ~55% of the **live** target interval, **or** inter-frame wall gap high
+relative to the schedule). The frame scheduler may stretch the interval first;
+the ratchet only escalates after sustained pain. **Rain only:** trails drop
+`text-shadow` (fill only); tips get one short blur. **Settled** body text and
+links keep the **full** multi-blur neon (once on reveal + rare trail-leave
+re-sync — not every tip step). Tip-over-static uses the tip thrift (motion
+path). Capable devices keep full rain neon without the class. Ratchet only
+escalates (no mid-session flicker). Escalate toggles the **DOM class + a
+Matrix-local flag** only — `Configuration` is frozen, so the ratchet must not
+assign `cfg.IS_CHEAP_GLOW`.
+
+**Flat glow** (`html.m-flat-glow`) is the **second tier** when inter-render
+time stays high *after* cheap glow: rain tip/trail shadows go fully away
+(fill only). Settled body/links stay full neon (same policy as cheap). Same
+triggers (heavy work / high gap / interval near `FRAME_DELAY_MAX`); during
+drop-budget climb, escalate sooner so thrifty rain paint applies early.
 
 **Weather scale** rides the same gate (static `WEATHER_SCALE` =
 `IS_CHEAP_GLOW`, or the same frame ratchet). When on:
 
 | Lever | Effect |
 | --- | --- |
-| Rain peak | Soft-square **max** × ~0.65 |
-| Rain trough | Soft-square floor ~1.25 units/s (never zero; still breathes) |
+| Rain rate | **Same as capable** — mean `COLS / period` (no peak thin) |
 | Trail length | `DROP_LENGTH_*` × ~0.6, but never below **tip + 4 body** (length ≥ 5) |
 | Storm stack | Off — one live drop per column even during storms |
-| Storm window | Homepage base is 2× old (capable); constrained × **2** again |
+| Storm window | **Same as capable** (homepage storm seconds; no extra stretch) |
 | Rain vs storm | Ambient rain **paused** while any storm is active |
 
-Fewer concurrent trail cells beat fancy last-column stack coverage when the
-device is already gasping. Mid-session ratchet uses `state.weatherScale` /
-`state.allowStormStack` (and thins ambient rain / shortens *new* drops if
-config still holds full lengths; also extends storms + pauses rain). Capable
-desktops keep full peak, rain-during-storm, short storm windows, and
-stack-behind-leader until the ratchet says otherwise.
+Shorter trails and no stack cut concurrent painted cells without starving the
+rain cadence or stretching reveal storms. Mid-session ratchet uses
+`state.weatherScale` / `state.allowStormStack` (shortens *new* drops if config
+still holds full lengths; disables stack). Capable desktops keep full lengths
+and stack-behind-leader until the ratchet says otherwise.
 
-Ambient rain still **pulses** (soft-square) with a modest trough floor so the
-rate never idles at zero. Drop max speed is ~18 rows/s (~10% under the old
-20) for slightly more readable tips on short mobile grids.
-Plan: [adaptive-performance](../agents/plans/adaptive-performance.md).
+Ambient rain still **pulses** (cosine trough-start) so the rate breathes
+above a floor of 1. Drop max speed is ~18 rows/s (~10% under the old 20) for
+slightly more readable tips on short mobile grids.
+Plan: [adaptive-performance](../agents/plans/completed/adaptive-performance.md).
 
 ## Color themes
 

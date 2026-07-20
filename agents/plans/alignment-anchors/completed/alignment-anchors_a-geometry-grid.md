@@ -1,7 +1,7 @@
 # Task — Alignment A: geometry + coordinate Grid + DomGrid rename
 
 **Status:** Done  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** —  
 **Next:** [alignment-anchors_b-env-attach-solve.md](../../../tasks/alignment-anchors_b-env-attach-solve.md)
 

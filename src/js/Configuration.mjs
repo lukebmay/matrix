@@ -97,17 +97,14 @@ const MOBILE_COLS_MARGIN = 5;
 const QUOTE_WRAP_MAX_DESKTOP = 40;
 
 // Weather scale when quality is low or viewport is tight (fewer painted cells).
-// Peak rain units/s multiplier; length band multiplier; storm stack off.
-const WEATHER_RAIN_PEAK_SCALE = 0.65;
+// Length band multiplier; storm stack off. Rain rate matches capable defaults.
 const WEATHER_LENGTH_SCALE = 0.6;
 // Drop length includes tip: min body trail 4 + tip 1 → total length ≥ 5.
 const DROP_LENGTH_MIN_FLOOR = 5;
-// Soft-square trough floor (units/s): ambient never idles at zero.
-// (Was 5; quartered — still pulses, less dense at rest.)
-const RAIN_TROUGH_MIN_RATE = 1.25;
-// Constrained devices: another 2× on top of homepage storm windows
-// (homepage already doubled for capable machines). Same unit budget.
-const WEATHER_STORM_DURATION_SCALE = 2;
+// Ambient rain cosine period (seconds). Area under one period = COLS.
+// Trough (t=0) is RAIN_START_RATE; amplitude set so mean = COLS/T.
+const RAIN_PERIOD_SECONDS = 30;
+const RAIN_START_RATE = 1;
 
 /**
  * Static hints that multi-blur text-shadow is a bad idea on this client.
@@ -177,15 +174,12 @@ function Configuration(...args) {
   self.IS_LOW_POWER = detectLowPowerClient();
   self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
   // Weather scale: same static gate; runtime ratchet can escalate via state.
-  // Lower rain peak, shorter tails, no storm stack, pause rain during storms,
-  // longer storm windows (less concurrent paint).
+  // Shorter tails + no storm stack. Rain rate / storm windows match capable.
   self.WEATHER_SCALE = self.IS_CHEAP_GLOW;
-  self.WEATHER_RAIN_PEAK_SCALE = WEATHER_RAIN_PEAK_SCALE;
   self.WEATHER_LENGTH_SCALE = WEATHER_LENGTH_SCALE;
-  self.WEATHER_STORM_DURATION_SCALE = WEATHER_STORM_DURATION_SCALE;
   self.ALLOW_STORM_STACK = !self.WEATHER_SCALE;
-  // Ambient rain off while any storm runs (constrained only).
-  self.PAUSE_RAIN_DURING_STORM = self.WEATHER_SCALE;
+  // Ambient rain off while any storm still has columns to cover (always).
+  self.PAUSE_RAIN_DURING_STORM = true;
   // Portrait + square mobile: full email L. Landscape: horizontal email only
   // (row budget is pad + roles + gap + 1 email line + pad).
   self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
@@ -251,9 +245,10 @@ function Configuration(...args) {
   self.DROP_SPEED_MIN = 10;
   // ~10% under prior 20 — slightly slower tips, easier to read on short grids.
   self.DROP_SPEED_MAX = 20;
-  // Storm: floor +25% of span; max matches rain max.
+  // Storm: upper 30% of the rain speed span (70–100%) so tips clear faster
+  // and free concurrency slots while storms still need columns.
   const dropSpeedSpan = self.DROP_SPEED_MAX - self.DROP_SPEED_MIN;
-  self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.25 * dropSpeedSpan;
+  self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.7 * dropSpeedSpan;
   self.STORM_DROP_SPEED_MAX = self.DROP_SPEED_MAX;
 
   const threadAvgLength = self.ROWS * 0.4;
@@ -280,20 +275,15 @@ function Configuration(...args) {
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
-  // Concurrent live-drop budget (ladder triple; see DropManager).
-  // MIN floors maxActiveDrops. Ladder samples cost at max-2 / max-1 / max and
-  // settles when a major frame-time step-up appears — does not thrash.
-  self.ACTIVE_DROPS_MIN = 10;
-  if (self.IS_MOBILE || self.IS_CHEAP_GLOW) {
-    self.ACTIVE_DROPS_INIT = 10;
-    self.ACTIVE_DROPS_MAX = 16;
-  } else {
-    self.ACTIVE_DROPS_INIT = Math.min(
-      16,
-      Math.max(self.ACTIVE_DROPS_MIN, Math.floor(self.COLS * 0.15)),
-    );
-    self.ACTIVE_DROPS_MAX = Math.min(self.COLS, 32);
-  }
+  // Concurrent live-drop budget (DropManager): max starts at INITIAL (=COLS).
+  // As live drops grow, after 10 frames at each live count log drops + avg.
+  // Never clamp before MIN (12, or COLS if narrower); at/above MIN, clamp max
+  // to current live when 10-frame wall-gap avg ≥ 200ms. Fast path stays COLS.
+  self.INITIAL_DROP_MAX = self.COLS;
+  self.MIN_DROP_MAX = 12;
+  // Aliases kept for older tests / overlays.
+  self.ACTIVE_DROPS_MIN = self.MIN_DROP_MAX;
+  self.ACTIVE_DROPS_MAX = self.INITIAL_DROP_MAX;
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
   self.TIME_SCALE = 1;
   // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.
@@ -330,15 +320,6 @@ function Configuration(...args) {
   htmlEl.style.setProperty("--char-height", `${self.CHAR_HEIGHT}`);
   htmlEl.style.setProperty("--rows", `${self.ROWS}`);
   htmlEl.style.setProperty("--cols", `${self.COLS}`);
-
-  // Soft square with independent min/max so peak can drop without lifting trough.
-  const softSquare =
-    (minRate, maxRate, period = 14, sharpness = 2.6) =>
-    (t) => {
-      const w = Math.tanh(sharpness * Math.sin((t * Math.PI * 2) / period)); // [-1,1]
-      const u = (w + 1) / 2; // [0,1]
-      return minRate + (maxRate - minRate) * u;
-    };
 
   self.createScene = () => {
     const grid = Grid({ rows: self.ROWS, cols: self.COLS });
@@ -433,15 +414,15 @@ function Configuration(...args) {
       ...quoteLines,
     ]);
 
-    // Rain: ambient forever; slow → heavy by ~3s; max ~20% below prior peak.
-    // softSquare peaks at period/4 ≈ 3s when period is 12.
-    // Weather scale: lower peak only; trough is floored so rate never idles
-    // near zero (empty grid gaps stay short when free columns exist).
-    const rainPeakScale = self.WEATHER_SCALE ? WEATHER_RAIN_PEAK_SCALE : 1;
-    const baselineAvg = Math.max(2, self.COLS / 14);
-    const baselineMin = Math.max(baselineAvg * 0.12, RAIN_TROUGH_MIN_RATE);
-    // Peak keeps a clear pulse above the floored trough (not a flat band).
-    const baselineMax = Math.max(baselineMin * 2.2, baselineAvg * 1.3 * 0.8 * rainPeakScale);
+    // Rain: ambient forever. Cosine trough-start period T:
+    //   r(t) = r0 + A (1 − cos(2π t / T)), r(0)=r0, peak r0+2A at T/2.
+    // Mean = r0+A; set r0+A = COLS/T so ∫_0^T r = COLS.
+    // Same mean on constrained devices (weather scale does not thin rate).
+    const rainAvg = self.COLS / RAIN_PERIOD_SECONDS;
+    const rainAmp = Math.max(0, rainAvg - RAIN_START_RATE);
+    const rainRate = (t) =>
+      RAIN_START_RATE +
+      rainAmp * (1 - Math.cos((t * Math.PI * 2) / RAIN_PERIOD_SECONDS));
 
     const rain = Rain({
       name: "rain",
@@ -449,16 +430,19 @@ function Configuration(...args) {
       priority: 0,
       // First-pass + color-change pool: only this theme drains coverage.
       coverageTheme: "green",
-      accumulator: VariableRateAccumulator(
-        (baselineMin + baselineMax) / 2,
-        Infinity,
-        softSquare(baselineMin, baselineMax, 12, 2.6),
-      ),
+      accumulator: VariableRateAccumulator(rainAvg, Infinity, rainRate),
     });
 
-    // Placeholder until ScenePlayer.storm rebuilds.
-    const revealStorm = (colCount) =>
-      VariableRateAccumulator(Math.max(colCount, 1), 5, VariableRateAccumulator.rates.stormMild(5));
+    // Seed storm VRA; play-chain storm(seconds) rebuilds coverage duration.
+    const revealStorm = (colCount, durationSeconds = 3) => {
+      const units = Math.max(colCount, 1);
+      const T = Math.max(durationSeconds, 0.001);
+      return VariableRateAccumulator(
+        units,
+        T,
+        VariableRateAccumulator.rates.stormMild(T),
+      );
+    };
 
     // Roles / email start deactivated; ScenePlayer activates on a timed loop.
     const rolesReveal = DropScene.from(rolesGroup, {
@@ -532,7 +516,6 @@ function Configuration(...args) {
       rain,
       dropScenes,
       sceneManager,
-      spawnPolicies: [],
       scenePlayer,
       layout: { grid, rolesGroup, emailGroup, quoteGroup },
     };

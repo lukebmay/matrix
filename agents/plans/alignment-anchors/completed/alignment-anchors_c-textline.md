@@ -1,7 +1,7 @@
 # Task — Alignment C: TextLine + materialize cells
 
 **Status:** Done  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** A (geometry)  
 **Next:** D (with B)
 

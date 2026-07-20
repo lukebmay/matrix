@@ -1,7 +1,7 @@
 # Task — Cheap glow CSS (adaptive quality)
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — largest remaining paint efficiency gain  
 **Depends on:** [content-glyph-density.md](content-glyph-density.md) (done)
 

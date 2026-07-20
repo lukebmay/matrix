@@ -30,4 +30,4 @@ busy rather than fighting for nominal FPS.
 - `src/js/Matrix.mjs`
 - `src/js/Configuration.mjs`
 - `docs/DESIGN.md`
-- `agents/plans/adaptive-performance.md`
+- `agents/plans/completed/adaptive-performance.md`

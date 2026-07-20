@@ -1,9 +1,9 @@
 # Plan — Interactive play authoring
 
-**Status:** Hover shipped — playlist next  
+**Status:** Active — runtime + hover shipped; **quote playlist next**  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026` (or current product branch)  
-**Related:** [scene-player.md](scene-player.md) (shipped cue chains),
+**Related:** [scene-player.md](completed/scene-player.md) (shipped cue chains),
 [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) (done)
 
 ## Goal
@@ -594,6 +594,14 @@ lines; CSS link hover only.
 | Smokes | runtime hasten / hide restart / hold extend / softLeave |
 
 **Next agent bullets**
-1. Quote playlist interlude (content slot after card hide).  
-2. Optional paint eyeball; deploy + job-search polish.  
-3. Keep hover policies on units — do not reintroduce DomManager tip-force.
+1. **Quote playlist interlude** (content slot after card hide; N quotes,
+   swap points without rewriting the whole chain).  
+2. Deploy + job-search polish (live surface for recruiters).  
+3. Later: ASCII portrait interlude kind.  
+4. Keep hover policies on units — do not reintroduce DomManager tip-force.
+
+**2026-07-20 — Plan status check**
+
+Only active plan. Design / runtime / hover slices archived complete.
+Foundation plans (alignment-anchors, scene-player, adaptive-performance)
+moved to `plans/completed/`.

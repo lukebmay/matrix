@@ -1,7 +1,7 @@
 # Task — Alignment D: Group + stack utilities
 
 **Status:** Done  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** B, C  
 **Next:** [alignment-anchors_e-wire-configuration.md](../../../tasks/alignment-anchors_e-wire-configuration.md)
 

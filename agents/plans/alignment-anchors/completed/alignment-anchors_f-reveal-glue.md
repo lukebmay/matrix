@@ -1,9 +1,9 @@
 # Task — Alignment F: Reveal glue to layout outputs
 
 **Status:** Done  
-**Plan:** [alignment-anchors.md](../../alignment-anchors.md)  
+**Plan:** [alignment-anchors.md](../../completed/alignment-anchors.md)  
 **Depends on:** E  
-**Next:** ScenePlayer shipped ([scene-player.md](../../scene-player.md)); G percent anchors later if needed
+**Next:** ScenePlayer shipped ([scene-player.md](../../completed/scene-player.md)); G percent anchors later if needed
 
 ## Goal
 
@@ -11,7 +11,7 @@ Bind laid-out positionables into **DropScenes** (`cells()` → points).
 Wire homepage **reveal** (and optional **hide**) scenes using modes from
 [rain-storm-column-coverage.md](rain-storm-column-coverage.md). Prefer
 **separate** reveal vs hide scene instances. Timers OK; leave hooks for
-[scene-player.md](../../scene-player.md).
+[scene-player.md](../../completed/scene-player.md).
 
 ## Do
 

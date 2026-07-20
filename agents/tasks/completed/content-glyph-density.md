@@ -1,7 +1,7 @@
 # Task — Content glyph density (narrow-viewport grid)
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — first efficiency slice (layout cell count)  
 **Depends on:** layout Grid/TextLine/attach (shipped)
 

@@ -2,7 +2,7 @@
 
 **Status:** Done  
 **Kind:** Implement (plan-linked)  
-**Plan:** [scene-player.md](../../scene-player.md)  
+**Plan:** [scene-player.md](../../completed/scene-player.md)  
 **Design (locked):**  
 [scene-player-play-plan.md](scene-player-play-plan.md)  
 **Branch:** `refactor_07-2026`

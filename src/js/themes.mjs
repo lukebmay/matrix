@@ -142,17 +142,37 @@ function resolvePalette(nameOrPalette) {
   return palette;
 }
 
+/** Debug HUD accents (fade with ambient low on theme commit). */
+export function applyDebugColors(hi, med, body) {
+  const root = document.documentElement;
+  if (hi) root.style.setProperty("--debug-hi", hi);
+  if (med) root.style.setProperty("--debug-med", med);
+  if (body) root.style.setProperty("--debug-body", body);
+}
+
+function applyDebugFromPalette(palette) {
+  if (!palette) return;
+  applyDebugColors(
+    palette.hi,
+    palette.med,
+    palette.body ?? palette.med,
+  );
+}
+
 /** Settled + drop defaults (not residual cell memory — that is per-cell). */
 export function applyTheme(nameOrPalette, opts = {}) {
   const palette = resolvePalette(nameOrPalette);
   const root = document.documentElement;
   const skipLow = opts.skipLow === true;
+  const skipDebug = opts.skipDebug === true;
   if (!skipLow) root.style.setProperty("--col-low", palette.low);
   root.style.setProperty("--col-med", palette.med);
   root.style.setProperty("--col-body", palette.body ?? palette.med);
   root.style.setProperty("--col-hi", palette.hi);
   root.style.setProperty("--col-link", palette.link);
   root.style.setProperty("--col-link-hover", palette.linkHover);
+  // Default: snap debug with theme. Commit path skips and fades with --col-low.
+  if (!skipDebug) applyDebugFromPalette(palette);
   return palette;
 }
 
@@ -191,9 +211,15 @@ export function ThemeDirector(opts = {}) {
   let blendElapsed = 0;
   let blendSec = 5;
   let fullSec = 1.5;
-  // Ambient --col-low fade (unstamped residual only; cell text uses --res-low).
+  // Ambient --col-low + debug HUD fade (unstamped residual; cell text uses --res-low).
   let fadeFromLow = null;
   let fadeToLow = null;
+  let fadeFromHi = null;
+  let fadeToHi = null;
+  let fadeFromMed = null;
+  let fadeToMed = null;
+  let fadeFromBody = null;
+  let fadeToBody = null;
   let fadeElapsed = 0;
   let fadeSec = Math.max(0.2, Number(opts.fadeSec) || 3);
   let fadingLow = false;
@@ -237,17 +263,36 @@ export function ThemeDirector(opts = {}) {
     blendElapsed = 0;
     if (introStep < intro.length) introStep += 1;
 
-    // Settled roles snap for the next card; ambient low fades.
+    // Settled roles snap for the next card; ambient low + debug accents fade.
     // Residual glyphs keep --res-low until a drop visits the cell.
-    applyTheme(activeName, { skipLow: true });
-    if (fromPal && toPal && fromPal.low !== toPal.low) {
-      fadeFromLow = fromPal.low;
-      fadeToLow = toPal.low;
-      fadeElapsed = 0;
-      fadingLow = true;
-      applyLowColor(fadeFromLow);
+    applyTheme(activeName, { skipLow: true, skipDebug: true });
+    if (fromPal && toPal) {
+      const lowChanges = fromPal.low !== toPal.low;
+      const accentChanges =
+        fromPal.hi !== toPal.hi ||
+        fromPal.med !== toPal.med ||
+        (fromPal.body ?? fromPal.med) !== (toPal.body ?? toPal.med);
+      if (lowChanges || accentChanges) {
+        fadeFromLow = fromPal.low;
+        fadeToLow = toPal.low;
+        fadeFromHi = fromPal.hi;
+        fadeToHi = toPal.hi;
+        fadeFromMed = fromPal.med;
+        fadeToMed = toPal.med;
+        fadeFromBody = fromPal.body ?? fromPal.med;
+        fadeToBody = toPal.body ?? toPal.med;
+        fadeElapsed = 0;
+        fadingLow = true;
+        applyLowColor(fadeFromLow);
+        applyDebugColors(fadeFromHi, fadeFromMed, fadeFromBody);
+      } else {
+        applyLowColor(toPal.low);
+        applyDebugFromPalette(toPal);
+        fadingLow = false;
+      }
     } else if (toPal) {
       applyLowColor(toPal.low);
+      applyDebugFromPalette(toPal);
       fadingLow = false;
     }
 
@@ -309,13 +354,20 @@ export function ThemeDirector(opts = {}) {
       const dt = Number(dtSec);
       if (!(dt > 0)) return;
 
-      // Ambient low fade continues after commit (independent of blend phase).
+      // Ambient low + debug HUD fade continue after commit (independent of blend).
       if (fadingLow && fadeFromLow && fadeToLow) {
         fadeElapsed += dt;
         const t = Math.min(1, fadeElapsed / fadeSec);
         // Smoothstep so the mid-cross feels softer.
         const u = t * t * (3 - 2 * t);
         applyLowColor(lerpHex(fadeFromLow, fadeToLow, u));
+        if (fadeFromHi && fadeToHi) {
+          applyDebugColors(
+            lerpHex(fadeFromHi, fadeToHi, u),
+            lerpHex(fadeFromMed, fadeToMed, u),
+            lerpHex(fadeFromBody, fadeToBody, u),
+          );
+        }
         if (t >= 1) fadingLow = false;
       }
 
@@ -384,6 +436,7 @@ export default {
   THEME_POOL,
   applyTheme,
   applyLowColor,
+  applyDebugColors,
   getPalette,
   themeAt,
   lerpHex,

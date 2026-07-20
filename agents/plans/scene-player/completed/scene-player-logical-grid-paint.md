@@ -1,8 +1,8 @@
 # Task — Logical grid + DOM paint (SceneManager fix)
 
-**Status:** Code done (smokes + build green; **optional browser eyeball**)  
-**Plan:** [scene-player.md](../plans/scene-player.md)  
-**Priority:** Optional residual — human eyeball of card → quote → loop  
+**Status:** Done (2026-07-20) — code + human eyeball confirmed  
+**Plan:** [scene-player.md](../../completed/scene-player.md)  
+**Priority:** Residual closed with scene-player plan  
 **Depends on:** DropScene modes, Rain first-pass, ScenePlayer (shipped)
 
 ## Goal
@@ -156,7 +156,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 
 ## Do
 
-1. Read this task + `agents/plans/scene-player.md` + current
+1. Read this task + `agents/plans/completed/scene-player.md` + current
    `SceneManager.mjs`, `DomManager.mjs`, `DropScene.mjs`, `ScenePlayer.mjs`.
 2. Make **logical grid** clearly intentional content only; rain never writes
    content chars into logical.
@@ -172,7 +172,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 - [x] Logical grid = only intentional chars; hide+drop clears them
 - [x] DOM = logical char or random rain when logical empty
 - [x] Tip-once; reveal beats hide; newest reveal wins
-- [ ] No garbled dual paint in browser (roles, email, quote) — **eyeball**
+- [x] No garbled dual paint in browser (roles, email, quote) — eyeball OK
 - [x] ScenePlayer phase timings still match table
 - [x] Session note + plan updated
 
@@ -214,7 +214,7 @@ shipped (`src/js/play/homepage.mjs`); homepage no longer uses
 | `ScenePlayer` | `forceStableHidden` + play `context` chains |
 | Spaces | Not owned → **rain gaps between words** |
 
-**Still open (human only)**
-1. Browser eyeball: card → quote → loop (tick dual-paint checkbox if clean).
-2. When eyeball passes: mark this task Done and archive under
-   `plans/scene-player/completed/`.
+**2026-07-20 — Eyeball confirmed; task complete**
+
+Human confirmed scene-player paint looks good (card → quote → loop).
+Task archived under `plans/scene-player/completed/`.

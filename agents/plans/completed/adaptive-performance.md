@@ -1,6 +1,7 @@
 # Plan — Adaptive performance (smooth rain on slower devices)
 
-**Status:** Core slices shipped (1–6); optional canvas rain later  
+**Status:** Complete (archived 2026-07-20) — core slices 1–6 shipped  
+**Optional later:** slice 7 canvas rain layer (not blocking product)  
 **Project:** `projects/matrix`  
 **Related analysis:** frame = advance → paint → settle; DOM rain + multi-shadow
 glow is the bottleneck (not drop math).
@@ -44,7 +45,7 @@ separate short-side / orientation policy — not the same as “slow.”
 
 ## Slice 1 — Fewer glyphs (complete)
 
-**Task:** [tasks/completed/content-glyph-density.md](../tasks/completed/content-glyph-density.md)
+**Task:** [tasks/completed/content-glyph-density.md](../../tasks/completed/content-glyph-density.md)
 
 - Narrow / “mobile” layout = short side ≤ 768 (orientation-invariant).
 - **Portrait / square:** COLS from roles+email (+ margin, pad 1); ROWS from mono cell aspect, floored to content stack (email L-shape).
@@ -56,7 +57,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Slice 2 — Cheap glow (complete)
 
-**Task:** [tasks/completed/cheap-glow.md](../tasks/completed/cheap-glow.md)
+**Task:** [tasks/completed/cheap-glow.md](../../tasks/completed/cheap-glow.md)
 
 - `html.m-cheap-glow` from `IS_CHEAP_GLOW`: narrow viewport **or** low-power
   heuristic (`deviceMemory` ≤ 4, ≤2 cores, reduced-motion, saveData), **or**
@@ -68,7 +69,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Slice 3 — Dirty DomManager paint (complete)
 
-**Task:** [tasks/completed/dirty-dom-paint.md](../tasks/completed/dirty-dom-paint.md)
+**Task:** [tasks/completed/dirty-dom-paint.md](../../tasks/completed/dirty-dom-paint.md)
 
 - Per-cell `trailRole` + `trailTheme`; skip class / CSS-var writes when clean.
 - Tip enter still resolves + paints glyph for newly covered rows only.
@@ -77,7 +78,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Slice 4 — Hot-path allocations (complete)
 
-**Task:** [tasks/completed/hot-path-allocations.md](../tasks/completed/hot-path-allocations.md)
+**Task:** [tasks/completed/hot-path-allocations.md](../../tasks/completed/hot-path-allocations.md)
 
 - Pre-split rain glyph pools (`RainGlyphs`); `randomChar` caches code-point arrays;
   `randomChoice(Set)` walks without `Array.from`.
@@ -88,7 +89,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Slice 5 — Weather scale (complete)
 
-**Task:** [tasks/completed/weather-scale.md](../tasks/completed/weather-scale.md)
+**Task:** [tasks/completed/weather-scale.md](../../tasks/completed/weather-scale.md)
 
 - Same static gate as cheap glow (`WEATHER_SCALE = IS_CHEAP_GLOW`): narrow or
   low-power heuristic.
@@ -102,7 +103,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Slice 6 — Frame scheduler (complete)
 
-**Task:** [tasks/completed/frame-scheduler.md](../tasks/completed/frame-scheduler.md)
+**Task:** [tasks/completed/frame-scheduler.md](../../tasks/completed/frame-scheduler.md)
 
 - `requestAnimationFrame` arm; throttle to base `FRAME_DELAY` (~90ms).
 - Tick clock from last tick (`performance.now` / rAF time) — not
@@ -135,5 +136,17 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 - Slice 6: `Matrix.mjs` rAF throttle + adaptive `targetInterval`; config
   `FRAME_DELAY_MAX` / `FRAME_DT_MAX_MS`; DESIGN + project next-queue update.
-- Optional remaining: canvas rain layer (slice 7). Next product work: quote
-  playlist interlude / deploy polish.
+- Plan archived complete: slices 1–6 done. Optional remaining: canvas rain
+  (slice 7). Product next: quote playlist interlude / deploy polish.
+
+**2026-07-20 — Flat glow second tier + settled neon policy**
+
+- `html.m-cheap-glow`: thrift **rain only** (trails none; tips short blur).
+- `html.m-flat-glow`: no rain tip/trail `text-shadow` (after cheap).
+- Settled static + links keep **full** multi-blur neon at both thrift tiers
+  (once-on-reveal paint). Tip-over-static stays thrifted (tip motion).
+- Matrix escalate-only path: full rain → cheap rain (+ weather) → flat rain.
+- High inter-render gap / stretched interval / heavy work feed both tiers.
+- Drop-budget **ladder** uses a shorter streak so early samples favor thrifty
+  rain CSS and higher sustainable concurrent drops.
+- Files: `style.css`, `Matrix.mjs`, `docs/DESIGN.md`.

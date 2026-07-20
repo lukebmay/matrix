@@ -1,7 +1,7 @@
 # Task — Frame scheduler (rAF + adaptive interval)
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — medium gain; last adaptive-performance core slice  
 **Depends on:** [weather-scale.md](weather-scale.md) (done)
 

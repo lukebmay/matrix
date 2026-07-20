@@ -9,10 +9,17 @@
  */
 
 import { randomChoice } from "./util.mjs";
+import state from "./State.mjs";
 
 const MODES = Object.freeze(["hidden", "revealing", "revealed", "hiding"]);
 const ACTIVE = Object.freeze(new Set(["revealing", "hiding"]));
 const STABLE = Object.freeze(new Set(["hidden", "revealed"]));
+
+// Monotonic FIFO order for concurrent startStorm() calls (DropManager).
+function allocStormStartSeq() {
+  state.stormStartSeq = (state.stormStartSeq ?? 0) + 1;
+  return state.stormStartSeq;
+}
 
 // Points + column selection + mode machine. DropManager acts only while active.
 // Optional Storm rate speeds column coverage during revealing/hiding.
@@ -68,6 +75,8 @@ function DropScene(...args) {
   // Optional Storm: rate while active and startStorm() has been called.
   self.stormAccumulator = opts.stormAccumulator ?? opts.accumulator ?? null;
   self.stormEnabled = false;
+  // DropManager FIFO: lower seq runs before later-activated storms.
+  self.stormStartSeq = 0;
   self.infinite = false;
 
   const listeners = new Map();
@@ -188,11 +197,13 @@ function DropScene(...args) {
   };
 
   // Storm is optional and delayed; Rain still drains columnsSelected while active.
+  // DropManager serializes storms by stormStartSeq (first activated finishes first).
   self.startStorm = () => {
     if (!self.stormAccumulator) return self;
     if (!ACTIVE.has(self.mode) || self.isComplete) return self;
     self.stormAccumulator.reset?.();
     self.stormEnabled = true;
+    self.stormStartSeq = allocStormStartSeq();
     emit("stormStart", { scene: self });
     return self;
   };

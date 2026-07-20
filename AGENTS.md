@@ -14,18 +14,21 @@ Vanilla JS Matrix rain **business-card homepage** for lukemay.com.
 Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 
 **Status:** Runnable on `refactor_07-2026` (ScenePlayer play + paint
-ownership shipped). Incomplete human WIP preserved on
-`refactor_incomplete-mid-refactor`.
+ownership shipped; adaptive perf core shipped). Incomplete human WIP
+preserved on `refactor_incomplete-mid-refactor`.
 
 **Next:** Quote playlist interlude; deploy + job-search polish; optional
-paint eyeball / theme cull / canvas rain layer.
+ASCII portrait / theme cull / canvas rain.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
-**Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
-[plans/interactive-play.md](plans/interactive-play.md) (runtime + hover),
-[plans/adaptive-performance.md](plans/adaptive-performance.md) (slices 1–6
-shipped; optional canvas rain later).
+**Active plan:** [plans/interactive-play.md](plans/interactive-play.md)
+(runtime + hover shipped; playlist next).
+
+**Completed plans:** [scene-player](plans/completed/scene-player.md),
+[alignment-anchors](plans/completed/alignment-anchors.md),
+[adaptive-performance](plans/completed/adaptive-performance.md)
+(slices 1–6; optional canvas rain later).
 
 ### Product rules
 
@@ -73,25 +76,27 @@ shipped; optional canvas rain later).
 
 | Item | Status |
 | --- | --- |
+| [alignment-anchors.md](plans/completed/alignment-anchors.md) | **Done** — A–F shipped; G unfiled |
 | [rain-storm-column-coverage.md](plans/alignment-anchors/completed/rain-storm-column-coverage.md) | Done |
+| [scene-player.md](plans/completed/scene-player.md) | **Done** — play + paint + eyeball |
 | [scene-player-mvp.md](plans/scene-player/completed/scene-player-mvp.md) | Done |
 | [scene-player-play-plan.md](plans/scene-player/completed/scene-player-play-plan.md) | Design locked |
 | [scene-player-play.md](plans/scene-player/completed/scene-player-play.md) | Shipped |
-| [scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md) | Code done; optional eyeball |
-| [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
-| [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
-| [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
-| [interactive-play.md](plans/interactive-play.md) | Runtime + hover shipped |
+| [scene-player-logical-grid-paint.md](plans/scene-player/completed/scene-player-logical-grid-paint.md) | Done — code + eyeball |
+| [adaptive-performance.md](plans/completed/adaptive-performance.md) | **Done** — slices 1–6; optional canvas later |
+| [interactive-play.md](plans/interactive-play.md) | Runtime + hover shipped; **playlist next** |
 | [interactive-play_design.md](plans/interactive-play/completed/interactive-play_design.md) | Done — design lock |
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
+| [persistent-text-glow.md](tasks/completed/persistent-text-glow.md) | Done — settled glow; black edge on body text |
+| [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
+| [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
-| [adaptive-performance.md](plans/adaptive-performance.md) | Core slices 1–6 shipped; optional canvas rain later |
 | [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + quote wrap (narrow) |
 | [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet; freeze fix) |
 | [dirty-dom-paint.md](tasks/completed/dirty-dom-paint.md) | Done — tip enter / trail leave / role flip only |
 | [hot-path-allocations.md](tasks/completed/hot-path-allocations.md) | Done — glyph pools, forEachColumnDrops, free-col reuse |
-| [weather-scale.md](tasks/completed/weather-scale.md) | Done — lower rain peak / shorter tails / no storm stack |
+| [weather-scale.md](tasks/completed/weather-scale.md) | Done — shorter tails / no storm stack (rain rate full) |
 | [frame-scheduler.md](tasks/completed/frame-scheduler.md) | Done — rAF throttle + adaptive interval + dt clamp |
 
 ### Stack
@@ -139,5 +144,5 @@ SceneManager (logical grid) + DomManager (paint)
 
 1. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 2. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
-3. Optional: paint eyeball, ASCII portrait, frame-`dt` clock, canvas rain
-   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 7).
+3. Optional: ASCII portrait, frame-`dt` clock, canvas rain
+   ([plans/completed/adaptive-performance.md](plans/completed/adaptive-performance.md) slice 7).

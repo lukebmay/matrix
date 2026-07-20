@@ -12,7 +12,7 @@ import { randomChoice, rangeArray } from "./util.mjs";
 import VariableRateAccumulator from "./util/VariableRateAccumulator.mjs";
 import state from "./State.mjs";
 
-// Ambient grid weather: soft-square forever.
+// Ambient grid weather: cosine trough-start forever (period from config).
 // Coverage pool (firstPass): without replacement until every column has had a
 // drop of coverageTheme (initial green, then each color-change target).
 // Optional 1s drain storm after email: high-rate storm over remaining pool.
@@ -41,6 +41,7 @@ function Rain(...args) {
   // Drain storm (DropManager storm path): targets remaining firstPass.
   self.stormEnabled = false;
   self.stormAccumulator = null;
+  self.stormStartSeq = 0;
 
   Object.defineProperty(self, "isActive", {
     get: () => true,
@@ -80,26 +81,36 @@ function Rain(...args) {
 
   self.markCovered = (col, drop) => self.onColumnSpawned(col, drop);
 
-  self.startDrainStorm = (seconds = 1) => {
-    // Constrained: stretch drain window (same unit budget, fewer concurrent).
-    const cfg = state.config;
-    const constrained =
-      state.weatherScale === true ||
-      (state.weatherScale == null && cfg?.WEATHER_SCALE === true);
-    let scale = 1;
-    if (constrained) {
-      const s = cfg?.WEATHER_STORM_DURATION_SCALE;
-      scale = typeof s === "number" && s > 1 ? s : 2;
+  // Flat drain rate (drops/s) until firstPass is empty.
+  const DRAIN_RATE = 10;
+
+  /**
+   * Coverage-pool drain storm: constant rate until firstPass is empty.
+   * @param {number} [_seconds] ignored (kept for call-site compat)
+   * @param {{ rate?: number }} [opts] rate defaults to 10 drops/s
+   * @returns {number} expected durationSeconds at that rate (0 if skipped)
+   */
+  self.startDrainStorm = (_seconds = 1, opts = {}) => {
+    // Nothing left in the coverage pool — skip (do not enable an empty storm).
+    const units = self.firstPass?.size ?? 0;
+    if (units <= 0) {
+      self.stormEnabled = false;
+      self.stormAccumulator = null;
+      return 0;
     }
-    const durationSeconds = Math.max((Number(seconds) || 0) * scale, 0.001);
-    const units = Math.max(self.firstPass.size, 1);
+    const rate =
+      typeof opts.rate === "number" && opts.rate > 0 ? opts.rate : DRAIN_RATE;
+    // Window long enough for `units` at flat `rate`; VRA normalizes exactly.
+    const durationSeconds = Math.max(units / rate, 0.001);
     self.stormAccumulator = VariableRateAccumulator(
       units,
       durationSeconds,
-      VariableRateAccumulator.rates.stormMild(durationSeconds),
+      VariableRateAccumulator.rates.constant(rate),
     );
     self.stormEnabled = true;
-    return self;
+    state.stormStartSeq = (state.stormStartSeq ?? 0) + 1;
+    self.stormStartSeq = state.stormStartSeq;
+    return durationSeconds;
   };
 
   self.stopDrainStorm = () => {

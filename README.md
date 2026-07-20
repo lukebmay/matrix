@@ -73,7 +73,8 @@ src/js/
   DropManager.mjs      # live drops; Rain+Storm; occupancy
   DisplayText.mjs      # content positions + href
   DomManager.mjs       # paint rain + static chars
-  SpawnPolicy.mjs      # legacy spawn bridge
+  ScenePlayer.mjs      # pause-aware play cues
+  play/                # Unit/Thread homepage play + hover
   layout/              # Grid, Group, TextLine, anchors
   util/VariableRateAccumulator.mjs
 ```

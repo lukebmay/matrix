@@ -1,7 +1,7 @@
 # Task — Weather scale (constrained)
 
 **Status:** Done (2026-07-20)  
-**Plan:** [adaptive-performance.md](../../plans/adaptive-performance.md)  
+**Plan:** [adaptive-performance.md](../../plans/completed/adaptive-performance.md)  
 **Priority:** P0 — medium gain after hot-path allocs  
 **Depends on:** [hot-path-allocations.md](hot-path-allocations.md) (done)
 
@@ -47,4 +47,4 @@ with a runtime ratchet that can escalate mid-session.
 - Scales: `WEATHER_RAIN_PEAK_SCALE=0.65`, `WEATHER_LENGTH_SCALE=0.6`.
 - Ratchet shares the cheap-glow slow-frame streak; only escalates.
 - Next plan slice: frame scheduler (rAF + further adaptive quality)
-  ([plan](../../plans/adaptive-performance.md) slice 6).
+  ([plan](../../plans/completed/adaptive-performance.md) slice 6).

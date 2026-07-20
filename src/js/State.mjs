@@ -19,7 +19,6 @@ function State(...args) {
   self.contentLayers = null;
   self.rain = null;
   self.dropScenes = null;
-  self.spawnPolicies = null; // legacy bridge; prefer rain + dropScenes
   self.sceneManager = null;
   self.scenePlayer = null;
   self.themeDirector = null; // active palette + spawn blend
@@ -27,6 +26,8 @@ function State(...args) {
   // null = follow frozen config; false/true override allowStormStack / scale.
   self.weatherScale = null; // null | boolean — constrained weather when true
   self.allowStormStack = null; // null | boolean — storm second-drop when true
+  // Monotonic order for storm FIFO (DropManager: first activated finishes first).
+  self.stormStartSeq = 0;
 }
 
 const state = State();

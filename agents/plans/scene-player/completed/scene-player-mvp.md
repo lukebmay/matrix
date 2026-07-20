@@ -1,7 +1,7 @@
 # Task — ScenePlayer phases (animation machine)
 
 **Status:** Done (archived)  
-**Plan:** [scene-player.md](../../scene-player.md)  
+**Plan:** [scene-player.md](../../completed/scene-player.md)  
 **Depends on:** rain-storm-column-coverage, alignment F  
 **Follow-on:** [scene-player-play.md](scene-player-play.md) (shipped)
 

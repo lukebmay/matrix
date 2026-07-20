@@ -1,14 +1,12 @@
 # Plan — Alignment, anchors, and groups
 
-**Status:** A–F complete (G later; browser polish optional)  
+**Status:** Complete (archived 2026-07-20) — A–F shipped; G percent anchors unfiled  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
 **Priority:** P1 — coherent business-card layout  
 
-**Next task:** none for this plan (G percent anchors later if needed).
-Product residual: optional paint eyeball
-[scene-player-logical-grid-paint.md](../tasks/scene-player-logical-grid-paint.md);
-play shipped under [scene-player.md](scene-player.md).
+**Next for this plan:** none (file G only if percent anchors are needed).
+Play lives under [scene-player.md](scene-player.md).
 
 ## Problem
 
@@ -36,11 +34,11 @@ runtime, percent anchors (follow-on task G).
 
 Authoritative rules: `agents/project.md`.  
 Tasks:
-- [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md)
+- [rain-storm-column-coverage.md](../alignment-anchors/completed/rain-storm-column-coverage.md)
   — Rain/Storm sets + scene modes (MVP) **done**
-- [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md)
+- [alignment-anchors_f-reveal-glue.md](../alignment-anchors/completed/alignment-anchors_f-reveal-glue.md)
   — bind layout → scenes **done**
-- [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md)
+- [scene-player-mvp.md](../scene-player/completed/scene-player-mvp.md)
   — ScenePlayer MVP **done** (play authoring also shipped)
 
 This app is ultimately a **simple animation machine**: scenes enter
@@ -126,8 +124,8 @@ or “after 20s → start roles hiding.”
 Programmatic **play authoring** shipped (multi-style cue chains + thin
 context). Live homepage: `src/js/play/homepage.mjs`. Design + implement
 archived under [scene-player.md](scene-player.md)
-([play-plan](scene-player/completed/scene-player-play-plan.md),
-[play](scene-player/completed/scene-player-play.md)).
+([play-plan](../scene-player/completed/scene-player-play-plan.md),
+[play](../scene-player/completed/scene-player-play.md)).
 
 ```text
 ctx.on("appStart").delay(3s).activate(roles).storm(3)
@@ -313,15 +311,15 @@ Configuration.mjs       // card + email via layout
 
 | ID | Task file | Depends | Deliverable |
 | --- | --- | --- | --- |
-| **A** | [alignment-anchors_a-geometry-grid.md](alignment-anchors/completed/alignment-anchors_a-geometry-grid.md) | — | Positionable geometry; coordinate `Grid`; rename `Grid.mjs` → `DomGrid` |
-| **B** | [alignment-anchors_b-env-attach-solve.md](alignment-anchors/completed/alignment-anchors_b-env-attach-solve.md) | A | `env.mjs`; Anchor resolve; attach + solve; cycles |
-| **C** | [alignment-anchors_c-textline.md](alignment-anchors/completed/alignment-anchors_c-textline.md) | A | TextLine size + materialize (spaces shine through, href) |
-| **D** | [alignment-anchors_d-group-stacks.md](alignment-anchors/completed/alignment-anchors_d-group-stacks.md) | B, C | Group + stackVertical/Horizontal + offsetRow/Col |
-| **E** | [alignment-anchors_e-wire-configuration.md](alignment-anchors/completed/alignment-anchors_e-wire-configuration.md) | D | Configuration card/email; remove old locations |
-| **F** | [alignment-anchors_f-reveal-glue.md](alignment-anchors/completed/alignment-anchors_f-reveal-glue.md) | E + Rain | Storm glue from layout **done** |
+| **A** | [alignment-anchors_a-geometry-grid.md](../alignment-anchors/completed/alignment-anchors_a-geometry-grid.md) | — | Positionable geometry; coordinate `Grid`; rename `Grid.mjs` → `DomGrid` |
+| **B** | [alignment-anchors_b-env-attach-solve.md](../alignment-anchors/completed/alignment-anchors_b-env-attach-solve.md) | A | `env.mjs`; Anchor resolve; attach + solve; cycles |
+| **C** | [alignment-anchors_c-textline.md](../alignment-anchors/completed/alignment-anchors_c-textline.md) | A | TextLine size + materialize (spaces shine through, href) |
+| **D** | [alignment-anchors_d-group-stacks.md](../alignment-anchors/completed/alignment-anchors_d-group-stacks.md) | B, C | Group + stackVertical/Horizontal + offsetRow/Col |
+| **E** | [alignment-anchors_e-wire-configuration.md](../alignment-anchors/completed/alignment-anchors_e-wire-configuration.md) | D | Configuration card/email; remove old locations |
+| **F** | [alignment-anchors_f-reveal-glue.md](../alignment-anchors/completed/alignment-anchors_f-reveal-glue.md) | E + Rain | Storm glue from layout **done** |
 | **G** | later | F | Percent anchors (not filed until needed) |
-| **Rain** | [rain-storm-column-coverage.md](alignment-anchors/completed/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP **done** |
-| **SP** | [scene-player-mvp.md](scene-player/completed/scene-player-mvp.md) | Rain + F | ScenePlayer MVP **done** |
+| **Rain** | [rain-storm-column-coverage.md](../alignment-anchors/completed/rain-storm-column-coverage.md) | — (parallel) | Modes + sets + events MVP **done** |
+| **SP** | [scene-player-mvp.md](../scene-player/completed/scene-player-mvp.md) | Rain + F | ScenePlayer MVP **done** |
 
 Completed plan-linked tasks →
 `agents/plans/alignment-anchors/completed/`.
@@ -361,4 +359,7 @@ Completed plan-linked tasks →
 - Alignment A–F + Rain still complete on this plan.
 - ScenePlayer play authoring + paint ownership shipped on
   [scene-player.md](scene-player.md) (`play/homepage.mjs`).
-- Residual product: optional browser paint eyeball.
+
+**2026-07-20 — Plan archived complete**
+
+A–F done. G (percent anchors) stays unfiled until needed.
