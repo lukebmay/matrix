@@ -87,13 +87,13 @@ measured from tick-to-tick, not delay-after-work, so the cadence recovers
 as soon as the main thread breathes. We do **not** step every vsync —
 more paint is not free.
 
-**Concurrent drop budget (baseline + knee):** floor **`ACTIVE_DROPS_MIN = 6`**.
-Startup **calibrates at 1 live drop** to learn a wall-frame baseline (browser
-paint shows up in the inter-tick gap; JS `work` alone under-reports). Then
-the cap opens to init (≥6) and **seeks** upward only when demand hits the
-cap and frames stay near baseline — a failed raise **backs off and holds
-stable** instead of climbing every “under budget” tick. Cuts never go below
-6. Spawn **waits** at the cap (storms still priority over rain).
+**Concurrent drop budget (ladder triple):** floor **`ACTIVE_DROPS_MIN = 6`**.
+While live drops sit at the current cap, sample wall-frame cost for that
+level. Climb one level at a time. Once costs exist for **max−2, max−1, and
+max**, look for a *major* step-up into `max` (absolute jump, relative jump,
+or acceleration vs the prior step). That knee means settle at **max−1** and
+**hold stable** — not “always raise when under 45ms.” Cuts never go below 6.
+Spawn **waits** at the cap (storms still priority over rain).
 
 When work still spikes, the interval **stretches** toward `FRAME_DELAY_MAX`
 (~180ms) as a backstop (alongside the quality ratchet). Keep that wide ceiling

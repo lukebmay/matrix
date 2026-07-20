@@ -172,12 +172,14 @@ function Matrix(...args) {
   state.allowStormStack = cfg.ALLOW_STORM_STACK === false ? false : null;
   let weatherScaleOn = state.weatherScale === true;
 
-  // --- Debug HUD (click top-left cell to toggle; rolling FPS bottom-right) ---
+  // --- Debug HUD (click top-left cell to toggle; fixed-layout table) ---
   const ROLL_N = 30;
   const rollGaps = [];
   const rollWork = [];
   let debugOn = false;
   let debugEl = null;
+  /** @type {Map<string, {a: HTMLElement, b: HTMLElement}> | null} */
+  let debugCells = null;
   let cornerClickHandler = null;
 
   const pushRoll = (buf, value) => {
@@ -191,24 +193,103 @@ function Matrix(...args) {
     return s / buf.length;
   };
 
+  // Fixed-width fields (6 chars) so columns never shift; matches CSS 6ch cols.
+  const n1 = (v) => {
+    const x = Number(v);
+    if (!Number.isFinite(x)) return "   —  ";
+    // e.g. "  13.3" / " 100.0"
+    return x.toFixed(1).padStart(6, " ");
+  };
+  const n0 = (v) => {
+    const x = Number(v);
+    if (!Number.isFinite(x)) return "   —  ";
+    // e.g. "    75" / "   180"
+    return String(Math.round(x)).padStart(6, " ");
+  };
+  // Budget phases → short tokens that fit the value column.
+  const PHASE_SHORT = {
+    calibrate: "calib",
+    seek: "seek",
+    probe: "probe",
+    stable: "hold",
+  };
+  const t6 = (s) => {
+    const raw = PHASE_SHORT[s] ?? String(s ?? "—");
+    return raw.slice(0, 6).padStart(6, " ");
+  };
+
   const removeDebugHud = () => {
     if (debugEl?.parentNode) debugEl.parentNode.removeChild(debugEl);
     debugEl = null;
+    debugCells = null;
   };
 
+  // Stable DOM: build table once; paint only writes cell text.
   const ensureDebugHud = () => {
     if (debugEl) return debugEl;
-    const el = document.createElement("pre");
-    el.id = "m-debug";
-    el.setAttribute("aria-hidden", "true");
-    document.body.appendChild(el);
-    debugEl = el;
-    return el;
+    const root = document.createElement("div");
+    root.id = "m-debug";
+    root.setAttribute("aria-hidden", "true");
+
+    const table = document.createElement("table");
+    table.className = "m-debug-table";
+
+    const thead = document.createElement("thead");
+    const hr = document.createElement("tr");
+    for (const h of ["", "now", "avg"]) {
+      const th = document.createElement("th");
+      th.textContent = h;
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    // label → column meaning (short, intuitive)
+    // fps: tick rate | gap: wall ms | work: JS ms | rate: schedule
+    // drop: live / max | lad: cost@max-2 / max-1 | top: cost@max / phase
+    const rows = [
+      ["fps", "fps"],
+      ["gap", "gap"],
+      ["work", "work"],
+      ["rate", "rate"],
+      ["drop", "drop"],
+      ["lad", "lad"],
+      ["top", "top"],
+      ["glow", "glow"],
+    ];
+    const cells = new Map();
+    for (const [key, label] of rows) {
+      const tr = document.createElement("tr");
+      const tdK = document.createElement("td");
+      tdK.className = "m-debug-k";
+      tdK.textContent = label;
+      const tdA = document.createElement("td");
+      tdA.className = "m-debug-a";
+      const tdB = document.createElement("td");
+      tdB.className = "m-debug-b";
+      tr.append(tdK, tdA, tdB);
+      tbody.appendChild(tr);
+      cells.set(key, { a: tdA, b: tdB });
+    }
+    table.appendChild(tbody);
+    root.appendChild(table);
+    document.body.appendChild(root);
+    debugEl = root;
+    debugCells = cells;
+    return root;
+  };
+
+  const setRow = (key, a, b = "") => {
+    const c = debugCells?.get(key);
+    if (!c) return;
+    if (c.a.textContent !== a) c.a.textContent = a;
+    if (c.b.textContent !== b) c.b.textContent = b;
   };
 
   const paintDebugHud = (wallGapMs, workMs) => {
     if (!debugOn) return;
-    const el = ensureDebugHud();
+    ensureDebugHud();
     const avgGap = mean(rollGaps);
     const avgWork = mean(rollWork);
     const fps = avgGap > 0 ? 1000 / avgGap : 0;
@@ -216,21 +297,21 @@ function Matrix(...args) {
     const dm = state.dropManager;
     const live = dm?.getActiveDropCount?.() ?? 0;
     const cap = dm?.getMaxActiveDrops?.() ?? 0;
-    const frameEma = dm?.getFrameEmaMs?.() ?? avgGap;
-    const baseEma = dm?.getBaselineMs?.() ?? 0;
-    const phase = dm?.getDropBudgetPhase?.() ?? "?";
+    const phase = dm?.getDropBudgetPhase?.() ?? "—";
     const workEma = dm?.getWorkEmaMs?.() ?? avgWork;
-    // Labels: see DESIGN / agent notes — wall gap includes throttle wait.
-    el.textContent =
-      `fps   ${fps.toFixed(1)}   ticks/s (1/gap)\n` +
-      `gap   ${wallGapMs.toFixed(0)} ms last   avg ${avgGap.toFixed(0)}\n` +
-      `      wall time between ticks (throttle + work + paint)\n` +
-      `work  ${workMs.toFixed(1)} ms last  ema ${workEma.toFixed(1)}\n` +
-      `      JS only: advance + DOM paint + settle\n` +
-      `sched ${targetInterval.toFixed(0)} ms live   base ${baseInterval}\n` +
-      `drop  ${live} live / ${cap} max   phase ${phase}\n` +
-      `frame ema ${frameEma.toFixed(0)} ms   1-drop base ${baseEma.toFixed(0)} ms\n` +
-      `qual  ${q}`;
+    const triple = dm?.getLadderTriple?.() ?? [0, 0, 0];
+
+    // now | avg  (always 6-char fields — see n0/n1/t6)
+    const blank = "      ";
+    setRow("fps", n1(fps), blank);
+    setRow("gap", n0(wallGapMs), n0(avgGap));
+    setRow("work", n1(workMs), n1(workEma));
+    setRow("rate", n0(targetInterval), n0(baseInterval));
+    setRow("drop", n0(live), n0(cap));
+    // lad: frame cost at max-2 | max-1   top: cost at max | budget phase
+    setRow("lad", n0(triple[0]), n0(triple[1]));
+    setRow("top", n0(triple[2]), t6(phase));
+    setRow("glow", t6(q), blank);
   };
 
   const setDebugOn = (on) => {

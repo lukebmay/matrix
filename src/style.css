@@ -220,8 +220,9 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
 }
 
 /*
- * Debug HUD (toggle: click top-left cell). Rolling FPS + work/target ms.
- * Fixed bottom-right; monospaced; does not capture clicks.
+ * Debug HUD (toggle: click top-left cell). Fixed-layout table — columns do
+ * not grow/shrink with value width. Monospace + tabular nums; no click steal.
+ * Column widths sized for padded values (see Matrix n0/n1); no overflow clip.
  */
 #m-debug {
   position: fixed;
@@ -229,18 +230,57 @@ html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
   bottom: 10px;
   z-index: 10000;
   margin: 0;
-  padding: 6px 10px;
+  padding: 6px 10px 8px;
   border: 1px solid rgba(0, 255, 70, 0.35);
   border-radius: 2px;
   color: #00ff46;
-  background: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.78);
   font-family: "Ubuntu Sans Mono", "Courier Prime", monospace;
   font-size: 12px;
-  font-weight: 700;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
-  white-space: pre;
+  font-weight: 400; /* bold glyphs wider than 1ch → clipping */
+  line-height: 1.4;
+  letter-spacing: 0;
   pointer-events: none;
   user-select: none;
-  text-shadow: 0 0 6px rgba(0, 255, 70, 0.45);
+  text-shadow: 0 0 6px rgba(0, 255, 70, 0.4);
+}
+#m-debug .m-debug-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  /* label 5ch + now 6ch + avg 6ch + small gaps */
+  width: 19ch;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+#m-debug .m-debug-table th,
+#m-debug .m-debug-table td {
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 0 0.5ch;
+  border: 0;
+  white-space: pre;
+  font: inherit;
+  color: inherit;
+  text-align: right;
+  vertical-align: baseline;
+}
+#m-debug .m-debug-table th {
+  padding-bottom: 3px;
+  color: rgba(0, 255, 70, 0.55);
+  font-weight: 400;
+  text-align: right;
+}
+#m-debug .m-debug-table th:first-child,
+#m-debug .m-debug-table td.m-debug-k {
+  width: 5ch;
+  max-width: 5ch;
+  text-align: left;
+  color: rgba(0, 255, 70, 0.75);
+}
+#m-debug .m-debug-table th:nth-child(2),
+#m-debug .m-debug-table th:nth-child(3),
+#m-debug .m-debug-table td.m-debug-a,
+#m-debug .m-debug-table td.m-debug-b {
+  width: 6ch;
+  max-width: 6ch;
+  text-align: right;
 }

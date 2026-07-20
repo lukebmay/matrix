@@ -70,11 +70,11 @@ function DropManager(...args) {
   // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
   const finishedScratch = [];
 
-  // --- Concurrent-drop budget: baseline (1 drop) + knee seek, then hold ---
-  // Goal: find the highest cap where extra drops do not significantly lengthen
-  // wall frame time vs a 1-drop baseline. Do NOT keep climbing whenever we are
-  // "under 45ms" — that shoots the max up. Never go below hardMin (default 6).
-  // Never cull live drops; spawn waits at the cap.
+  // --- Concurrent-drop budget: ladder of (max-2, max-1, max) frame times ---
+  // Sample wall-frame cost while live drops are at the current cap. Climb one
+  // level at a time. Once we have three consecutive costs (n-2, n-1, n), look
+  // for a *major* step-up into n — that knee means n is too high; settle at n-1.
+  // Floor hardMin (default 6). Never cull live drops; spawn waits at the cap.
   const cols = cfg.COLS || 20;
   const hardMin = Math.max(1, Number(cfg.ACTIVE_DROPS_MIN) || 6);
   const hardMax = Math.max(
@@ -84,42 +84,37 @@ function DropManager(...args) {
   const initRaw = Number(cfg.ACTIVE_DROPS_INIT);
   const steadyInit = Math.min(
     hardMax,
-    Math.max(
-      hardMin,
-      Number.isFinite(initRaw) ? initRaw : hardMin,
-    ),
+    Math.max(hardMin, Number.isFinite(initRaw) ? initRaw : hardMin),
   );
 
-  // Calibrate at 1 drop so baseline is real "cheap paint", then jump to hardMin.
-  // Production Configuration sets ACTIVE_DROPS_CALIBRATE=true; unit tests omit it.
-  const doCalibrate = cfg.ACTIVE_DROPS_CALIBRATE === true;
-  const CALIBRATE_TICKS = 24;
-  const BASELINE_NEED = 12;
-  // Seek: after holding ok for this many ticks, try +1 once.
-  const SEEK_HOLD_TICKS = 20;
-  // Probe window after a raise before judging the knee.
-  const PROBE_TICKS = 14;
-  // Knee: frame clearly worse than 1-drop baseline (relative + absolute).
-  const KNEE_RATIO = 1.28;
-  const KNEE_EXTRA_MS = 12;
-  // Severe absolute miss vs live schedule target (schedule stretch / hitch).
-  const SCHED_OVER_MS = 28;
-  // After a failed raise, do not re-probe for this many ticks.
-  const COOLDOWN_TICKS = 90;
-  // In stable, only re-seek after a long quiet period (avoid thrash).
-  const RESTABLE_TICKS = 180;
+  // Samples needed at a cap level before judging / climbing.
+  const SAMPLE_NEED = 12;
+  // Absolute ms jump between consecutive levels that counts as "major".
+  const MAJOR_STEP_MS = 10;
+  // Relative jump t[n] > t[n-1] * ratio (with a small absolute floor).
+  const MAJOR_RATIO = 1.18;
+  const MAJOR_RATIO_FLOOR_MS = 5;
+  // Second step much steeper than the first (acceleration).
+  const MAJOR_ACCEL = 1.7;
+  const MAJOR_ACCEL_FLOOR_MS = 6;
+  // Stable hold: re-check triple occasionally; rare re-ladder.
+  const STABLE_RECHECK_TICKS = 45;
+  const RELADDER_TICKS = 200;
 
-  /** @type {'calibrate'|'seek'|'probe'|'stable'} */
-  let phase = doCalibrate ? "calibrate" : "seek";
-  let maxActiveDrops = doCalibrate ? 1 : steadyInit;
-  let baselineMs = 0;
-  let baselineSamples = 0;
+  /** @type {'ladder'|'stable'} */
+  let phase = "ladder";
+  // Start at min (or init); ladder climbs until the triple shows a knee.
+  let maxActiveDrops = steadyInit;
+  // costAt[n] = { ema, n } wall-gap ms while operating at cap n (live >= n).
+  const costAt = new Map();
+  // Rungs we already judged (climb or settle) — one decision per level.
+  const ladderJudged = new Set();
   let frameEmaMs = 0;
   let workEmaMs = 0;
   let frameSamples = 0;
   let phaseTicks = 0;
-  let cooldownLeft = 0;
-  let kneeLocked = false; // found a failing raise; stay put until restable
+  // Last evaluated triple for debug (max-2, max-1, max costs).
+  let lastTriple = [0, 0, 0];
 
   // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
@@ -128,8 +123,22 @@ function DropManager(...args) {
   self.getMaxActiveDrops = () => maxActiveDrops;
   self.getFrameEmaMs = () => frameEmaMs;
   self.getWorkEmaMs = () => workEmaMs;
-  self.getBaselineMs = () => baselineMs;
+  // Lowest ladder sample we have (often hardMin) — debug "base" column.
+  self.getBaselineMs = () => {
+    for (let k = hardMin; k <= hardMax; k++) {
+      const e = costAt.get(k);
+      if (e?.n) return e.ema;
+    }
+    return 0;
+  };
   self.getDropBudgetPhase = () => phase;
+  // [cost(max-2), cost(max-1), cost(max)] — 0 if missing.
+  self.getLadderTriple = () => {
+    const m = maxActiveDrops;
+    const c = (k) => costAt.get(k)?.ema ?? 0;
+    return [c(m - 2), c(m - 1), c(m)];
+  };
+  self.getLastKneeTriple = () => lastTriple.slice();
   // Hot path: paint iterates without Array.from.
   self.forEachColumnDrops = (fn) => {
     for (const [c, list] of byCol) {
@@ -154,16 +163,44 @@ function DropManager(...args) {
     return prev * (1 - a) + sample * a;
   };
 
-  // Significant cost increase vs 1-drop baseline (browser paint shows in wall gap).
-  const pastKnee = (frameMs) => {
-    if (!(baselineMs > 0) || baselineSamples < BASELINE_NEED) return false;
-    const knee = baselineMs * KNEE_RATIO + KNEE_EXTRA_MS;
-    return frameMs > knee;
+  const sampleCap = (level, gap) => {
+    const e = costAt.get(level);
+    if (!e) {
+      costAt.set(level, { ema: gap, n: 1 });
+      return;
+    }
+    e.n += 1;
+    e.ema = pushEma(e.ema, gap, e.n, 0.35, 0.12);
   };
 
-  // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle;
-  // scheduleTargetMs = live throttle target (may stretch above FRAME_DELAY).
-  self.noteFrameTiming = (wallGapMs, workMs = 0, scheduleTargetMs = 0) => {
+  // Major increase across three consecutive levels t0@n-2, t1@n-1, t2@n.
+  const isMajorIncrease = (t0, t1, t2) => {
+    if (!(t0 > 0 && t1 > 0 && t2 > 0)) return false;
+    const d1 = t1 - t0;
+    const d2 = t2 - t1;
+    if (d2 >= MAJOR_STEP_MS) return true;
+    if (t2 > t1 * MAJOR_RATIO && d2 >= MAJOR_RATIO_FLOOR_MS) return true;
+    if (d2 >= MAJOR_ACCEL_FLOOR_MS && d2 > Math.max(d1, 1) * MAJOR_ACCEL) {
+      return true;
+    }
+    return false;
+  };
+
+  const readTriple = (n) => {
+    const c = (k) => costAt.get(k)?.ema ?? 0;
+    return [c(n - 2), c(n - 1), c(n)];
+  };
+
+  const tripleReady = (n) => {
+    if (n < hardMin + 2) return false;
+    const a = costAt.get(n - 2);
+    const b = costAt.get(n - 1);
+    const c = costAt.get(n);
+    return a?.n >= SAMPLE_NEED && b?.n >= SAMPLE_NEED && c?.n >= SAMPLE_NEED;
+  };
+
+  // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle.
+  self.noteFrameTiming = (wallGapMs, workMs = 0, _scheduleTargetMs = 0) => {
     const gap = Number(wallGapMs);
     const work = Number(workMs);
     if (!Number.isFinite(gap) || gap < 0) return;
@@ -175,102 +212,71 @@ function DropManager(...args) {
     }
 
     const live = drops.size;
-    const sched =
-      Number(scheduleTargetMs) > 0
-        ? Number(scheduleTargetMs)
-        : Math.max(16, Number(cfg.FRAME_DELAY) || 75);
-    // Cost signal: wall gap (paint jank lengthens it). Work alone under-reports.
-    const frameMs = gap;
-
-    // --- Baseline: sample while lightly loaded (≤1 live drop) ---
-    if (live <= 1) {
-      baselineSamples += 1;
-      baselineMs = pushEma(baselineMs, gap, baselineSamples, 0.45, 0.2);
-    }
-
-    if (cooldownLeft > 0) cooldownLeft -= 1;
     phaseTicks += 1;
 
-    // --- Phase machine ---
-    if (phase === "calibrate") {
-      // Hold at 1 until we have a baseline, then open to steadyInit (≥ hardMin).
-      maxActiveDrops = 1;
-      const ready =
-        baselineSamples >= BASELINE_NEED || phaseTicks >= CALIBRATE_TICKS;
-      if (ready) {
-        if (!(baselineMs > 0)) baselineMs = frameEmaMs || sched;
-        maxActiveDrops = steadyInit;
-        phase = "seek";
+    // Only attribute cost when rain is actually at the cap (full load for level).
+    if (live >= maxActiveDrops && maxActiveDrops > 0) {
+      sampleCap(maxActiveDrops, gap);
+    }
+
+    const cur = costAt.get(maxActiveDrops);
+    const enough = cur && cur.n >= SAMPLE_NEED;
+
+    if (phase === "ladder") {
+      if (!enough) return;
+      // One decision per rung (do not climb every subsequent frame).
+      if (ladderJudged.has(maxActiveDrops)) return;
+      ladderJudged.add(maxActiveDrops);
+
+      // Need three rungs before a knee decision; otherwise climb.
+      if (tripleReady(maxActiveDrops)) {
+        const [t0, t1, t2] = readTriple(maxActiveDrops);
+        lastTriple = [t0, t1, t2];
+        if (isMajorIncrease(t0, t1, t2)) {
+          // Step into current max is too expensive — hold one below.
+          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
+          phase = "stable";
+          phaseTicks = 0;
+          return;
+        }
+      }
+
+      // Flat ladder so far: climb if demand is at the cap and room remains.
+      if (maxActiveDrops < hardMax && live >= maxActiveDrops) {
+        maxActiveDrops += 1;
         phaseTicks = 0;
-        kneeLocked = false;
-      }
-      return;
-    }
-
-    if (phase === "probe") {
-      // Just raised: watch whether frame cost crossed the knee.
-      if (phaseTicks >= PROBE_TICKS) {
-        if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
-          // Raise failed — back off one and lock stable.
-          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
-          phase = "stable";
-          phaseTicks = 0;
-          kneeLocked = true;
-          cooldownLeft = COOLDOWN_TICKS;
-        } else {
-          // Raise accepted — keep seeking upward slowly.
-          phase = "seek";
-          phaseTicks = 0;
-        }
-      }
-      return;
-    }
-
-    if (phase === "seek") {
-      // Sustained knee / schedule blowout → cut (not below hardMin) and stabilize.
-      if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
-        if (phaseTicks >= 8) {
-          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
-          phase = "stable";
-          phaseTicks = 0;
-          kneeLocked = true;
-          cooldownLeft = COOLDOWN_TICKS;
-        }
         return;
       }
-      // Healthy at current cap: optional single +1 probe (not every under-budget tick).
-      if (
-        !kneeLocked &&
-        cooldownLeft <= 0 &&
-        maxActiveDrops < hardMax &&
-        phaseTicks >= SEEK_HOLD_TICKS &&
-        live >= maxActiveDrops // only probe when demand hits the cap
-      ) {
-        maxActiveDrops += 1;
-        phase = "probe";
-        phaseTicks = 0;
-      }
-      // If we never hit the cap, no need to raise — hold here.
-      if (phaseTicks >= SEEK_HOLD_TICKS * 3 && live < maxActiveDrops) {
-        phase = "stable";
-        phaseTicks = 0;
-      }
+
+      // Can't climb (at hardMax or no demand) — hold.
+      phase = "stable";
+      phaseTicks = 0;
       return;
     }
 
-    // stable: hold cap; only cut on clear sustained knee; rare re-seek.
-    if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
-      if (phaseTicks >= 10 && maxActiveDrops > hardMin) {
+    // --- stable: hold; re-check the (max-2, max-1, max) triple periodically ---
+    if (phaseTicks >= STABLE_RECHECK_TICKS && enough && tripleReady(maxActiveDrops)) {
+      const [t0, t1, t2] = readTriple(maxActiveDrops);
+      lastTriple = [t0, t1, t2];
+      if (isMajorIncrease(t0, t1, t2) && maxActiveDrops > hardMin) {
         maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
         phaseTicks = 0;
-        cooldownLeft = COOLDOWN_TICKS;
+        return;
       }
-      return;
+      phaseTicks = 0;
     }
-    if (phaseTicks >= RESTABLE_TICKS && cooldownLeft <= 0 && maxActiveDrops < hardMax) {
-      // Quiet re-open of seek (not a rapid climb).
-      kneeLocked = false;
-      phase = "seek";
+
+    // Rare re-ladder from current (allows slow recovery if the machine calmed).
+    if (
+      phaseTicks >= RELADDER_TICKS &&
+      maxActiveDrops < hardMax &&
+      live >= maxActiveDrops
+    ) {
+      // Keep known costs; open one more step and re-enter ladder.
+      maxActiveDrops += 1;
+      costAt.delete(maxActiveDrops);
+      ladderJudged.delete(maxActiveDrops);
+      phase = "ladder";
       phaseTicks = 0;
     }
   };
@@ -1067,7 +1073,7 @@ if (isMain) {
     assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
   }
 
-  // --- Concurrent budget: calibrate → seek → stable; floor at MIN; no cull ---
+  // --- Concurrent budget: ladder triple (max-2,max-1,max); floor MIN; no cull ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: Rain } = await import("./Rain.mjs");
@@ -1084,7 +1090,6 @@ if (isMain) {
       ACTIVE_DROPS_MIN: 6,
       ACTIVE_DROPS_MAX: 10,
       ACTIVE_DROPS_INIT: 6,
-      ACTIVE_DROPS_CALIBRATE: true,
     };
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;
@@ -1103,36 +1108,38 @@ if (isMain) {
     stateMod.contentLayers = [];
 
     const dm = DropManager();
-    assert.equal(dm.getMaxActiveDrops(), 1, "calibrate starts at 1 drop");
-    assert.equal(dm.getDropBudgetPhase(), "calibrate");
+    assert.equal(dm.getMaxActiveDrops(), 6, "starts at INIT/MIN");
+    assert.equal(dm.getDropBudgetPhase(), "ladder");
 
-    // Baseline ticks with 0–1 live (settle may spawn up to cap=1).
-    for (let i = 0; i < 14; i++) {
-      dm.settleDrops(0.05);
-      dm.noteFrameTiming(40, 2, 75);
-    }
+    // Fill to cap and feed flat frame times at each rung until climb/settle.
+    // 12 samples per level at constant 40ms → no major increase → climb toward max.
+    const feedLevel = (gapMs, ticks = 14) => {
+      for (let i = 0; i < ticks; i++) {
+        dm.settleDrops(0.05);
+        // noteFrame after settle so live reflects cap
+        dm.noteFrameTiming(gapMs, 2, 75);
+      }
+    };
+    feedLevel(40);
+    // Should have climbed at least once (flat costs).
     assert.ok(
       dm.getMaxActiveDrops() >= 6,
-      `after calibrate max >= MIN, got ${dm.getMaxActiveDrops()}`,
+      `ladder max >= min, got ${dm.getMaxActiveDrops()}`,
     );
     assert.ok(
-      ["seek", "probe", "stable"].includes(dm.getDropBudgetPhase()),
-      `left calibrate, phase=${dm.getDropBudgetPhase()}`,
-    );
-
-    // At cap: wait (no extra spawn beyond max).
-    const cap = dm.getMaxActiveDrops();
-    for (let i = 0; i < 5; i++) dm.settleDrops(0.1);
-    assert.ok(
-      dm.getActiveDropCount() <= cap,
+      dm.getActiveDropCount() <= dm.getMaxActiveDrops(),
       "live never exceeds maxActive",
     );
 
-    // Knee: sustained much-worse-than-baseline frames cut toward MIN (not below).
-    // Seed a low baseline then blow out frame times.
-    for (let i = 0; i < 20; i++) dm.noteFrameTiming(200, 5, 75);
+    // Force a major step: sample high gap at current top until judged.
+    // Build synthetic triple via many expensive samples at high cap.
+    const before = dm.getMaxActiveDrops();
+    for (let i = 0; i < 40; i++) {
+      dm.settleDrops(0.05);
+      dm.noteFrameTiming(120, 5, 75);
+    }
     assert.ok(dm.getMaxActiveDrops() >= 6, "never below ACTIVE_DROPS_MIN");
-
+    // Cap may cut or hold; must not cull live.
     const liveBefore = dm.getActiveDropCount();
     dm.settleDrops(0.05);
     assert.equal(
@@ -1140,6 +1147,59 @@ if (isMain) {
       liveBefore,
       "shrink does not cull live drops",
     );
+    void before;
+  }
+
+  // --- Ladder triple detects major increase and settles at max-1 ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 12,
+      ROWS: 20,
+      DROP_SPEED_MIN: 8,
+      DROP_SPEED_MAX: 18,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 8,
+      FRAME_DELAY: 75,
+      ACTIVE_DROPS_MIN: 6,
+      ACTIVE_DROPS_MAX: 9,
+      ACTIVE_DROPS_INIT: 6,
+    };
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = null;
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+    stateMod.rain = Rain({
+      cols: 12,
+      accumulator: VariableRateAccumulator(500, Infinity, () => 100),
+    });
+    stateMod.dropScenes = [];
+    stateMod.spawnPolicies = [];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    // Flat 40ms at 6,7,8 → climb; then 40,40,80 at 7,8,9 → major into 9.
+    const step = (gap, n = 14) => {
+      for (let i = 0; i < n; i++) {
+        dm.settleDrops(0.05);
+        dm.noteFrameTiming(gap, 1, 75);
+      }
+    };
+    step(40); // judge 6 → climb
+    step(40); // judge 7 → climb
+    step(40); // judge 8 → climb (triple 6,7,8 flat)
+    assert.ok(dm.getMaxActiveDrops() >= 8, "climbed past 8 on flat costs");
+    step(80); // judge 9 with expensive top → major vs 40,40
+    // After major into 9, settle at 8.
+    assert.ok(
+      dm.getMaxActiveDrops() <= 8,
+      `knee settles at or below 8, got ${dm.getMaxActiveDrops()}`,
+    );
+    assert.equal(dm.getDropBudgetPhase(), "stable");
   }
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;

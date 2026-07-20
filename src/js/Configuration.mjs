@@ -81,18 +81,13 @@ function cardContentMetrics({ emailVertical = true } = {}) {
   const rolesH = ROLE_SPECS.length;
   const rolesW = Math.max(0, ...ROLE_SPECS.map((s) => s.text.length));
   // Horizontal email is 1 row; vertical L-arm is length×1 when enabled.
-  const emailH = emailVertical
-    ? Math.max(1, EMAIL_V_TEXT.length)
-    : 1;
+  const emailH = emailVertical ? Math.max(1, EMAIL_V_TEXT.length) : 1;
   const emailW = Math.max(1, EMAIL_H_TEXT.length);
   return { rolesH, rolesW, emailH, emailW, emailVertical };
 }
 
 // Widest fixed line (roles + horizontal email). Quote wraps separately.
-const MAX_CONTENT_WIDTH = Math.max(
-  EMAIL_H_TEXT.length,
-  ...ROLE_SPECS.map((s) => s.text.length),
-);
+const MAX_CONTENT_WIDTH = Math.max(EMAIL_H_TEXT.length, ...ROLE_SPECS.map((s) => s.text.length));
 
 // Narrow viewports: fewer cells (performance); content-driven COLS.
 const MOBILE_MAX_WIDTH = 768;
@@ -164,29 +159,20 @@ function Configuration(...args) {
       : Math.floor(viewWidth / minCharCount);
 
   // Density grid: target glyph size, then exact-fill the viewport.
-  const densityCols = Math.max(
-    1,
-    Math.floor(viewWidth / (targetSize * advanceEm)),
-  );
-  const densityRows = Math.max(
-    1,
-    Math.floor(viewHeight / (targetSize * heightEm)),
-  );
+  const densityCols = Math.max(1, Math.floor(viewWidth / (targetSize * advanceEm)));
+  const densityRows = Math.max(1, Math.floor(viewHeight / (targetSize * heightEm)));
 
   // Aspect before grid size (portrait vs landscape row policy).
   self.ASPECT_RATIO = viewWidth / viewHeight;
   const aspect_upper_bound = 10 / 7;
   const aspect_lower_bound = 1 / aspect_upper_bound;
   self.DISPLAY_MODE = "square";
-  self.DISPLAY_MODE =
-    self.ASPECT_RATIO > aspect_upper_bound ? "landscape" : self.DISPLAY_MODE;
-  self.DISPLAY_MODE =
-    self.ASPECT_RATIO < aspect_lower_bound ? "portrait" : self.DISPLAY_MODE;
+  self.DISPLAY_MODE = self.ASPECT_RATIO > aspect_upper_bound ? "landscape" : self.DISPLAY_MODE;
+  self.DISPLAY_MODE = self.ASPECT_RATIO < aspect_lower_bound ? "portrait" : self.DISPLAY_MODE;
 
   // Orientation-invariant: short side ≤ 768 catches phones in landscape too.
   self.IS_MOBILE = Math.min(viewWidth, viewHeight) <= MOBILE_MAX_WIDTH;
-  self.IS_MOBILE_LANDSCAPE =
-    self.IS_MOBILE && self.DISPLAY_MODE === "landscape";
+  self.IS_MOBILE_LANDSCAPE = self.IS_MOBILE && self.DISPLAY_MODE === "landscape";
   // Cheap glow CSS: quality (any slow device), not layout. Narrow + low-power.
   self.IS_LOW_POWER = detectLowPowerClient();
   self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
@@ -216,11 +202,7 @@ function Configuration(...args) {
 
   // Content floor: padTop + roles + gap + email + padBottom.
   const contentRows =
-    self.ROLES_PAD_TOP +
-    card.rolesH +
-    self.CARD_GAP +
-    card.emailH +
-    self.EMAIL_PAD_BOTTOM;
+    self.ROLES_PAD_TOP + card.rolesH + self.CARD_GAP + card.emailH + self.EMAIL_PAD_BOTTOM;
   const contentCols = Math.max(
     1,
     card.emailW + self.EMAIL_PAD_LEFT,
@@ -232,15 +214,9 @@ function Configuration(...args) {
   // COLS from ROWS:  COLS = viewW * ROWS * heightEm / (viewH * advanceEm)
   // ROWS from COLS:  ROWS = viewH * COLS * advanceEm / (viewW * heightEm)
   const colsFromRows = (rows) =>
-    Math.max(
-      1,
-      Math.floor((viewWidth * rows * heightEm) / (viewHeight * advanceEm)),
-    );
+    Math.max(1, Math.floor((viewWidth * rows * heightEm) / (viewHeight * advanceEm)));
   const rowsFromCols = (cols) =>
-    Math.max(
-      1,
-      Math.floor((viewHeight * cols * advanceEm) / (viewWidth * heightEm)),
-    );
+    Math.max(1, Math.floor((viewHeight * cols * advanceEm) / (viewWidth * heightEm)));
 
   if (self.IS_MOBILE_LANDSCAPE) {
     // Rows first (compact card stack), then columns from cell aspect.
@@ -270,14 +246,11 @@ function Configuration(...args) {
   const quoteSidePad = Math.max(self.EMAIL_PAD_LEFT, self.ROLES_PAD_RIGHT);
   self.QUOTE_MAX_WIDTH = self.IS_MOBILE
     ? Math.max(1, self.COLS - 2 * quoteSidePad)
-    : Math.max(
-        12,
-        Math.min(QUOTE_WRAP_MAX_DESKTOP, self.COLS - 2 * quoteSidePad),
-      );
+    : Math.max(12, Math.min(QUOTE_WRAP_MAX_DESKTOP, self.COLS - 2 * quoteSidePad));
 
-  self.DROP_SPEED_MIN = 8;
+  self.DROP_SPEED_MIN = 10;
   // ~10% under prior 20 — slightly slower tips, easier to read on short grids.
-  self.DROP_SPEED_MAX = 18;
+  self.DROP_SPEED_MAX = 20;
   // Storm: floor +25% of span; max matches rain max.
   const dropSpeedSpan = self.DROP_SPEED_MAX - self.DROP_SPEED_MIN;
   self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.25 * dropSpeedSpan;
@@ -307,16 +280,18 @@ function Configuration(...args) {
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
-  // Concurrent live-drop budget (baseline + knee probe; see DropManager).
-  // MIN is the floor for maxActiveDrops (never starve rain below this).
-  // Controller calibrates on 1 drop, then seeks a stable cap without thrashing.
-  self.ACTIVE_DROPS_MIN = 6;
-  self.ACTIVE_DROPS_CALIBRATE = true; // false in unit tests that seed multi-drop scenes
+  // Concurrent live-drop budget (ladder triple; see DropManager).
+  // MIN floors maxActiveDrops. Ladder samples cost at max-2 / max-1 / max and
+  // settles when a major frame-time step-up appears — does not thrash.
+  self.ACTIVE_DROPS_MIN = 10;
   if (self.IS_MOBILE || self.IS_CHEAP_GLOW) {
-    self.ACTIVE_DROPS_INIT = 6;
+    self.ACTIVE_DROPS_INIT = 10;
     self.ACTIVE_DROPS_MAX = 16;
   } else {
-    self.ACTIVE_DROPS_INIT = Math.min(16, Math.max(8, Math.floor(self.COLS * 0.15)));
+    self.ACTIVE_DROPS_INIT = Math.min(
+      16,
+      Math.max(self.ACTIVE_DROPS_MIN, Math.floor(self.COLS * 0.15)),
+    );
     self.ACTIVE_DROPS_MAX = Math.min(self.COLS, 32);
   }
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
@@ -379,7 +354,7 @@ function Configuration(...args) {
         href: s.href,
         lineId: i,
         name: `role-${i}`,
-      })
+      }),
     );
     const rolesGroup = stackVertical(roleLines, {
       align: "left",
@@ -387,10 +362,7 @@ function Configuration(...args) {
     });
     rolesGroup.attach({
       this: Anchors.topRight(rolesGroup),
-      that: [
-        Anchors.top(grid).plus(rolesPadTop),
-        Anchors.right(grid).minus(rolesPadRight),
-      ],
+      that: [Anchors.top(grid).plus(rolesPadTop), Anchors.right(grid).minus(rolesPadRight)],
     });
 
     const emailHref = `${SITE}/resume`;
@@ -429,10 +401,7 @@ function Configuration(...args) {
     }
     emailGroup.attach({
       this: Anchors.bottomLeft(emailGroup),
-      that: [
-        Anchors.bottom(grid).minus(emailPadBottom),
-        Anchors.left(grid).plus(emailPadLeft),
-      ],
+      that: [Anchors.bottom(grid).minus(emailPadBottom), Anchors.left(grid).plus(emailPadLeft)],
     });
 
     // wrapWords: mobile COLS−2; desktop min(40, COLS−2×pad).
@@ -472,10 +441,7 @@ function Configuration(...args) {
     const baselineAvg = Math.max(2, self.COLS / 14);
     const baselineMin = Math.max(baselineAvg * 0.12, RAIN_TROUGH_MIN_RATE);
     // Peak keeps a clear pulse above the floored trough (not a flat band).
-    const baselineMax = Math.max(
-      baselineMin * 2.2,
-      baselineAvg * 1.3 * 0.8 * rainPeakScale,
-    );
+    const baselineMax = Math.max(baselineMin * 2.2, baselineAvg * 1.3 * 0.8 * rainPeakScale);
 
     const rain = Rain({
       name: "rain",
@@ -492,11 +458,7 @@ function Configuration(...args) {
 
     // Placeholder until ScenePlayer.storm rebuilds.
     const revealStorm = (colCount) =>
-      VariableRateAccumulator(
-        Math.max(colCount, 1),
-        5,
-        VariableRateAccumulator.rates.stormMild(5),
-      );
+      VariableRateAccumulator(Math.max(colCount, 1), 5, VariableRateAccumulator.rates.stormMild(5));
 
     // Roles / email start deactivated; ScenePlayer activates on a timed loop.
     const rolesReveal = DropScene.from(rolesGroup, {
@@ -543,13 +505,7 @@ function Configuration(...args) {
     quoteHide.stormAccumulator = revealStorm(quoteHide.columns.size);
 
     const contentLayers = [roles, email, quote];
-    const dropScenes = [
-      rolesReveal,
-      emailReveal,
-      cardHide,
-      quoteReveal,
-      quoteHide,
-    ];
+    const dropScenes = [rolesReveal, emailReveal, cardHide, quoteReveal, quoteHide];
 
     const sceneManager = SceneManager({ scenes: dropScenes });
 
