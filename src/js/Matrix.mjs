@@ -148,25 +148,30 @@ function Matrix(...args) {
 
   // Ratchet to cheap glow if frame work stays heavy (any slower device).
   // Only escalates; never re-enables full neon mid-session (avoids flicker).
+  // Local flag only — Configuration freezes itself; never mutate cfg.IS_CHEAP_GLOW.
   const frameDelay = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
   const slowWorkMs = Math.max(40, Math.floor(frameDelay * 0.55));
+  // Wall gap: scheduled delay + heavy JS (catches main-thread stalls after paint).
+  const slowGapMs = frameDelay + slowWorkMs;
   const slowFramesNeeded = 8;
   let slowFrameStreak = 0;
+  let cheapGlowOn = !!cfg.IS_CHEAP_GLOW;
 
   const enableCheapGlowIfNeeded = () => {
-    if (cfg.IS_CHEAP_GLOW) return;
-    cfg.IS_CHEAP_GLOW = true;
+    if (cheapGlowOn) return;
+    cheapGlowOn = true;
     document.documentElement.classList.add("m-cheap-glow");
   };
 
   const updateMatrix = () => {
     if (!self.isRunning) return;
     const now = Date.now();
+    const wallGapMs = now - then;
     const scale =
       typeof cfg.TIME_SCALE === "number" && cfg.TIME_SCALE > 0
         ? cfg.TIME_SCALE
         : 1;
-    const elapsedSeconds = ((now - then) / 1000) * scale;
+    const elapsedSeconds = (wallGapMs / 1000) * scale;
     const workStart =
       typeof performance !== "undefined" && performance.now
         ? performance.now()
@@ -177,13 +182,15 @@ function Matrix(...args) {
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
     state.dropManager.settleDrops(elapsedSeconds);
-    if (!cfg.IS_CHEAP_GLOW) {
+    if (!cheapGlowOn) {
       const workEnd =
         typeof performance !== "undefined" && performance.now
           ? performance.now()
           : Date.now();
       const workMs = workEnd - workStart;
-      if (workMs >= slowWorkMs) {
+      // JS work budget blown, or inter-frame gap shows main-thread overrun.
+      const heavy = workMs >= slowWorkMs || wallGapMs >= slowGapMs;
+      if (heavy) {
         slowFrameStreak += 1;
         if (slowFrameStreak >= slowFramesNeeded) enableCheapGlowIfNeeded();
       } else {

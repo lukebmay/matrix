@@ -8,8 +8,6 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-import { randomChar } from "./util/random.mjs";
-
 // Classic Matrix rain alphabet — codepoints present in Matrix-Code.ttf
 // (github.com/Rezmason/matrix, MIT). Space/© omitted as rain noise.
 export const MATRIX_CODE_GLYPHS =
@@ -23,6 +21,12 @@ export const ASCII_GLYPHS = Array.from({ length: 94 }, (_, i) =>
 // "matrix" | "ascii" | "mix"
 // mix = 50/50 pool pick so ASCII length does not drown Matrix glyphs.
 export const RAIN_GLYPH_MODE = "mix";
+
+// Pre-split code-point pools once — tip-enter used to Array.from each pick.
+const MATRIX_POOL = Array.from(MATRIX_CODE_GLYPHS);
+const ASCII_POOL = Array.from(ASCII_GLYPHS);
+
+const pickPool = (pool) => pool[Math.floor(Math.random() * pool.length)];
 
 const uniqueJoin = (...parts) => {
   const seen = new Set();
@@ -48,15 +52,15 @@ export const RAIN_GLYPHS =
 /** @returns {{ ch: string, face: "matrix" | "english" }} */
 export const randomRainGlyph = () => {
   if (RAIN_GLYPH_MODE === "ascii") {
-    return { ch: randomChar(ASCII_GLYPHS), face: "english" };
+    return { ch: pickPool(ASCII_POOL), face: "english" };
   }
   if (RAIN_GLYPH_MODE === "mix") {
     if (Math.random() < 0.5) {
-      return { ch: randomChar(MATRIX_CODE_GLYPHS), face: "matrix" };
+      return { ch: pickPool(MATRIX_POOL), face: "matrix" };
     }
-    return { ch: randomChar(ASCII_GLYPHS), face: "english" };
+    return { ch: pickPool(ASCII_POOL), face: "english" };
   }
-  return { ch: randomChar(MATRIX_CODE_GLYPHS), face: "matrix" };
+  return { ch: pickPool(MATRIX_POOL), face: "matrix" };
 };
 
 export const randomRainChar = () => randomRainGlyph().ch;

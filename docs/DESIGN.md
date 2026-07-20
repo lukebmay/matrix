@@ -254,10 +254,13 @@ than three stacked 25px shadows on every static cell.
 **Cheap glow** (`html.m-cheap-glow`) is a *quality* gate for **any** slower
 device, not layout: narrow short-side ≤ 768, static low-power hints
 (`deviceMemory` ≤ 4, `hardwareConcurrency` ≤ 2, `prefers-reduced-motion`,
-`saveData`), or a **runtime ratchet** after several frames whose work exceeds
-~half the frame delay. Trails drop `text-shadow` (fill only); tip/settled get
-one short blur and no `color-mix`. Capable devices keep full neon without the
-class. Ratchet only escalates (no mid-session flicker back to multi-blur).
+`saveData`), or a **runtime ratchet** after several heavy frames (JS work
+≥ ~55% of `FRAME_DELAY`, **or** inter-frame wall gap ≥ delay + that budget).
+Trails drop `text-shadow` (fill only); tip/settled get one short blur and no
+`color-mix`. Capable devices keep full neon without the class. Ratchet only
+escalates (no mid-session flicker back to multi-blur). Escalate toggles the
+**DOM class + a Matrix-local flag** only — `Configuration` is frozen, so the
+ratchet must not assign `cfg.IS_CHEAP_GLOW`.
 Plan: [adaptive-performance](../agents/plans/adaptive-performance.md).
 
 ## Color themes

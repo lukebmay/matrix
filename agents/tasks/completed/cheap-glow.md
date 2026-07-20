@@ -58,4 +58,11 @@ desktops that alone can exceed the ~90ms frame budget.
 - CSS: trails `text-shadow: none`; tip / settled / link one short blur; no `color-mix`.
 - Files: `Configuration.mjs`, `Matrix.mjs`, `style.css`, `docs/DESIGN.md`.
 - Renamed from `mobile-cheap-glow.md` when the plan became device-agnostic.
-- Next plan slice: dirty DomManager paint ([plan](../../plans/adaptive-performance.md) slice 3).
+
+## Fix note (2026-07-20)
+
+- **Bug:** `Object.freeze(Configuration)` made `cfg.IS_CHEAP_GLOW = true` throw in
+  strict modules — class never applied; frame loop could die after 8 slow frames.
+- **Fix:** ratchet uses a Matrix-local `cheapGlowOn` flag + `classList.add` only.
+- Also count inter-frame wall gap (`≥ FRAME_DELAY + slowWorkMs`) so main-thread
+  stalls after JS still escalate quality.

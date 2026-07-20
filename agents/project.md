@@ -9,7 +9,7 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Adaptive performance (hot-path allocs next); quote playlist
+**Next:** Adaptive performance (weather scale next); quote playlist
 interlude; deploy + job-search polish; optional paint eyeball / theme cull.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
@@ -17,7 +17,7 @@ interlude; deploy + job-search polish; optional paint eyeball / theme cull.
 **Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
 [plans/interactive-play.md](plans/interactive-play.md) (runtime + hover),
 [plans/adaptive-performance.md](plans/adaptive-performance.md) (density +
-cheap glow + dirty paint done; allocs next).
+cheap glow + dirty paint + allocs done; weather scale next).
 
 ## Product rules
 
@@ -76,10 +76,11 @@ cheap glow + dirty paint done; allocs next).
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
-| [adaptive-performance.md](plans/adaptive-performance.md) | In progress — density + cheap glow + dirty paint done |
+| [adaptive-performance.md](plans/adaptive-performance.md) | In progress — density + cheap glow + dirty paint + allocs done |
 | [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + quote wrap (narrow) |
-| [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet) |
+| [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet; freeze fix) |
 | [dirty-dom-paint.md](tasks/completed/dirty-dom-paint.md) | Done — tip enter / trail leave / role flip only |
+| [hot-path-allocations.md](tasks/completed/hot-path-allocations.md) | Done — glyph pools, forEachColumnDrops, free-col reuse |
 
 ## Stack
 
@@ -124,8 +125,8 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Adaptive performance — hot-path allocations next
-   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 4).
+1. Adaptive performance — weather scale next
+   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 5).
 2. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
 4. Optional: paint eyeball, ASCII portrait, frame-`dt` clock.

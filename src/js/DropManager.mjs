@@ -62,13 +62,30 @@ function DropManager(...args) {
   // col → ordered live drops (spawn order; leader = highest _row).
   const byCol = new Map();
   const justFinishedCols = new Set();
+  // Reused free-column list (mutated in place during spawn; not retained by callers).
+  const freeScratch = [];
+  // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
+  const finishedScratch = [];
 
+  // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
   self.getDropsOn = (col) => Array.from(byCol.get(col) ?? []);
+  // Hot path: paint iterates without Array.from.
+  self.forEachColumnDrops = (fn) => {
+    for (const [c, list] of byCol) {
+      if (list.length > 0) fn(c, list);
+    }
+  };
+  self.isColumnLive = (col) => (byCol.get(col)?.length ?? 0) > 0;
   self.takeFinishedColumns = () => {
-    const cols = Array.from(justFinishedCols);
+    if (justFinishedCols.size === 0) {
+      finishedScratch.length = 0;
+      return finishedScratch;
+    }
+    finishedScratch.length = 0;
+    for (const c of justFinishedCols) finishedScratch.push(c);
     justFinishedCols.clear();
-    return cols;
+    return finishedScratch;
   };
 
   const liveCount = (col) => byCol.get(col)?.length ?? 0;
@@ -77,11 +94,20 @@ function DropManager(...args) {
   const canStackOn = (col) => liveCount(col) === 1;
 
   const freeColumns = () => {
-    const free = [];
+    freeScratch.length = 0;
     for (let c = 0; c < cfg.COLS; c++) {
-      if (!isOccupied(c)) free.push(c);
+      if (!isOccupied(c)) freeScratch.push(c);
     }
-    return free;
+    return freeScratch;
+  };
+
+  // Remove col from freeScratch in place (swap-pop).
+  const removeFree = (free, col) => {
+    const i = free.indexOf(col);
+    if (i < 0) return;
+    const last = free.length - 1;
+    free[i] = free[last];
+    free.pop();
   };
 
   const leaderOn = (col) => {
@@ -240,7 +266,7 @@ function DropManager(...args) {
         }
         if (spawnOn(col, dropOpts, { allowStack: isStack })) {
           spawned += 1;
-          free = free.filter((c) => c !== col);
+          removeFree(free, col);
         }
       }
 

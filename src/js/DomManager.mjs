@@ -24,6 +24,8 @@ function DomManager(...args) {
   // Dirty trail paint: last role + theme written on each cell.
   const trailRole = new WeakMap(); // el → "tip" | "body"
   const trailTheme = new WeakMap(); // el → theme name last applied to --drop-*
+  // Reused per frame / per column (avoid Map alloc on the hot path).
+  const rowPaint = new Map(); // row → { kind: 'tip'|'body', drop }
 
   const matrixEl = document.querySelector("#matrix");
 
@@ -256,18 +258,9 @@ function DomManager(...args) {
       clearColumnTrail(c);
     }
 
-    // Group live drops by column so multi-tip stacks paint as a union trail.
-    const dropsByCol = new Map();
-    for (const d of dropManager.getDrops()) {
-      let list = dropsByCol.get(d.col);
-      if (!list) {
-        list = [];
-        dropsByCol.set(d.col, list);
-      }
-      list.push(d);
-    }
-
-    for (const [c, colDrops] of dropsByCol) {
+    // Paint each live column's union trail (stacks share the column).
+    // Uses DropManager.forEachColumnDrops — no Array.from / regroup Map.
+    dropManager.forEachColumnDrops?.((c, colDrops) => {
       // Resolve tip-enter per drop (spawn-order; stacker may cover pre-activation).
       for (const d of colDrops) {
         const r = d.getRow();
@@ -284,15 +277,17 @@ function DomManager(...args) {
 
       // Per-row owner so mixed-theme stacks keep each drop's palette.
       // kind tip always wins; body prefers higher tip (leader).
-      const rowPaint = new Map(); // row → { kind: 'tip'|'body', drop }
+      rowPaint.clear();
       for (const d of colDrops) {
         const r = d.getRow();
         const l = d.length;
         if (r >= 0 && r < cfg.ROWS) {
           rowPaint.set(r, { kind: "tip", drop: d });
         }
-        for (let i = 0; i < cfg.ROWS; i++) {
-          if (!(i < r && i > r - l)) continue;
+        // Body band only (not a full-ROWS probe per drop).
+        const bodyStart = Math.max(0, r - l + 1);
+        const bodyEnd = Math.min(r - 1, cfg.ROWS - 1);
+        for (let i = bodyStart; i <= bodyEnd; i++) {
           const prev = rowPaint.get(i);
           if (prev?.kind === "tip") continue;
           if (!prev || d._row > prev.drop._row) {
@@ -303,7 +298,10 @@ function DomManager(...args) {
 
       const colEl = grid.getColumn(c);
       if (colEl) {
-        colEl.setAttribute("data-drop-id", colDrops[colDrops.length - 1].id);
+        const id = colDrops[colDrops.length - 1].id;
+        if (colEl.getAttribute("data-drop-id") !== id) {
+          colEl.setAttribute("data-drop-id", id);
+        }
       }
 
       // Only restyle tip enter (above), trail leave, or role/theme flip.
@@ -323,15 +321,14 @@ function DomManager(...args) {
           }
         }
       }
-    }
+    });
 
     for (let c = 0; c < cfg.COLS; c++) {
-      if (!dropsByCol.has(c)) {
-        const colEl = grid.getColumn(c);
-        if (colEl?.hasAttribute("data-drop-id")) {
-          clearColumnTrail(c);
-          colEl.removeAttribute("data-drop-id");
-        }
+      if (dropManager.isColumnLive?.(c)) continue;
+      const colEl = grid.getColumn(c);
+      if (colEl?.hasAttribute("data-drop-id")) {
+        clearColumnTrail(c);
+        colEl.removeAttribute("data-drop-id");
       }
     }
   };

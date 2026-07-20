@@ -14,16 +14,41 @@ for (let i = 33; i < 127; i++) {
 }
 const charset = charsetArr.join("");
 
+// Code-point arrays for repeated randomChar(alphabet) — avoid Array.from each pick.
+const alphabetCache = new Map();
+const charsOf = (alphabet) => {
+  let chars = alphabetCache.get(alphabet);
+  if (chars) return chars;
+  chars = Array.from(alphabet);
+  if (chars.length === 0) {
+    throw new Error("randomChar() expects a non-empty string");
+  }
+  alphabetCache.set(alphabet, chars);
+  return chars;
+};
+
+// Pick index i from a Set without allocating an array (O(n) walk).
+const pickFromSet = (set) => {
+  const n = set.size;
+  if (n === 0) {
+    throw new Error("randomChoice() cannot choose from an empty collection");
+  }
+  let i = Math.floor(Math.random() * n);
+  for (const item of set) {
+    if (i === 0) return item;
+    i -= 1;
+  }
+  // Unreachable if size is stable during iteration.
+  throw new Error("randomChoice() cannot choose from an empty collection");
+};
+
 // Returns a random character from the given alphabet.
 // Defaults to printable ASCII (33-126). Code-point safe (not UTF-16 units).
 const randomChar = (alphabet = charset) => {
   if (typeof alphabet !== "string" || alphabet.length === 0) {
     throw new Error("randomChar() expects a non-empty string");
   }
-  const chars = Array.from(alphabet);
-  if (chars.length === 0) {
-    throw new Error("randomChar() expects a non-empty string");
-  }
+  const chars = charsOf(alphabet);
   return chars[Math.floor(Math.random() * chars.length)];
 };
 
@@ -33,25 +58,31 @@ const randomChoice = (collection) => {
     if (collection.length === 0) {
       throw new Error("randomChoice() cannot choose from an empty string");
     }
+    // Code-point safe via cache (UTF-16 index would break multi-unit glyphs).
+    const chars = charsOf(collection);
+    return chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  if (Array.isArray(collection)) {
+    if (collection.length === 0) {
+      throw new Error("randomChoice() cannot choose from an empty collection");
+    }
     return collection[Math.floor(Math.random() * collection.length)];
   }
 
-  let arr;
-  if (Array.isArray(collection)) {
-    arr = collection;
-  } else if (collection instanceof Set) {
-    arr = Array.from(collection);
-  } else if (collection && typeof collection === "object") {
-    arr = Array.from(collection);
-  } else {
-    throw new Error("randomChoice() expects a string, array, Set or iterable");
+  if (collection instanceof Set) {
+    return pickFromSet(collection);
   }
 
-  if (arr.length === 0) {
-    throw new Error("randomChoice() cannot choose from an empty collection");
+  if (collection && typeof collection === "object") {
+    const arr = Array.from(collection);
+    if (arr.length === 0) {
+      throw new Error("randomChoice() cannot choose from an empty collection");
+    }
+    return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  return arr[Math.floor(Math.random() * arr.length)];
+  throw new Error("randomChoice() expects a string, array, Set or iterable");
 };
 
 // Returns a random float where lowerBoundInclusive ≤ result < upperBoundExclusive.
