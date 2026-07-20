@@ -216,12 +216,13 @@ function Matrix(...args) {
     const dm = state.dropManager;
     const live = dm?.getActiveDropCount?.() ?? 0;
     const cap = dm?.getMaxActiveDrops?.() ?? 0;
+    const frameEma = dm?.getFrameEmaMs?.() ?? avgGap;
     el.textContent =
       `fps  ${fps.toFixed(1)}\n` +
       `gap  ${wallGapMs.toFixed(0)} ms  (avg ${avgGap.toFixed(0)})\n` +
       `work ${workMs.toFixed(1)} ms  (avg ${avgWork.toFixed(1)})\n` +
       `tgt  ${targetInterval.toFixed(0)} ms  (base ${baseInterval})\n` +
-      `drop ${live}/${cap}\n` +
+      `drop ${live}/${cap}  (frame ema ${frameEma.toFixed(0)} ms)\n` +
       `qual ${q}`;
   };
 
@@ -309,9 +310,10 @@ function Matrix(...args) {
 
     const workMs = nowMs() - workStart;
 
-    // Concurrent-drop budget: shrink/grow maxActiveDrops toward FRAME_DELAY work.
+    // Concurrent-drop budget from wall frame time (not JS-only work).
+    // Over FRAME_DELAY for a streak → lower max live drops; under → raise.
     // At cap, settle waits (no new spawns) until live drops complete.
-    state.dropManager.noteFrameWork?.(workMs);
+    state.dropManager.noteFrameTiming?.(wallGapMs, workMs);
 
     // Adaptive interval: prefer fewer frames when JS work is heavy.
     // Stretch toward work×1.2 (capped); ease back a few ms when light.

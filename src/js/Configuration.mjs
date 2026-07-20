@@ -306,11 +306,19 @@ function Configuration(...args) {
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
-  // Concurrent live-drop budget (dynamic; DropManager noteFrameWork adjusts).
-  // Min: keep some rain even when work is heavy. Max: one rain + one stack/col.
-  self.ACTIVE_DROPS_MIN = Math.max(6, Math.min(self.COLS, Math.floor(self.COLS * 0.25)));
-  self.ACTIVE_DROPS_MAX = self.COLS * 2;
-  self.ACTIVE_DROPS_INIT = Math.min(self.ACTIVE_DROPS_MAX, self.COLS);
+  // Concurrent live-drop budget (DropManager adjusts from wall frame time).
+  // Point is render thrift — not COLS×2. Mobile starts ~6; desktop a bit higher.
+  // Hard max is a ceiling the controller may grow into only while frames stay
+  // under FRAME_DELAY; slow devices sit near min after overrun streaks.
+  if (self.IS_MOBILE || self.IS_CHEAP_GLOW) {
+    self.ACTIVE_DROPS_MIN = 2;
+    self.ACTIVE_DROPS_INIT = 6;
+    self.ACTIVE_DROPS_MAX = 12;
+  } else {
+    self.ACTIVE_DROPS_MIN = 4;
+    self.ACTIVE_DROPS_INIT = Math.min(20, Math.max(8, Math.floor(self.COLS * 0.2)));
+    self.ACTIVE_DROPS_MAX = Math.min(self.COLS, 40);
+  }
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
   self.TIME_SCALE = 1;
   // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.

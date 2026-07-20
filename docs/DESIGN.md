@@ -86,12 +86,15 @@ measured from tick-to-tick, not delay-after-work, so the cadence recovers
 as soon as the main thread breathes. We do **not** step every vsync —
 more paint is not free.
 
-**Concurrent drop budget:** `DropManager` keeps a live `maxActiveDrops`
-(init ≈ `COLS`, clamp `ACTIVE_DROPS_MIN`…`ACTIVE_DROPS_MAX`). After each
-tick, `noteFrameWork(workMs)` grows or shrinks that cap so JS work tracks
-under ~55% of `FRAME_DELAY`. When live count is at the max, **spawn waits**
-(rate clocks freeze / VRA units refund; storms still get priority over rain
-when slots free). Existing drops are never culled — only new spawns hold.
+**Concurrent drop budget:** `DropManager` keeps a small live
+`maxActiveDrops` (mobile init **6**, max **12**; desktop init ~20% of cols
+capped, max ≤40 — not `COLS×2`). After each tick,
+`noteFrameTiming(wallGapMs, workMs)` watches **wall frame time** against
+`FRAME_DELAY` (~45ms): a streak of over-budget frames **cuts** the cap; a
+longer under-budget streak **raises** it by one. JS work alone under-reports
+paint, so the wall gap is primary. When live count is at the max, **spawn
+waits** (rate clocks freeze; storms still get priority over rain when slots
+free). Existing drops are never culled.
 
 When work still spikes, the interval **stretches** toward `FRAME_DELAY_MAX`
 (~180ms) as a backstop (alongside the quality ratchet). Keep that wide ceiling

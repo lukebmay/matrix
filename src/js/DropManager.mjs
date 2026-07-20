@@ -70,28 +70,44 @@ function DropManager(...args) {
   // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
   const finishedScratch = [];
 
-  // --- Dynamic concurrent-drop budget (targets FRAME_DELAY work) ---
-  const hardMin = Math.max(
-    1,
-    Number(cfg.ACTIVE_DROPS_MIN) || Math.max(6, Math.floor((cfg.COLS || 20) * 0.25)),
-  );
+  // --- Dynamic concurrent-drop budget (wall frame time vs FRAME_DELAY) ---
+  // Hard bounds are small on purpose — COLS×2 was a render free-for-all.
+  // Controller uses inter-tick wall gap (paint shows up there; JS work alone
+  // often under-reports). Over budget for a streak → cut; under for a streak →
+  // raise one. Never culls live drops; spawn waits at the cap.
+  // Fallbacks only when cfg omits knobs (tests / partial config).
+  const cols = cfg.COLS || 20;
+  const hardMin = Math.max(1, Number(cfg.ACTIVE_DROPS_MIN) || 2);
   const hardMax = Math.max(
     hardMin,
-    Number(cfg.ACTIVE_DROPS_MAX) || (cfg.COLS || 20) * MAX_DROPS_PER_COL,
+    Number(cfg.ACTIVE_DROPS_MAX) || Math.min(cols, 40),
   );
+  const initRaw = Number(cfg.ACTIVE_DROPS_INIT);
   let maxActiveDrops = Math.min(
     hardMax,
-    Math.max(hardMin, Number(cfg.ACTIVE_DROPS_INIT) || cfg.COLS || hardMin),
+    Math.max(
+      hardMin,
+      Number.isFinite(initRaw) ? initRaw : Math.min(hardMax, Math.max(6, Math.floor(cols * 0.5))),
+    ),
   );
-  // EMA of Matrix tick work (ms); drives grow/shrink of maxActiveDrops.
+  // EMA of wall inter-tick gap (ms). JS work EMA is debug-only.
+  let frameEmaMs = 0;
   let workEmaMs = 0;
-  let workSamples = 0;
+  let frameSamples = 0;
+  // Consecutive over/under budget ticks before adjusting the cap.
+  let slowStreak = 0;
+  let fastStreak = 0;
+  const SLOW_STREAK_N = 6; // ~period of slow frames before cut
+  const FAST_STREAK_N = 12; // longer under-budget run before raise
+  // Absorb vsync quantization (~50ms on a 45ms target) without false cuts.
+  const OVERRUN_SLACK_MS = 12;
 
   // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
   self.getDropsOn = (col) => Array.from(byCol.get(col) ?? []);
   self.getActiveDropCount = () => drops.size;
   self.getMaxActiveDrops = () => maxActiveDrops;
+  self.getFrameEmaMs = () => frameEmaMs;
   self.getWorkEmaMs = () => workEmaMs;
   // Hot path: paint iterates without Array.from.
   self.forEachColumnDrops = (fn) => {
@@ -111,34 +127,56 @@ function DropManager(...args) {
     return finishedScratch;
   };
 
-  // Called after each Matrix tick with measured JS work (ms). Shrinks the
-  // concurrent drop cap when work exceeds the frame budget; grows slowly when
-  // light so rain densifies without overshooting. Never kills live drops —
-  // spawn just waits until room opens (natural completion).
-  self.noteFrameWork = (workMs) => {
-    const w = Number(workMs);
-    if (!Number.isFinite(w) || w < 0) return;
+  // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle.
+  // Prefer wall gap for the budget (render jank / main-thread paint show up).
+  // workMs is a secondary signal when it alone exceeds the target.
+  self.noteFrameTiming = (wallGapMs, workMs = 0) => {
+    const gap = Number(wallGapMs);
+    const work = Number(workMs);
+    if (!Number.isFinite(gap) || gap < 0) return;
 
-    // Warm EMA; first samples weight more so cold-start does not stick high.
-    workSamples += 1;
-    const alpha = workSamples < 8 ? 0.35 : 0.2;
-    workEmaMs = workSamples === 1 ? w : workEmaMs * (1 - alpha) + w * alpha;
+    frameSamples += 1;
+    const alpha = frameSamples < 8 ? 0.4 : 0.2;
+    frameEmaMs = frameSamples === 1 ? gap : frameEmaMs * (1 - alpha) + gap * alpha;
+    if (Number.isFinite(work) && work >= 0) {
+      workEmaMs =
+        frameSamples === 1 ? work : workEmaMs * (1 - alpha) + work * alpha;
+    }
 
     const targetMs = Math.max(16, Number(cfg.FRAME_DELAY) || 45);
-    // Aim work well under the wall target so paint/compositor still fit.
-    const highMs = targetMs * 0.55;
-    const lowMs = targetMs * 0.28;
+    // Frame "cost": wall period, or JS work if it alone blew the budget.
+    const frameMs = Math.max(gap, Number.isFinite(work) ? work : 0);
+    // Over: clearly past target (not just 3×vsync ≈50ms on a 45ms budget).
+    const over = frameMs > targetMs + OVERRUN_SLACK_MS;
+    // Under: clear headroom (e.g. 2×vsync ≈33ms) before raising density.
+    const under = frameMs < targetMs * 0.85;
 
-    if (workEmaMs > highMs) {
-      // Proportional cut; at least 1, scale with how far over budget.
-      const ratio = workEmaMs / highMs;
-      const cut = Math.max(1, Math.ceil(maxActiveDrops * Math.min(0.35, (ratio - 1) * 0.5)));
-      maxActiveDrops = Math.max(hardMin, maxActiveDrops - cut);
-    } else if (workEmaMs < lowMs && maxActiveDrops < hardMax) {
-      // Grow one at a time when comfortably under budget.
-      maxActiveDrops = Math.min(hardMax, maxActiveDrops + 1);
+    if (over) {
+      slowStreak += 1;
+      fastStreak = 0;
+      if (slowStreak >= SLOW_STREAK_N) {
+        // Cut harder when far over (e.g. 90ms on a 45ms target → cut 2).
+        const ratio = frameEmaMs / targetMs;
+        const cut = ratio >= 1.8 ? 2 : 1;
+        maxActiveDrops = Math.max(hardMin, maxActiveDrops - cut);
+        slowStreak = 0;
+      }
+    } else if (under) {
+      fastStreak += 1;
+      slowStreak = 0;
+      if (fastStreak >= FAST_STREAK_N && maxActiveDrops < hardMax) {
+        maxActiveDrops = Math.min(hardMax, maxActiveDrops + 1);
+        fastStreak = 0;
+      }
+    } else {
+      // In the band around target: hold cap, decay streaks slowly.
+      slowStreak = Math.max(0, slowStreak - 1);
+      fastStreak = Math.max(0, fastStreak - 1);
     }
   };
+
+  // Back-compat alias (JS work only — prefer noteFrameTiming).
+  self.noteFrameWork = (workMs) => self.noteFrameTiming(workMs, workMs);
 
   // Remaining spawn slots this tick (0 → wait; refund VRA units).
   const spawnRoom = () => Math.max(0, maxActiveDrops - drops.size);
@@ -929,7 +967,7 @@ if (isMain) {
     assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
   }
 
-  // --- Concurrent budget: at maxActiveDrops, wait (no new spawns / VRA freeze) ---
+  // --- Concurrent budget: wall frame time drives max; at cap spawn waits ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: Rain } = await import("./Rain.mjs");
@@ -944,8 +982,8 @@ if (isMain) {
       DROP_LENGTH_MAX: 8,
       FRAME_DELAY: 45,
       ACTIVE_DROPS_MIN: 2,
-      ACTIVE_DROPS_MAX: 4,
-      ACTIVE_DROPS_INIT: 3,
+      ACTIVE_DROPS_MAX: 8,
+      ACTIVE_DROPS_INIT: 4,
     };
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;
@@ -964,46 +1002,35 @@ if (isMain) {
     stateMod.contentLayers = [];
 
     const dm = DropManager();
-    assert.equal(dm.getMaxActiveDrops(), 3, "init from ACTIVE_DROPS_INIT");
+    assert.equal(dm.getMaxActiveDrops(), 4, "init from ACTIVE_DROPS_INIT");
 
     dm.settleDrops(0.1);
-    assert.equal(dm.getActiveDropCount(), 3, "spawn fills to maxActive");
-    assert.ok(
-      dm.getDrops().every((d) => !d.isComplete),
-      "live drops at cap",
-    );
+    assert.equal(dm.getActiveDropCount(), 4, "spawn fills to maxActive");
 
     // Further settle at cap: no new drops (wait).
     dm.settleDrops(0.1);
-    assert.equal(dm.getActiveDropCount(), 3, "at cap: wait, no extra spawn");
+    assert.equal(dm.getActiveDropCount(), 4, "at cap: wait, no extra spawn");
 
-    // noteFrameWork light → max may grow; heavy → shrink (never kill live).
-    for (let i = 0; i < 12; i++) dm.noteFrameWork(2);
-    assert.ok(dm.getMaxActiveDrops() >= 3, "light work can raise cap");
-    const raised = dm.getMaxActiveDrops();
-    dm.settleDrops(0.1);
-    assert.ok(
-      dm.getActiveDropCount() <= raised,
-      "live count respects raised cap",
-    );
+    // Under-budget wall gaps for a streak → raise cap by 1.
+    for (let i = 0; i < 12; i++) dm.noteFrameTiming(30, 2);
+    assert.equal(dm.getMaxActiveDrops(), 5, "fast streak raises cap by 1");
 
-    for (let i = 0; i < 12; i++) dm.noteFrameWork(40);
+    // Over-budget wall gaps for a streak → cut cap.
+    const beforeCut = dm.getMaxActiveDrops();
+    for (let i = 0; i < 6; i++) dm.noteFrameTiming(80, 10);
     assert.ok(
-      dm.getMaxActiveDrops() < raised || dm.getMaxActiveDrops() === 2,
-      "heavy work lowers cap",
+      dm.getMaxActiveDrops() < beforeCut,
+      "slow streak cuts cap",
     );
-    assert.ok(
-      dm.getMaxActiveDrops() >= 2,
-      "cap floors at ACTIVE_DROPS_MIN",
-    );
+    assert.ok(dm.getMaxActiveDrops() >= 2, "floors at ACTIVE_DROPS_MIN");
+
     // Existing live drops are not culled — only new spawns wait.
-    // Live may temporarily exceed a lowered cap until natural completion.
     const liveBefore = dm.getActiveDropCount();
     dm.settleDrops(0.05);
     assert.equal(
       dm.getActiveDropCount(),
       liveBefore,
-      "shrink does not cull or spawn; wait for natural complete",
+      "shrink does not cull; wait for natural complete",
     );
   }
 
