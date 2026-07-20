@@ -299,11 +299,18 @@ function Configuration(...args) {
   self.DROP_LENGTH_MIN_FLOOR = DROP_LENGTH_MIN_FLOOR;
 
   // Frame scheduler base target (ms). rAF-throttled; not setTimeout-after-work.
-  self.FRAME_DELAY = 90;
+  // DropManager trims concurrent drops so tick work stays under this budget.
+  self.FRAME_DELAY = 45;
   // Adaptive ceiling when frame work spikes (prefer fewer frames over thrash).
+  // Keep the wide headroom — slow devices already stretch past a tighter cap.
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
+  // Concurrent live-drop budget (dynamic; DropManager noteFrameWork adjusts).
+  // Min: keep some rain even when work is heavy. Max: one rain + one stack/col.
+  self.ACTIVE_DROPS_MIN = Math.max(6, Math.min(self.COLS, Math.floor(self.COLS * 0.25)));
+  self.ACTIVE_DROPS_MAX = self.COLS * 2;
+  self.ACTIVE_DROPS_INIT = Math.min(self.ACTIVE_DROPS_MAX, self.COLS);
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
   self.TIME_SCALE = 1;
   // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.

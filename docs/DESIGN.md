@@ -74,22 +74,34 @@ spawn). Claim without a tip pass is no longer a hitch away.
 
 ### Frame scheduler (rAF, not sticky timeout)
 
-Rain is intentionally **~11 Hz**, not 60. The old loop was
-`setTimeout(work, FRAME_DELAY)` *after* each tick — so a 50ms JS burst made
-the wall gap **delay + work**, and the next hitch felt sticky forever.
+Rain targets **~22 Hz** (base `FRAME_DELAY` ≈ 45ms), not 60. On a 60 Hz
+display that lands near every other or third vsync thanks to one frame of
+throttle slack — not a sticky timeout. The old loop was
+`setTimeout(work, FRAME_DELAY)` *after* each tick — so a 50ms JS burst
+made the wall gap **delay + work**, and the next hitch felt sticky forever.
 
 **Now:** `requestAnimationFrame` drives the arm; ticks only fire when the
-**live target interval** has elapsed since the last tick (base
-`FRAME_DELAY` ≈ 90ms). Overrun is measured from tick-to-tick, not
-delay-after-work, so the cadence recovers as soon as the main thread
-breathes. We do **not** step every vsync — more paint is not free.
+**live target interval** has elapsed since the last tick. Overrun is
+measured from tick-to-tick, not delay-after-work, so the cadence recovers
+as soon as the main thread breathes. We do **not** step every vsync —
+more paint is not free.
 
-When JS work spikes, the target **stretches** toward `FRAME_DELAY_MAX`
-(~180ms) before (and alongside) the quality ratchet. Prefer fewer cheaper
-frames over thrashing for FPS. Sim `dt` is clamped (`FRAME_DT_MAX_MS` ≈
-250) so one long stall cannot explode advance; paint-before-kill still
-covers multi-interval tip flush. Pause / tab-hide cancel the rAF arm;
-unpause restores the residual gap.
+**Concurrent drop budget:** `DropManager` keeps a live `maxActiveDrops`
+(init ≈ `COLS`, clamp `ACTIVE_DROPS_MIN`…`ACTIVE_DROPS_MAX`). After each
+tick, `noteFrameWork(workMs)` grows or shrinks that cap so JS work tracks
+under ~55% of `FRAME_DELAY`. When live count is at the max, **spawn waits**
+(rate clocks freeze / VRA units refund; storms still get priority over rain
+when slots free). Existing drops are never culled — only new spawns hold.
+
+When work still spikes, the interval **stretches** toward `FRAME_DELAY_MAX`
+(~180ms) as a backstop (alongside the quality ratchet). Keep that wide ceiling
+— constrained devices already blow past a tighter cap. Sim `dt` is clamped
+(`FRAME_DT_MAX_MS` ≈ 250) so one long stall cannot explode advance.
+Pause / tab-hide cancel the rAF arm; unpause restores the residual gap.
+
+**Debug HUD:** click the top-left character cell to toggle a bottom-right
+overlay (rolling FPS, gap/work, target, **live/max drops**, quality). Click
+again to hide; does not toggle pause.
 
 ---
 
@@ -403,8 +415,9 @@ units, carries fractional remainder. Soft-square rain eases between trough
 and peak so the room does not feel like a metronome. Storms use a mild
 ease-in so late columns are denser, not abandoned.
 
-No video path. No canvas particles. DOM `<code>` cells and a 90ms timeout
-loop — crude, portable, and weirdly correct for “hacker terminal on a wall.”
+No video path. No canvas particles. DOM `<code>` cells and an rAF-throttled
+~40ms cadence — crude, portable, and weirdly correct for “hacker terminal
+on a wall.”
 
 ---
 

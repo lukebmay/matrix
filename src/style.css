@@ -218,3 +218,29 @@ html.m-cheap-glow .m-static.m-drop-tip {
 html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
   text-shadow: 0 0 8px var(--col-link-hover);
 }
+
+/*
+ * Debug HUD (toggle: click top-left cell). Rolling FPS + work/target ms.
+ * Fixed bottom-right; monospaced; does not capture clicks.
+ */
+#m-debug {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 10000;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 255, 70, 0.35);
+  border-radius: 2px;
+  color: #00ff46;
+  background: rgba(0, 0, 0, 0.72);
+  font-family: "Ubuntu Sans Mono", "Courier Prime", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 0 6px rgba(0, 255, 70, 0.45);
+}

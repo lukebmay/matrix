@@ -157,8 +157,8 @@ function Matrix(...args) {
   // --- Frame scheduler: rAF + throttle + adaptive interval ---
   // Base cadence ~FRAME_DELAY; stretch toward max when work spikes so cheaper
   // frames beat fighting for FPS. Quality ratchet only escalates (DOM + state).
-  const baseInterval = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
-  const maxInterval = Math.max(baseInterval, Number(cfg.FRAME_DELAY_MAX) || baseInterval * 2);
+  const baseInterval = Math.max(1, Number(cfg.FRAME_DELAY) || 40);
+  const maxInterval = Math.max(baseInterval, Number(cfg.FRAME_DELAY_MAX) || baseInterval * 4);
   // Cap sim step so one hitch cannot explode advance; still large enough for
   // paint-before-kill tip flush on a multi-interval stall (~250ms).
   const maxDtSec = Math.max(0.05, (Number(cfg.FRAME_DT_MAX_MS) || 250) / 1000);
@@ -171,6 +171,93 @@ function Matrix(...args) {
   state.weatherScale = cfg.WEATHER_SCALE === true ? true : null;
   state.allowStormStack = cfg.ALLOW_STORM_STACK === false ? false : null;
   let weatherScaleOn = state.weatherScale === true;
+
+  // --- Debug HUD (click top-left cell to toggle; rolling FPS bottom-right) ---
+  const ROLL_N = 30;
+  const rollGaps = [];
+  const rollWork = [];
+  let debugOn = false;
+  let debugEl = null;
+  let cornerClickHandler = null;
+
+  const pushRoll = (buf, value) => {
+    buf.push(value);
+    if (buf.length > ROLL_N) buf.shift();
+  };
+  const mean = (buf) => {
+    if (!buf.length) return 0;
+    let s = 0;
+    for (let i = 0; i < buf.length; i++) s += buf[i];
+    return s / buf.length;
+  };
+
+  const removeDebugHud = () => {
+    if (debugEl?.parentNode) debugEl.parentNode.removeChild(debugEl);
+    debugEl = null;
+  };
+
+  const ensureDebugHud = () => {
+    if (debugEl) return debugEl;
+    const el = document.createElement("pre");
+    el.id = "m-debug";
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+    debugEl = el;
+    return el;
+  };
+
+  const paintDebugHud = (wallGapMs, workMs) => {
+    if (!debugOn) return;
+    const el = ensureDebugHud();
+    const avgGap = mean(rollGaps);
+    const avgWork = mean(rollWork);
+    const fps = avgGap > 0 ? 1000 / avgGap : 0;
+    const q = cheapGlowOn || weatherScaleOn ? "cheap" : "full";
+    const dm = state.dropManager;
+    const live = dm?.getActiveDropCount?.() ?? 0;
+    const cap = dm?.getMaxActiveDrops?.() ?? 0;
+    el.textContent =
+      `fps  ${fps.toFixed(1)}\n` +
+      `gap  ${wallGapMs.toFixed(0)} ms  (avg ${avgGap.toFixed(0)})\n` +
+      `work ${workMs.toFixed(1)} ms  (avg ${avgWork.toFixed(1)})\n` +
+      `tgt  ${targetInterval.toFixed(0)} ms  (base ${baseInterval})\n` +
+      `drop ${live}/${cap}\n` +
+      `qual ${q}`;
+  };
+
+  const setDebugOn = (on) => {
+    debugOn = !!on;
+    if (!debugOn) {
+      removeDebugHud();
+      return;
+    }
+    ensureDebugHud();
+    paintDebugHud(targetInterval, 0);
+  };
+
+  // Corner slot (0,0): toggle debug without click-to-pause.
+  const corner = state.grid?.get?.(0, 0);
+  if (corner) {
+    cornerClickHandler = (event) => {
+      event.stopPropagation();
+      event.clickHandled = "Debug HUD";
+      setDebugOn(!debugOn);
+    };
+    corner.addEventListener("click", cornerClickHandler);
+    corner.title = "Toggle debug FPS";
+    corner.style.cursor = "pointer";
+  }
+
+  // Tear down HUD + corner listener with the matrix instance.
+  const prevDestroy = self.destroy;
+  self.destroy = () => {
+    if (corner && cornerClickHandler) {
+      corner.removeEventListener("click", cornerClickHandler);
+      cornerClickHandler = null;
+    }
+    setDebugOn(false);
+    prevDestroy();
+  };
 
   const enableConstrainedQuality = () => {
     if (!cheapGlowOn) {
@@ -200,7 +287,10 @@ function Matrix(...args) {
 
     // Throttle: skip vsyncs until the live target interval has elapsed.
     // Uses last *tick* time (not delay-after-work) so overrun is not sticky.
-    if (wallGapMs < targetInterval * 0.92) {
+    // ~1 vsync of slack so a ~45ms target can land on 2×16.7ms (~33ms) or
+    // 3× (~50ms) cleanly instead of missing the nearer cadence by a few ms.
+    const vsyncSlackMs = 17;
+    if (wallGapMs + vsyncSlackMs < targetInterval) {
       scheduleFrame();
       return;
     }
@@ -219,9 +309,14 @@ function Matrix(...args) {
 
     const workMs = nowMs() - workStart;
 
+    // Concurrent-drop budget: shrink/grow maxActiveDrops toward FRAME_DELAY work.
+    // At cap, settle waits (no new spawns) until live drops complete.
+    state.dropManager.noteFrameWork?.(workMs);
+
     // Adaptive interval: prefer fewer frames when JS work is heavy.
     // Stretch toward work×1.2 (capped); ease back a few ms when light.
-    const heavyWork = workMs >= Math.max(40, Math.floor(targetInterval * 0.55));
+    // Drop cap is the primary budget; interval stretch is a backstop.
+    const heavyWork = workMs >= Math.max(16, Math.floor(targetInterval * 0.55));
     if (heavyWork) {
       setTargetInterval(Math.max(targetInterval, workMs * 1.2));
     } else if (targetInterval > baseInterval && workMs < targetInterval * 0.35) {
@@ -230,6 +325,8 @@ function Matrix(...args) {
 
     // Quality ratchet: cheap glow + weather scale if work / gap stays heavy.
     // Budgets track the *current* target so intentional stretch is not punished.
+    // Keep a ~40ms work floor so a faster base cadence does not ratchet full
+    // neon away on moderate paint that still fits under the old 90ms budget.
     if (!cheapGlowOn || !weatherScaleOn) {
       const slowWorkMs = Math.max(40, Math.floor(targetInterval * 0.55));
       const slowGapMs = targetInterval + slowWorkMs;
@@ -241,6 +338,10 @@ function Matrix(...args) {
         slowFrameStreak = 0;
       }
     }
+
+    pushRoll(rollGaps, wallGapMs);
+    pushRoll(rollWork, workMs);
+    paintDebugHud(wallGapMs, workMs);
 
     // Anchor next throttle to this tick (not work-end) — recovers after spikes.
     then = now;

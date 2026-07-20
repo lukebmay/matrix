@@ -52,6 +52,8 @@ function maxSafeStackSpeed(leader, opts = {}) {
 // unless weather scale disables stacking (cfg.ALLOW_STORM_STACK / state).
 // Cap 2 live drops/col — re-activations must not pile 3+ across cycles.
 // On spawn col c: drain Rain first-pass and every active scene's columnsSelected.
+// Global concurrent budget (maxActiveDrops) targets ~FRAME_DELAY ms of work:
+// when live count is at max, startNewDrops waits (VRA units refunded).
 const MAX_DROPS_PER_COL = 2;
 
 function DropManager(...args) {
@@ -68,9 +70,29 @@ function DropManager(...args) {
   // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
   const finishedScratch = [];
 
+  // --- Dynamic concurrent-drop budget (targets FRAME_DELAY work) ---
+  const hardMin = Math.max(
+    1,
+    Number(cfg.ACTIVE_DROPS_MIN) || Math.max(6, Math.floor((cfg.COLS || 20) * 0.25)),
+  );
+  const hardMax = Math.max(
+    hardMin,
+    Number(cfg.ACTIVE_DROPS_MAX) || (cfg.COLS || 20) * MAX_DROPS_PER_COL,
+  );
+  let maxActiveDrops = Math.min(
+    hardMax,
+    Math.max(hardMin, Number(cfg.ACTIVE_DROPS_INIT) || cfg.COLS || hardMin),
+  );
+  // EMA of Matrix tick work (ms); drives grow/shrink of maxActiveDrops.
+  let workEmaMs = 0;
+  let workSamples = 0;
+
   // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
   self.getDropsOn = (col) => Array.from(byCol.get(col) ?? []);
+  self.getActiveDropCount = () => drops.size;
+  self.getMaxActiveDrops = () => maxActiveDrops;
+  self.getWorkEmaMs = () => workEmaMs;
   // Hot path: paint iterates without Array.from.
   self.forEachColumnDrops = (fn) => {
     for (const [c, list] of byCol) {
@@ -88,6 +110,38 @@ function DropManager(...args) {
     justFinishedCols.clear();
     return finishedScratch;
   };
+
+  // Called after each Matrix tick with measured JS work (ms). Shrinks the
+  // concurrent drop cap when work exceeds the frame budget; grows slowly when
+  // light so rain densifies without overshooting. Never kills live drops —
+  // spawn just waits until room opens (natural completion).
+  self.noteFrameWork = (workMs) => {
+    const w = Number(workMs);
+    if (!Number.isFinite(w) || w < 0) return;
+
+    // Warm EMA; first samples weight more so cold-start does not stick high.
+    workSamples += 1;
+    const alpha = workSamples < 8 ? 0.35 : 0.2;
+    workEmaMs = workSamples === 1 ? w : workEmaMs * (1 - alpha) + w * alpha;
+
+    const targetMs = Math.max(16, Number(cfg.FRAME_DELAY) || 45);
+    // Aim work well under the wall target so paint/compositor still fit.
+    const highMs = targetMs * 0.55;
+    const lowMs = targetMs * 0.28;
+
+    if (workEmaMs > highMs) {
+      // Proportional cut; at least 1, scale with how far over budget.
+      const ratio = workEmaMs / highMs;
+      const cut = Math.max(1, Math.ceil(maxActiveDrops * Math.min(0.35, (ratio - 1) * 0.5)));
+      maxActiveDrops = Math.max(hardMin, maxActiveDrops - cut);
+    } else if (workEmaMs < lowMs && maxActiveDrops < hardMax) {
+      // Grow one at a time when comfortably under budget.
+      maxActiveDrops = Math.min(hardMax, maxActiveDrops + 1);
+    }
+  };
+
+  // Remaining spawn slots this tick (0 → wait; refund VRA units).
+  const spawnRoom = () => Math.max(0, maxActiveDrops - drops.size);
 
   const liveCount = (col) => byCol.get(col)?.length ?? 0;
   const isOccupied = (col) => liveCount(col) > 0;
@@ -150,7 +204,9 @@ function DropManager(...args) {
   };
 
   // allowStack: storm second drop only (never 3+) on an occupied column.
+  // Also respects global maxActiveDrops (caller should check spawnRoom first).
   const spawnOn = (col, opts = {}, { allowStack = false } = {}) => {
+    if (spawnRoom() <= 0) return null;
     const n = liveCount(col);
     if (n > 0 && !allowStack) return null;
     if (n > 0 && allowStack && n >= MAX_DROPS_PER_COL) return null;
@@ -268,10 +324,16 @@ function DropManager(...args) {
       if (!active) continue;
 
       // Storm done covering once selection is empty (rain may have helped).
+      // Runs even at the concurrency cap so storms do not stick enabled.
       if (source.stormEnabled && source.columnsSelected?.size === 0) {
         source.stopStorm?.();
         continue;
       }
+
+      // Global concurrency cap: wait (do not advance rate clocks) until a drop
+      // dies. Higher-priority sources run first (storms before rain), so content
+      // wins the remaining slots when the budget is tight.
+      if (spawnRoom() <= 0) continue;
 
       // Rain: drain storm uses storm acc; ambient uses forever acc.
       // DropScenes only join when stormEnabled (storm acc).
@@ -309,6 +371,17 @@ function DropManager(...args) {
         }
       }
 
+      // Cap want to remaining concurrent slots; refund the rest so budget waits.
+      const room = spawnRoom();
+      if (room <= 0) {
+        rateAcc?.refund?.(want);
+        continue;
+      }
+      if (want > room) {
+        rateAcc?.refund?.(want - room);
+        want = room;
+      }
+
       const stackable =
         isStorm && allowStormStack() ? stackableSelected(source) : [];
 
@@ -324,6 +397,7 @@ function DropManager(...args) {
 
       let spawned = 0;
       for (const col of cols) {
+        if (spawnRoom() <= 0) break;
         const isStack = isOccupied(col);
         let dropOpts = {};
         if (isStorm) {
@@ -853,6 +927,84 @@ if (isMain) {
     assert.equal(scene.mode, "hidden", "hide settles from large-dt flush");
     dm.settleDrops(0.05);
     assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
+  }
+
+  // --- Concurrent budget: at maxActiveDrops, wait (no new spawns / VRA freeze) ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 10,
+      ROWS: 20,
+      DROP_SPEED_MIN: 8,
+      DROP_SPEED_MAX: 18,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 8,
+      FRAME_DELAY: 45,
+      ACTIVE_DROPS_MIN: 2,
+      ACTIVE_DROPS_MAX: 4,
+      ACTIVE_DROPS_INIT: 3,
+    };
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = null;
+
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    const rain = Rain({
+      cols: 10,
+      accumulator: VariableRateAccumulator(500, Infinity, () => 100),
+    });
+    stateMod.rain = rain;
+    stateMod.dropScenes = [];
+    stateMod.spawnPolicies = [];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    assert.equal(dm.getMaxActiveDrops(), 3, "init from ACTIVE_DROPS_INIT");
+
+    dm.settleDrops(0.1);
+    assert.equal(dm.getActiveDropCount(), 3, "spawn fills to maxActive");
+    assert.ok(
+      dm.getDrops().every((d) => !d.isComplete),
+      "live drops at cap",
+    );
+
+    // Further settle at cap: no new drops (wait).
+    dm.settleDrops(0.1);
+    assert.equal(dm.getActiveDropCount(), 3, "at cap: wait, no extra spawn");
+
+    // noteFrameWork light → max may grow; heavy → shrink (never kill live).
+    for (let i = 0; i < 12; i++) dm.noteFrameWork(2);
+    assert.ok(dm.getMaxActiveDrops() >= 3, "light work can raise cap");
+    const raised = dm.getMaxActiveDrops();
+    dm.settleDrops(0.1);
+    assert.ok(
+      dm.getActiveDropCount() <= raised,
+      "live count respects raised cap",
+    );
+
+    for (let i = 0; i < 12; i++) dm.noteFrameWork(40);
+    assert.ok(
+      dm.getMaxActiveDrops() < raised || dm.getMaxActiveDrops() === 2,
+      "heavy work lowers cap",
+    );
+    assert.ok(
+      dm.getMaxActiveDrops() >= 2,
+      "cap floors at ACTIVE_DROPS_MIN",
+    );
+    // Existing live drops are not culled — only new spawns wait.
+    // Live may temporarily exceed a lowered cap until natural completion.
+    const liveBefore = dm.getActiveDropCount();
+    dm.settleDrops(0.05);
+    assert.equal(
+      dm.getActiveDropCount(),
+      liveBefore,
+      "shrink does not cull or spawn; wait for natural complete",
+    );
   }
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
