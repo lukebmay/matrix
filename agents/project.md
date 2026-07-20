@@ -9,15 +9,15 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Mobile performance (cheap glow next); quote playlist interlude;
-deploy + job-search polish; optional paint eyeball / theme cull.
+**Next:** Adaptive performance (dirty DomManager paint next); quote playlist
+interlude; deploy + job-search polish; optional paint eyeball / theme cull.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
 [plans/interactive-play.md](plans/interactive-play.md) (runtime + hover),
-[plans/mobile-performance.md](plans/mobile-performance.md) (glyph density done;
-cheap glow next).
+[plans/adaptive-performance.md](plans/adaptive-performance.md) (glyph density +
+cheap glow done; dirty paint next).
 
 ## Product rules
 
@@ -76,9 +76,9 @@ cheap glow next).
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
-| [mobile-performance.md](plans/mobile-performance.md) | In progress — fewer cells shipped |
-| [mobile-glyph-density.md](tasks/completed/mobile-glyph-density.md) | Done — content COLS/ROWS + quote wrap |
-| [mobile-cheap-glow.md](tasks/mobile-cheap-glow.md) | **Next** — cheap shadows on mobile |
+| [adaptive-performance.md](plans/adaptive-performance.md) | In progress — density + cheap glow done |
+| [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + quote wrap (narrow) |
+| [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet) |
 
 ## Stack
 
@@ -123,9 +123,8 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Mobile performance — cheap glow next
-   ([plans/mobile-performance.md](plans/mobile-performance.md),
-   [tasks/mobile-cheap-glow.md](tasks/mobile-cheap-glow.md)).
+1. Adaptive performance — dirty DomManager paint next
+   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 3).
 2. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
 4. Optional: paint eyeball, ASCII portrait, frame-`dt` clock.

@@ -239,6 +239,15 @@ bright for the reveal pulse.
 CSS owns the look; paint only toggles classes. Performance loves that more
 than three stacked 25px shadows on every static cell.
 
+**Cheap glow** (`html.m-cheap-glow`) is a *quality* gate for **any** slower
+device, not layout: narrow short-side ≤ 768, static low-power hints
+(`deviceMemory` ≤ 4, `hardwareConcurrency` ≤ 2, `prefers-reduced-motion`,
+`saveData`), or a **runtime ratchet** after several frames whose work exceeds
+~half the frame delay. Trails drop `text-shadow` (fill only); tip/settled get
+one short blur and no `color-mix`. Capable devices keep full neon without the
+class. Ratchet only escalates (no mid-session flicker back to multi-blur).
+Plan: [adaptive-performance](../agents/plans/adaptive-performance.md).
+
 ## Color themes
 
 Palettes live in `src/js/themes.mjs`. Settled text uses document CSS vars

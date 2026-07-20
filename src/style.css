@@ -189,3 +189,32 @@ body {
     0 0 25px var(--col-link-hover),
     0 0 5px var(--col-link);
 }
+
+/*
+ * Cheap glow (html.m-cheap-glow): quality downgrade for any slower device —
+ * narrow viewport, low-power heuristic, or runtime ratchet after slow frames.
+ * Trails restyle every frame — zero blur is the big win. Tips/settled keep
+ * one short shadow; no color-mix. Full neon stacks above stay on without the
+ * class. See agents/plans/adaptive-performance.md.
+ */
+html.m-cheap-glow .m-drop {
+  text-shadow: none;
+}
+html.m-cheap-glow .m-drop-tip {
+  text-shadow: 0 0 6px var(--drop-hi, var(--col-hi));
+}
+html.m-cheap-glow .m-static.m-revealed {
+  text-shadow:
+    0 0 1px #000,
+    0 0 6px var(--col-body, var(--col-med));
+}
+html.m-cheap-glow .m-static.m-revealed.m-link {
+  text-shadow: 0 0 8px var(--col-link);
+}
+html.m-cheap-glow .m-static.m-revealed.m-drop-tip,
+html.m-cheap-glow .m-static.m-drop-tip {
+  text-shadow: 0 0 6px var(--drop-hi, var(--col-hi));
+}
+html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
+  text-shadow: 0 0 8px var(--col-link-hover);
+}

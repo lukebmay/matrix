@@ -146,6 +146,19 @@ function Matrix(...args) {
   // Homepage hover binds cells; grid must exist first.
   state.scenePlayer?.attachHover?.();
 
+  // Ratchet to cheap glow if frame work stays heavy (any slower device).
+  // Only escalates; never re-enables full neon mid-session (avoids flicker).
+  const frameDelay = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
+  const slowWorkMs = Math.max(40, Math.floor(frameDelay * 0.55));
+  const slowFramesNeeded = 8;
+  let slowFrameStreak = 0;
+
+  const enableCheapGlowIfNeeded = () => {
+    if (cfg.IS_CHEAP_GLOW) return;
+    cfg.IS_CHEAP_GLOW = true;
+    document.documentElement.classList.add("m-cheap-glow");
+  };
+
   const updateMatrix = () => {
     if (!self.isRunning) return;
     const now = Date.now();
@@ -154,12 +167,29 @@ function Matrix(...args) {
         ? cfg.TIME_SCALE
         : 1;
     const elapsedSeconds = ((now - then) / 1000) * scale;
+    const workStart =
+      typeof performance !== "undefined" && performance.now
+        ? performance.now()
+        : now;
     // Advance → paint (incl. drops that completed this frame) → kill/spawn.
     // Kill-before-paint skipped tip rows on large dt; hide/reveal waited on rain.
     state.themeDirector?.tick?.(elapsedSeconds);
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
     state.dropManager.settleDrops(elapsedSeconds);
+    if (!cfg.IS_CHEAP_GLOW) {
+      const workEnd =
+        typeof performance !== "undefined" && performance.now
+          ? performance.now()
+          : Date.now();
+      const workMs = workEnd - workStart;
+      if (workMs >= slowWorkMs) {
+        slowFrameStreak += 1;
+        if (slowFrameStreak >= slowFramesNeeded) enableCheapGlowIfNeeded();
+      } else {
+        slowFrameStreak = 0;
+      }
+    }
     then = now;
     if (self.isRunning) {
       runTimeoutId = setTimeout(updateMatrix, cfg.FRAME_DELAY);

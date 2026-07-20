@@ -101,6 +101,35 @@ const MOBILE_COLS_MARGIN = 5;
 // Large displays: cap quote column window (≈ prior 3-way split line length).
 const QUOTE_WRAP_MAX_DESKTOP = 40;
 
+/**
+ * Static hints that multi-blur text-shadow is a bad idea on this client.
+ * Incomplete on purpose — Matrix can still ratchet cheap-glow on after slow frames.
+ * (Adaptive performance: capable devices keep full neon; others downgrade.)
+ */
+function detectLowPowerClient() {
+  if (typeof navigator === "undefined") return false;
+  // User asked for less motion / data — honor as cheaper paint.
+  try {
+    if (
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  const conn = navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection;
+  if (conn?.saveData) return true;
+  // deviceMemory is Chrome-ish (GiB, floored). ≤4 → older / constrained boxes.
+  const mem = navigator.deviceMemory;
+  if (typeof mem === "number" && mem > 0 && mem <= 4) return true;
+  // Dual-core (or unknown-as-1) machines still show up in the wild.
+  const cores = navigator.hardwareConcurrency;
+  if (typeof cores === "number" && cores > 0 && cores <= 2) return true;
+  return false;
+}
+
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
 
@@ -145,6 +174,9 @@ function Configuration(...args) {
   self.IS_MOBILE = Math.min(viewWidth, viewHeight) <= MOBILE_MAX_WIDTH;
   self.IS_MOBILE_LANDSCAPE =
     self.IS_MOBILE && self.DISPLAY_MODE === "landscape";
+  // Cheap glow CSS: quality (any slow device), not layout. Narrow + low-power.
+  self.IS_LOW_POWER = detectLowPowerClient();
+  self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
   // Portrait + square mobile: full email L. Landscape: horizontal email only
   // (row budget is pad + roles + gap + 1 email line + pad).
   self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
@@ -255,6 +287,8 @@ function Configuration(...args) {
   self.RED_COLOR = "#bb2222";
 
   const htmlEl = document.getElementsByTagName("html")[0];
+  // Quality CSS (trails/tip/settled). Runtime may escalate via enableCheapGlow().
+  htmlEl.classList.toggle("m-cheap-glow", self.IS_CHEAP_GLOW);
   state.themeDirector = ThemeDirector({
     intro: THEME_INTRO,
     pool: THEME_POOL,
