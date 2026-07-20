@@ -32,6 +32,10 @@ function Drop(...args) {
   self.speed =
     typeof opts.speed === "number" ? opts.speed : randomInterval(speedMin, speedMax);
 
+  // Palette name at spawn (theme blend); Dom paints trails from this.
+  self.theme =
+    typeof opts.theme === "string" && opts.theme ? opts.theme : null;
+
   self.isComplete = false;
 
   self.getRow = () => Math.floor(self._row);

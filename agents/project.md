@@ -9,8 +9,8 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Quote playlist interlude; optional paint eyeball; deploy +
-job-search polish.
+**Next:** Quote playlist interlude; deploy + job-search polish; optional
+paint eyeball / theme cull (orange/yellow).
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
@@ -73,6 +73,7 @@ job-search polish.
 | [interactive-play_design.md](plans/interactive-play/completed/interactive-play_design.md) | Done — design lock |
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
+| [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
 
 ## Stack
 

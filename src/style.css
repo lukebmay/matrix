@@ -32,6 +32,7 @@ html {
   /* set in JS */
   --col-low: #000000;
   --col-med: #000000;
+  --col-body: #000000;
   --col-hi: #000000;
   --col-link: #000000;
   --char-size: 0;
@@ -87,6 +88,8 @@ body {
   justify-content: center;
   width: calc(var(--char-width) * 1px);
   height: calc(var(--char-height) * 1px);
+  /* Residual: last drop theme (--res-low), else fading ambient --col-low. */
+  color: var(--res-low, var(--col-low));
   /* Rain / non-static: Matrix first; Ubuntu covers mix-mode ASCII. */
   font-family: "Matrix Code", "Ubuntu Sans Mono", "Courier Prime", monospace;
   font-weight: 700;
@@ -130,34 +133,35 @@ body {
   font-size: calc(var(--char-size) * 0.95 * 1px);
   transform: none;
 }
+/* --drop-* set per cell from the owning drop's spawn theme (blend). */
 .m-drop {
   position: relative;
   z-index: 2;
-  color: var(--col-med);
+  color: var(--drop-med, var(--col-med));
   text-shadow:
-    0 0 25px var(--col-med),
-    0 0 5px var(--col-low);
+    0 0 25px var(--drop-med, var(--col-med)),
+    0 0 5px var(--drop-low, var(--col-low));
 }
 /* Super-bright only while the drop tip is on the cell (reveal pulse). */
 .m-drop-tip {
   position: relative;
   z-index: 4;
-  color: var(--col-hi);
+  color: var(--drop-hi, var(--col-hi));
   text-shadow:
-    0 0 25px var(--col-hi),
-    0 0 25px var(--col-hi),
-    0 0 5px var(--col-med);
+    0 0 25px var(--drop-hi, var(--col-hi)),
+    0 0 25px var(--drop-hi, var(--col-hi)),
+    0 0 5px var(--drop-med, var(--col-med));
 }
-/* Settled glow: outer halo + tight black so mid-green glyphs stay crisp. */
+/* Settled non-link: body is slightly whiter than tail med. */
 .m-static.m-revealed {
   position: relative;
   z-index: 3;
-  color: var(--col-med);
+  color: var(--col-body, var(--col-med));
   text-shadow:
     0 0 1px #000,
     0 0 2px #000,
-    0 0 10px color-mix(in srgb, var(--col-med) 90%, white),
-    0 0 18px color-mix(in srgb, var(--col-med) 90%, white);
+    0 0 10px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white),
+    0 0 18px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white);
 }
 /* Links: bright fill already reads sharp; outer-only is enough. */
 .m-static.m-revealed.m-link {
@@ -171,11 +175,11 @@ body {
 .m-static.m-revealed.m-drop-tip,
 .m-static.m-drop-tip {
   z-index: 4;
-  color: var(--col-hi);
+  color: var(--drop-hi, var(--col-hi));
   text-shadow:
-    0 0 25px var(--col-hi),
-    0 0 25px var(--col-hi),
-    0 0 5px var(--col-med);
+    0 0 25px var(--drop-hi, var(--col-hi)),
+    0 0 25px var(--drop-hi, var(--col-hi)),
+    0 0 5px var(--drop-med, var(--col-med));
 }
 .m-static.m-revealed.m-link.m-link-hover {
   z-index: 4;

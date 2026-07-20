@@ -227,17 +227,67 @@ points. One geometry, two consumers (paint + weather).
 ## Glow: settled vs tip
 
 Tip cells are allowed to be gaudy (double hi-color bloom). Settled body text
-needed a **tight black edge** plus a soft outer halo so mid-green (`#0d731a`)
-stays crisp on pure black. Links are already bright cyan — outer halo only,
-no black edge, so they do not look muddy.
+needed a **tight black edge** plus a soft outer halo so mid hue (`MED`)
+stays crisp on pure black. Links use the brightest near-white of the same
+hue — outer halo only, no black edge, so they do not look muddy.
 
 After bold Ubuntu + Matrix `scaleY`, ink covers more of each cell than the
-old thin English rain, so residual (`LOW` `#000e00`) and tail/settled mid
-(`MED` `#0d731a`) were dimmed to keep roughly the same net light per
-square. Tip `HI` stays bright for the reveal pulse.
+old thin English rain, so residual (`LOW`) and tail/settled mid (`MED`)
+were dimmed to keep roughly the same net light per square. Tip `HI` stays
+bright for the reveal pulse.
 
 CSS owns the look; paint only toggles classes. Performance loves that more
 than three stacked 25px shadows on every static cell.
+
+## Color themes
+
+Palettes live in `src/js/themes.mjs`. Settled text uses document CSS vars
+(`--col-*`). Falling drops bake a **theme name at spawn** and Dom paints
+per-cell `--drop-*` so mid-air trails keep their color.
+
+| Role | Surface |
+| --- | --- |
+| **low** | Residual / dark fill |
+| **med** | Drop tails |
+| **body** | Settled non-link text (slightly whiter than med) |
+| **hi** | Drop tip (bright, still on-hue) |
+| **link** | Settled links (brighter; more hue than pure white) |
+| **linkHover** | Link hover (closest to white, still tinted) |
+
+### Blend, not snap
+
+`ThemeDirector` owns the sequence. On **quote hide** the homepage starts a
+transition to the next theme:
+
+1. **Ramp** (~5s): spawn probability of the *next* color eases in (`t²`) —
+   first a few foreign tips, then a mix of old and new drops.
+2. **Full** (~1.5s): every new drop is the next color; residual old drops
+   finish falling in their baked palette.
+3. **Commit**: settled roles (`body` / `link` / …) snap for the next card.
+   Ambient `--col-low` **fades** over a few seconds (unstamped residual).
+4. **Residual glyphs** keep per-cell `--res-low` from the last drop that
+   painted them — they do **not** follow the ambient fade. A cell only
+   changes residual hue when a drop of another theme passes through.
+
+No global flash of the residual field: new color creeps in drop by drop,
+while the ambient default eases for cells never visited.
+
+**Order:** fixed intro `green → blue → purple → red → orange → yellow →
+green`, then **random** picks from the pool (never same as active).
+
+### Coverage pool (first-pass + color change)
+
+Rain keeps a **without-replacement** column pool (`firstPass`), same idea as
+the initial scene: pick only from remaining columns until every column has
+had a drop of the **coverage theme**. Rain *and* content storms both drain
+the pool when they spawn that theme (wrong-theme drops during a blend do not).
+
+On each color transition start the pool **refills** and `coverageTheme`
+becomes the next palette, so the field must be re-walked in the new color.
+
+After the **email storm finishes starting its drops** (or a hover fully
+reveals email), a **1s drain storm** on Rain targets whatever is left in the
+pool — initial green coverage and post-change re-coverage alike.
 
 Cells use `overflow: visible` so bloom can spill into neighbors. The grid is
 **exact-fill**: `COLS`/`ROWS` from a target cell size, then

@@ -198,6 +198,8 @@ function DropScene(...args) {
   };
 
   self.stopStorm = () => {
+    // Only emit when a storm was actually running (clearView / idle stops stay quiet).
+    if (!self.stormEnabled) return self;
     self.stormEnabled = false;
     emit("stormStop", { scene: self });
     return self;

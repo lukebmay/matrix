@@ -15,6 +15,8 @@ import SceneManager from "./SceneManager.mjs";
 import ScenePlayer from "./ScenePlayer.mjs";
 import { homepagePlay } from "./play/homepage.mjs";
 import { resolveKiosk } from "./kiosk.mjs";
+import { applyTheme, THEMES, ThemeDirector, THEME_INTRO, THEME_POOL } from "./themes.mjs";
+import state from "./State.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 import Grid from "./layout/Grid.mjs";
 import TextLine from "./layout/TextLine.mjs";
@@ -105,20 +107,23 @@ function Configuration(...args) {
   // Optional full page reload for multi-day wall runs; 0 = off.
   self.SOFT_RELOAD_MS = 0;
 
-  // Dimmer fill: thicker stems (see DESIGN.md glow / two-faces).
-  self.LOW_COLOR = "#000e00";
-  self.MED_COLOR = "#0d731a";
-  self.HI_COLOR = "#aaffbb";
-  self.LINK_COLOR = "#aaffff";
-  self.LINK_HOVER_COLOR = "#ccffff";
+  // Palette via ThemeDirector (intro then random; blend on quote hide).
+  const green = THEMES.green;
+  self.LOW_COLOR = green.low;
+  self.MED_COLOR = green.med;
+  self.BODY_COLOR = green.body;
+  self.HI_COLOR = green.hi;
+  self.LINK_COLOR = green.link;
+  self.LINK_HOVER_COLOR = green.linkHover;
   self.RED_COLOR = "#bb2222";
 
   const htmlEl = document.getElementsByTagName("html")[0];
-  htmlEl.style.setProperty("--col-low", self.LOW_COLOR);
-  htmlEl.style.setProperty("--col-med", self.MED_COLOR);
-  htmlEl.style.setProperty("--col-hi", self.HI_COLOR);
-  htmlEl.style.setProperty("--col-link", self.LINK_COLOR);
-  htmlEl.style.setProperty("--col-link-hover", self.LINK_HOVER_COLOR);
+  state.themeDirector = ThemeDirector({
+    intro: THEME_INTRO,
+    pool: THEME_POOL,
+    start: "green",
+  });
+  applyTheme(state.themeDirector.active);
   htmlEl.style.setProperty("--col-red", self.RED_COLOR);
   htmlEl.style.setProperty("--char-size", `${self.CHAR_SIZE}`);
   htmlEl.style.setProperty("--char-width", `${self.CHAR_WIDTH}`);
@@ -250,6 +255,8 @@ function Configuration(...args) {
       name: "rain",
       cols: self.COLS,
       priority: 0,
+      // First-pass + color-change pool: only this theme drains coverage.
+      coverageTheme: "green",
       accumulator: VariableRateAccumulator(
         (baselineMin + baselineMax) / 2,
         Infinity,

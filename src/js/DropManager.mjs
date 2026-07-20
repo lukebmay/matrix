@@ -113,8 +113,9 @@ function DropManager(...args) {
   };
 
   // Bidirectional set update after a successful spawn on col.
-  const notifySpawnColumn = (col) => {
-    state.rain?.onColumnSpawned?.(col);
+  // Rain coverage pool is theme-filtered via drop; scenes take any spawn.
+  const notifySpawnColumn = (col, drop) => {
+    state.rain?.onColumnSpawned?.(col, drop);
     for (const scene of state.dropScenes ?? []) {
       // Stable scenes ignore (onColumnSpawned no-ops when not active).
       scene.onColumnSpawned?.(col);
@@ -126,7 +127,13 @@ function DropManager(...args) {
     const n = liveCount(col);
     if (n > 0 && !allowStack) return null;
     if (n > 0 && allowStack && n >= MAX_DROPS_PER_COL) return null;
-    const drop = Drop({ col, ...opts });
+    // Theme baked at spawn so mid-air drops keep their color through blend.
+    const theme =
+      opts.theme ??
+      state.themeDirector?.pickSpawnTheme?.() ??
+      state.themeDirector?.active ??
+      null;
+    const drop = Drop({ col, ...opts, theme });
     drops.add(drop);
     let list = byCol.get(col);
     if (!list) {
@@ -134,7 +141,7 @@ function DropManager(...args) {
       byCol.set(col, list);
     }
     list.push(drop);
-    notifySpawnColumn(col);
+    notifySpawnColumn(col, drop);
     return drop;
   };
 
@@ -201,16 +208,21 @@ function DropManager(...args) {
         continue;
       }
 
-      const acc = source.stormAccumulator ?? source.accumulator;
-      const want = advanceSource(source, elapsedSeconds);
+      // Rain: drain storm uses storm acc; ambient uses forever acc.
+      // DropScenes only join when stormEnabled (storm acc).
+      const isStorm = source.stormEnabled === true;
+      const rateAcc =
+        source === state.rain && !isStorm
+          ? source.accumulator
+          : (source.stormAccumulator ?? source.accumulator);
+      const want = rateAcc?.advance?.(elapsedSeconds) ?? 0;
       if (want <= 0) continue;
 
-      const isStorm = source.stormEnabled === true;
       const stackable = isStorm ? stackableSelected(source) : [];
 
       // No free columns: rain/legacy refund. Storm may still stack.
       if (free.length === 0 && stackable.length === 0) {
-        acc?.refund?.(want);
+        rateAcc?.refund?.(want);
         continue;
       }
 
@@ -234,7 +246,7 @@ function DropManager(...args) {
 
       // VRA issues "want" even when cols are blocked; refund so budget survives.
       const missed = want - spawned;
-      if (missed > 0) acc?.refund?.(missed);
+      if (missed > 0) rateAcc?.refund?.(missed);
 
       if (source.stormEnabled && source.columnsSelected?.size === 0) {
         source.stopStorm?.();

@@ -22,6 +22,7 @@ function State(...args) {
   self.spawnPolicies = null; // legacy bridge; prefer rain + dropScenes
   self.sceneManager = null;
   self.scenePlayer = null;
+  self.themeDirector = null; // active palette + spawn blend
 }
 
 const state = State();

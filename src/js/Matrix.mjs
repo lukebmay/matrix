@@ -107,6 +107,7 @@ function Matrix(...args) {
     const elapsedSeconds = ((now - then) / 1000) * scale;
     // Advance → paint (incl. drops that completed this frame) → kill/spawn.
     // Kill-before-paint skipped tip rows on large dt; hide/reveal waited on rain.
+    state.themeDirector?.tick?.(elapsedSeconds);
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
     state.dropManager.settleDrops(elapsedSeconds);

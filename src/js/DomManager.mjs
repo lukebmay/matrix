@@ -8,6 +8,7 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 import { randomRainGlyph } from "./RainGlyphs.mjs";
+import { getPalette } from "./themes.mjs";
 import state from "./State.mjs";
 
 function DomManager(...args) {
@@ -68,11 +69,37 @@ function DomManager(...args) {
   };
   constructMatrixDom();
 
+  const clearDropPaint = (el) => {
+    el.classList.remove("m-drop", "m-drop-tip");
+    el.style.removeProperty("--drop-low");
+    el.style.removeProperty("--drop-med");
+    el.style.removeProperty("--drop-hi");
+    // Keep --res-low: residual glyph color only changes when a drop visits.
+  };
+
+  const applyDropPalette = (el, themeName) => {
+    const p =
+      getPalette(themeName) ??
+      getPalette(state.themeDirector?.active) ??
+      null;
+    if (!p) {
+      el.style.removeProperty("--drop-low");
+      el.style.removeProperty("--drop-med");
+      el.style.removeProperty("--drop-hi");
+      return;
+    }
+    el.style.setProperty("--drop-low", p.low);
+    el.style.setProperty("--drop-med", p.med);
+    el.style.setProperty("--drop-hi", p.hi);
+    // Stamp residual: after the trail leaves, glyph keeps this theme's low.
+    el.style.setProperty("--res-low", p.low);
+  };
+
   const clearColumnTrail = (c) => {
     for (let r = 0; r < cfg.ROWS; r++) {
       const el = grid.get(r, c);
       if (!el) continue;
-      el.classList.remove("m-drop", "m-drop-tip");
+      clearDropPaint(el);
     }
   };
 
@@ -220,18 +247,24 @@ function DomManager(...args) {
         lastTipRow.set(d, r);
       }
 
-      // Union trail CSS: any tip → m-drop-tip; else body; else clear trail.
-      const tipRows = new Set();
-      const trailRows = new Set();
+      // Per-row owner so mixed-theme stacks keep each drop's palette.
+      // kind tip always wins; body prefers higher tip (leader).
+      const rowPaint = new Map(); // row → { kind: 'tip'|'body', drop }
       for (const d of colDrops) {
         const r = d.getRow();
         const l = d.length;
-        if (r >= 0 && r < cfg.ROWS) tipRows.add(r);
+        if (r >= 0 && r < cfg.ROWS) {
+          rowPaint.set(r, { kind: "tip", drop: d });
+        }
         for (let i = 0; i < cfg.ROWS; i++) {
-          if (i < r && i > r - l) trailRows.add(i);
+          if (!(i < r && i > r - l)) continue;
+          const prev = rowPaint.get(i);
+          if (prev?.kind === "tip") continue;
+          if (!prev || d._row > prev.drop._row) {
+            rowPaint.set(i, { kind: "body", drop: d });
+          }
         }
       }
-      for (const tr of tipRows) trailRows.delete(tr);
 
       const colEl = grid.getColumn(c);
       if (colEl) {
@@ -242,16 +275,19 @@ function DomManager(...args) {
         const el = grid.get(i, c);
         if (!el) continue;
 
-        if (tipRows.has(i)) {
+        const paint = rowPaint.get(i);
+        if (paint?.kind === "tip") {
+          applyDropPalette(el, paint.drop.theme);
           el.classList.add("m-drop-tip");
           el.classList.remove("m-drop");
           paintFromLogical(i, c, el, { rainIfEmpty: true });
-        } else if (trailRows.has(i)) {
+        } else if (paint?.kind === "body") {
+          applyDropPalette(el, paint.drop.theme);
           el.classList.add("m-drop");
           el.classList.remove("m-drop-tip");
           paintFromLogical(i, c, el, { rainIfEmpty: true });
         } else {
-          el.classList.remove("m-drop", "m-drop-tip");
+          clearDropPaint(el);
           // Settled content stays; empty cells not re-noised off-trail.
           if (state.sceneManager?.isContentRevealed?.(i, c)) {
             paintFromLogical(i, c, el, { rainIfEmpty: false });
