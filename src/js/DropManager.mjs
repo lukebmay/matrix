@@ -48,7 +48,8 @@ function maxSafeStackSpeed(leader, opts = {}) {
 
 // Owns live drops. Additive Rain + active-scene Storms.
 // Rain: at most one live drop per column.
-// Storm: may stack one second drop on occupied columnsSelected cols (no-overtake).
+// Storm: may stack one second drop on occupied columnsSelected cols (no-overtake)
+// unless weather scale disables stacking (cfg.ALLOW_STORM_STACK / state).
 // Cap 2 live drops/col — re-activations must not pile 3+ across cycles.
 // On spawn col c: drain Rain first-pass and every active scene's columnsSelected.
 const MAX_DROPS_PER_COL = 2;
@@ -177,6 +178,21 @@ function DropManager(...args) {
     return acc.advance(elapsedSeconds);
   };
 
+  // Storm stack: off when weather scale (cfg or runtime ratchet).
+  const allowStormStack = () => {
+    if (state.allowStormStack === false) return false;
+    if (state.allowStormStack === true) return true;
+    if (cfg.ALLOW_STORM_STACK === false) return false;
+    return true;
+  };
+
+  // Ambient rain thinning when weather escalates mid-session (cfg was full).
+  const ambientRainScale = () => {
+    if (state.weatherScale !== true || cfg.WEATHER_SCALE === true) return 1;
+    const s = cfg.WEATHER_RAIN_PEAK_SCALE;
+    return typeof s === "number" && s > 0 && s < 1 ? s : 0.65;
+  };
+
   // Exactly one live drop + still selected + head start for no-overtake speed.
   const stackableSelected = (source) => {
     const selected = source.columnsSelected;
@@ -241,12 +257,27 @@ function DropManager(...args) {
         source === state.rain && !isStorm
           ? source.accumulator
           : (source.stormAccumulator ?? source.accumulator);
-      const want = rateAcc?.advance?.(elapsedSeconds) ?? 0;
+      let want = rateAcc?.advance?.(elapsedSeconds) ?? 0;
       if (want <= 0) continue;
 
-      const stackable = isStorm ? stackableSelected(source) : [];
+      // Mid-session weather scale: thin ambient rain (peak already scaled if
+      // cfg.WEATHER_SCALE was set at construction). Do **not** refund dropped
+      // units — intentional discard; refund would restore the full average.
+      if (source === state.rain && !isStorm) {
+        const peakScale = ambientRainScale();
+        if (peakScale < 1 && want > 0) {
+          const scaled = want * peakScale;
+          const whole = Math.floor(scaled);
+          const frac = scaled - whole;
+          want = whole + (Math.random() < frac ? 1 : 0);
+          if (want <= 0) continue;
+        }
+      }
 
-      // No free columns: rain/legacy refund. Storm may still stack.
+      const stackable =
+        isStorm && allowStormStack() ? stackableSelected(source) : [];
+
+      // No free columns: rain/legacy refund. Storm may still stack (if allowed).
       if (free.length === 0 && stackable.length === 0) {
         rateAcc?.refund?.(want);
         continue;
@@ -536,6 +567,86 @@ if (isMain) {
     const onlyStack = scene.pickColumns(1, [], [1, 2]);
     assert.equal(onlyStack.length, 1);
     assert.ok([1, 2].includes(onlyStack[0]));
+  }
+
+  // --- Weather scale: no storm stack when ALLOW_STORM_STACK false ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: DropScene } = await import("./DropScene.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 4,
+      ROWS: 20,
+      DROP_SPEED_MIN: 8,
+      DROP_SPEED_MAX: 20,
+      STORM_DROP_SPEED_MIN: 11,
+      STORM_DROP_SPEED_MAX: 20,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 8,
+      ALLOW_STORM_STACK: false,
+      WEATHER_SCALE: true,
+      WEATHER_RAIN_PEAK_SCALE: 0.65,
+      WEATHER_LENGTH_SCALE: 0.6,
+    };
+    stateMod.weatherScale = true;
+    stateMod.allowStormStack = false;
+
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    const rain = Rain({
+      cols: 4,
+      accumulator: VariableRateAccumulator(200, Infinity, () => 1),
+    });
+    const pts = [
+      { r: 2, c: 1, char: "A", revealed: false },
+      { r: 2, c: 2, char: "B", revealed: false },
+    ];
+    const scene = DropScene({
+      name: "no-stack",
+      points: pts,
+      priority: 10,
+      stormAccumulator: VariableRateAccumulator(10, 5, () => 1),
+    });
+    scene.enterMode("revealing");
+
+    stateMod.rain = rain;
+    stateMod.dropScenes = [scene];
+    stateMod.spawnPolicies = [];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+
+    // Squatter on col 1 (rain only).
+    scene.stormEnabled = false;
+    rain.firstPass = new Set([1]);
+    dm.updateDrops(0.05);
+    assert.equal(dm.getDropsOn(1).length, 1, "squatter on col 1");
+
+    scene.columnsSelected = new Set([1, 2]);
+    scene.startStorm();
+    scene.stormAccumulator = VariableRateAccumulator(20, 1, () => 1);
+    const squatter = dm.getDropsOn(1)[0];
+    squatter._row = 6;
+    squatter.speed = 10;
+
+    dm.updateDrops(0.5);
+    assert.equal(
+      dm.getDropsOn(1).length,
+      1,
+      "weather scale: storm does not stack on occupied col",
+    );
+    // Free selected col 2 should still get a storm drop.
+    assert.ok(
+      dm.getDropsOn(2).length >= 1,
+      "free selected col still storm-spawned",
+    );
+
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = null;
   }
 
   // --- Large dt: paint before kill flushes tip rows (Matrix frame order) ---

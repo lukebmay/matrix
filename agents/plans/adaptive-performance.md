@@ -1,6 +1,6 @@
 # Plan — Adaptive performance (smooth rain on slower devices)
 
-**Status:** In progress — density + cheap glow + dirty paint + hot-path allocs shipped  
+**Status:** In progress — density + cheap glow + dirty paint + allocs + weather scale shipped  
 **Project:** `projects/matrix`  
 **Related analysis:** frame = advance → paint → settle; DOM rain + multi-shadow
 glow is the bottleneck (not drop math).
@@ -38,8 +38,8 @@ separate short-side / orientation policy — not the same as “slow.”
 | 2 | **Cheap glow CSS (adaptive)** | **Done** | Highest remaining | Cap/remove multi-blur; no `color-mix`; static + runtime ratchet (DOM class; no frozen-cfg mutate) |
 | 3 | **Dirty DomManager paint** | **Done** | High | Only restyle tip enter / trail leave / role flip; cache theme vars |
 | 4 | **Hot-path allocations** | **Done** | Medium | Reuse maps; `forEachColumnDrops`; pre-split rain glyph pools; thrift random |
-| 5 | **Weather scale (constrained)** | **Next** | Medium | Lower rain peak / shorter tails / no storm stack when quality is low or viewport is tight |
-| 6 | **Frame scheduler** | Pending | Medium | rAF + further adaptive quality when `dt` / work spikes |
+| 5 | **Weather scale (constrained)** | **Done** | Medium | Lower rain peak / shorter tails / no storm stack when quality is low or viewport is tight |
+| 6 | **Frame scheduler** | **Next** | Medium | rAF + further adaptive quality when `dt` / work spikes |
 | 7 | **Canvas rain layer** (optional) | Later | Structural | Rain bitmap under DOM links/card — biggest architecture win |
 
 ## Slice 1 — Fewer glyphs (complete)
@@ -86,6 +86,19 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - Cheap-glow ratchet fix (same session): escalate via DOM class + local flag only
   (Configuration is frozen); also count wall-gap overruns.
 
+## Slice 5 — Weather scale (complete)
+
+**Task:** [tasks/completed/weather-scale.md](../tasks/completed/weather-scale.md)
+
+- Same static gate as cheap glow (`WEATHER_SCALE = IS_CHEAP_GLOW`): narrow or
+  low-power heuristic.
+- Rain soft-square **peak** × 0.65 (trough unchanged); `DROP_LENGTH_*` × 0.6;
+  `ALLOW_STORM_STACK = false`.
+- Runtime ratchet (with cheap glow): `state.weatherScale` +
+  `state.allowStormStack`; thin ambient rain / shorten new drops if config was
+  full quality. Never mutate frozen Configuration.
+- Storm rates unchanged (refund still honest); free selected cols still spawn.
+
 ## Out of scope (this plan)
 
 - Quote playlist / interactive-play content (separate plan).
@@ -98,6 +111,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - [x] Adaptive cheap glow (slice 2) — trails none; tip/settled single short blur; slow desktops covered
 - [x] Dirty DomManager paint (slice 3) — tip enter / trail leave / role flip only
 - [x] Hot-path allocations (slice 4) — glyph pools, drop iteration, free-col reuse
+- [x] Weather scale (slice 5) — lower rain peak, shorter tails, no storm stack
 - [ ] Slow devices feel smooth during rain + card reveal (phone **and** weak desktop)
 - [ ] Capable devices keep full neon without the quality class
 - [ ] Build green; no layout OOB for card/quote on phone portrait/landscape

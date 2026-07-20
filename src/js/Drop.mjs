@@ -26,7 +26,19 @@ function Drop(...args) {
   self.spawnAt = opts.spawnAt ?? performance.now();
 
   self._row = 0.0;
-  self.length = Math.floor(randomInterval(cfg.DROP_LENGTH_MIN, cfg.DROP_LENGTH_MAX));
+  // Length band from config; runtime weather scale shortens new drops only when
+  // config did not already bake WEATHER_SCALE lengths (ratchet mid-session).
+  let lenMin = cfg.DROP_LENGTH_MIN;
+  let lenMax = cfg.DROP_LENGTH_MAX;
+  if (state.weatherScale === true && cfg.WEATHER_SCALE !== true) {
+    const scale =
+      typeof cfg.WEATHER_LENGTH_SCALE === "number" && cfg.WEATHER_LENGTH_SCALE > 0
+        ? cfg.WEATHER_LENGTH_SCALE
+        : 0.6;
+    lenMin = Math.max(2, Math.floor(lenMin * scale));
+    lenMax = Math.max(lenMin + 1, Math.floor(lenMax * scale));
+  }
+  self.length = Math.floor(randomInterval(lenMin, lenMax));
   const speedMin = opts.speedMin ?? cfg.DROP_SPEED_MIN;
   const speedMax = opts.speedMax ?? cfg.DROP_SPEED_MAX;
   self.speed =

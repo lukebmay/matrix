@@ -146,9 +146,9 @@ function Matrix(...args) {
   // Homepage hover binds cells; grid must exist first.
   state.scenePlayer?.attachHover?.();
 
-  // Ratchet to cheap glow if frame work stays heavy (any slower device).
-  // Only escalates; never re-enables full neon mid-session (avoids flicker).
-  // Local flag only — Configuration freezes itself; never mutate cfg.IS_CHEAP_GLOW.
+  // Quality ratchet: cheap glow + weather scale if frame work stays heavy.
+  // Only escalates; never re-enables full neon / full weather mid-session.
+  // Local flags only — Configuration freezes itself; never mutate cfg.*.
   const frameDelay = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
   const slowWorkMs = Math.max(40, Math.floor(frameDelay * 0.55));
   // Wall gap: scheduled delay + heavy JS (catches main-thread stalls after paint).
@@ -156,11 +156,23 @@ function Matrix(...args) {
   const slowFramesNeeded = 8;
   let slowFrameStreak = 0;
   let cheapGlowOn = !!cfg.IS_CHEAP_GLOW;
+  // Seed runtime weather from frozen config (null state = follow cfg).
+  state.weatherScale = cfg.WEATHER_SCALE === true ? true : null;
+  state.allowStormStack = cfg.ALLOW_STORM_STACK === false ? false : null;
+  let weatherScaleOn = state.weatherScale === true;
 
-  const enableCheapGlowIfNeeded = () => {
-    if (cheapGlowOn) return;
-    cheapGlowOn = true;
-    document.documentElement.classList.add("m-cheap-glow");
+  const enableConstrainedQuality = () => {
+    if (!cheapGlowOn) {
+      cheapGlowOn = true;
+      document.documentElement.classList.add("m-cheap-glow");
+    }
+    if (!weatherScaleOn) {
+      weatherScaleOn = true;
+      // Runtime thin rain + shorter new tails (cfg lengths were full).
+      state.weatherScale = true;
+      // No second drop on occupied storm cols (less concurrent paint).
+      state.allowStormStack = false;
+    }
   };
 
   const updateMatrix = () => {
@@ -182,7 +194,8 @@ function Matrix(...args) {
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
     state.dropManager.settleDrops(elapsedSeconds);
-    if (!cheapGlowOn) {
+    // Already fully constrained at config: skip measurement.
+    if (!cheapGlowOn || !weatherScaleOn) {
       const workEnd =
         typeof performance !== "undefined" && performance.now
           ? performance.now()
@@ -192,7 +205,7 @@ function Matrix(...args) {
       const heavy = workMs >= slowWorkMs || wallGapMs >= slowGapMs;
       if (heavy) {
         slowFrameStreak += 1;
-        if (slowFrameStreak >= slowFramesNeeded) enableCheapGlowIfNeeded();
+        if (slowFrameStreak >= slowFramesNeeded) enableConstrainedQuality();
       } else {
         slowFrameStreak = 0;
       }

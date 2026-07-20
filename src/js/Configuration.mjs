@@ -101,6 +101,11 @@ const MOBILE_COLS_MARGIN = 5;
 // Large displays: cap quote column window (≈ prior 3-way split line length).
 const QUOTE_WRAP_MAX_DESKTOP = 40;
 
+// Weather scale when quality is low or viewport is tight (fewer painted cells).
+// Peak rain units/s multiplier; length band multiplier; storm stack off.
+const WEATHER_RAIN_PEAK_SCALE = 0.65;
+const WEATHER_LENGTH_SCALE = 0.6;
+
 /**
  * Static hints that multi-blur text-shadow is a bad idea on this client.
  * Incomplete on purpose — Matrix can still ratchet cheap-glow on after slow frames.
@@ -177,6 +182,12 @@ function Configuration(...args) {
   // Cheap glow CSS: quality (any slow device), not layout. Narrow + low-power.
   self.IS_LOW_POWER = detectLowPowerClient();
   self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
+  // Weather scale: same static gate; runtime ratchet can escalate via state.
+  // Lower rain peak, shorter tails, no storm stack (less concurrent paint).
+  self.WEATHER_SCALE = self.IS_CHEAP_GLOW;
+  self.WEATHER_RAIN_PEAK_SCALE = WEATHER_RAIN_PEAK_SCALE;
+  self.WEATHER_LENGTH_SCALE = WEATHER_LENGTH_SCALE;
+  self.ALLOW_STORM_STACK = !self.WEATHER_SCALE;
   // Portrait + square mobile: full email L. Landscape: horizontal email only
   // (row budget is pad + roles + gap + 1 email line + pad).
   self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
@@ -261,8 +272,15 @@ function Configuration(...args) {
 
   const threadAvgLength = self.ROWS * 0.4;
   const threadLengthVariance = 0.5;
-  self.DROP_LENGTH_MIN = Math.floor(threadAvgLength * (1 - threadLengthVariance));
-  self.DROP_LENGTH_MAX = Math.floor(threadAvgLength * (1 + threadLengthVariance));
+  const lengthScale = self.WEATHER_SCALE ? WEATHER_LENGTH_SCALE : 1;
+  self.DROP_LENGTH_MIN = Math.max(
+    2,
+    Math.floor(threadAvgLength * (1 - threadLengthVariance) * lengthScale),
+  );
+  self.DROP_LENGTH_MAX = Math.max(
+    self.DROP_LENGTH_MIN + 1,
+    Math.floor(threadAvgLength * (1 + threadLengthVariance) * lengthScale),
+  );
 
   self.FRAME_DELAY = 90;
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
@@ -412,9 +430,11 @@ function Configuration(...args) {
 
     // Rain: ambient forever; slow → heavy by ~3s; max ~20% below prior peak.
     // softSquare peaks at period/4 ≈ 3s when period is 12.
+    // Weather scale: lower peak only (trough stays); fewer concurrent trails.
+    const rainPeakScale = self.WEATHER_SCALE ? WEATHER_RAIN_PEAK_SCALE : 1;
     const baselineAvg = Math.max(2, self.COLS / 14);
     const baselineMin = baselineAvg * 0.12;
-    const baselineMax = baselineAvg * 1.3 * 0.8;
+    const baselineMax = baselineAvg * 1.3 * 0.8 * rainPeakScale;
 
     const rain = Rain({
       name: "rain",

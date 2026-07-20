@@ -261,6 +261,21 @@ Trails drop `text-shadow` (fill only); tip/settled get one short blur and no
 escalates (no mid-session flicker back to multi-blur). Escalate toggles the
 **DOM class + a Matrix-local flag** only — `Configuration` is frozen, so the
 ratchet must not assign `cfg.IS_CHEAP_GLOW`.
+
+**Weather scale** rides the same gate (static `WEATHER_SCALE` =
+`IS_CHEAP_GLOW`, or the same frame ratchet). When on:
+
+| Lever | Effect |
+| --- | --- |
+| Rain peak | Soft-square **max** × ~0.65 (trough unchanged) |
+| Trail length | `DROP_LENGTH_*` × ~0.6 (fewer body cells per drop) |
+| Storm stack | Off — one live drop per column even during storms |
+
+Fewer concurrent trail cells beat fancy last-column stack coverage when the
+device is already gasping. Mid-session ratchet uses `state.weatherScale` /
+`state.allowStormStack` (and thins ambient rain / shortens *new* drops if
+config still holds full lengths). Capable desktops keep full peak, long
+tails, and stack-behind-leader until the ratchet says otherwise.
 Plan: [adaptive-performance](../agents/plans/adaptive-performance.md).
 
 ## Color themes

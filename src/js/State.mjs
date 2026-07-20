@@ -23,6 +23,10 @@ function State(...args) {
   self.sceneManager = null;
   self.scenePlayer = null;
   self.themeDirector = null; // active palette + spawn blend
+  // Weather scale (runtime): Matrix may escalate mid-session with cheap glow.
+  // null = follow frozen config; false/true override allowStormStack / scale.
+  self.weatherScale = null; // null | boolean — constrained weather when true
+  self.allowStormStack = null; // null | boolean — storm second-drop when true
 }
 
 const state = State();
