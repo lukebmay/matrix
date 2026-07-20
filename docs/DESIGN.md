@@ -59,6 +59,19 @@ this column for the active scene.” Selection drains on spawn while the scene
 is active; tips paint glyphs only when `dropAffects` says the drop is allowed
 to touch that scene.
 
+### Paint before kill (large dt)
+
+A cousin of the same lie: the frame used to **advance → kill completed →
+spawn → paint**. On a long frame (tab hitch, busy main thread) a drop can
+jump from near the top past `ROWS` and die **before** DomManager flushes tip
+rows. Selection was already drained on spawn, so the storm thinks it is
+done — leftover hide/reveal glyphs sit until ambient rain randomly re-hits
+the column.
+
+**Frame order now:** `advanceDrops` → `updateDom` (completed drops still in
+the live set so tip rows flush through the bottom) → `settleDrops` (kill +
+spawn). Claim without a tip pass is no longer a hitch away.
+
 ---
 
 ## Bidirectional sets (Rain ↔ Storm)

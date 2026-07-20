@@ -261,12 +261,24 @@ function DropManager(...args) {
     }
   };
 
-  self.updateDrops = (elapsedSeconds) => {
+  // Motion only. Matrix paints while completed drops still live, then settleDrops.
+  // Kill-before-paint skipped tip rows on large dt (selection drained, glyphs left).
+  self.advanceDrops = (elapsedSeconds) => {
     for (const drop of drops) {
       drop.update(elapsedSeconds);
     }
+  };
+
+  // After DomManager tip flush: free completed cols, then rain/storm spawn.
+  self.settleDrops = (elapsedSeconds) => {
     self.killCompletedDrops();
     startNewDrops(elapsedSeconds);
+  };
+
+  // Tests / callers without a paint phase.
+  self.updateDrops = (elapsedSeconds) => {
+    self.advanceDrops(elapsedSeconds);
+    self.settleDrops(elapsedSeconds);
   };
 
   // Glyph became visible at (r,c) — update content layers + active reveal scenes.
@@ -486,6 +498,94 @@ if (isMain) {
     const onlyStack = scene.pickColumns(1, [], [1, 2]);
     assert.equal(onlyStack.length, 1);
     assert.ok([1, 2].includes(onlyStack[0]));
+  }
+
+  // --- Large dt: paint before kill flushes tip rows (Matrix frame order) ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: DropScene } = await import("./DropScene.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { default: SceneManager } = await import("./SceneManager.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    stateMod.config = {
+      COLS: 4,
+      ROWS: 20,
+      DROP_SPEED_MIN: 10,
+      DROP_SPEED_MAX: 20,
+      STORM_DROP_SPEED_MIN: 20,
+      STORM_DROP_SPEED_MAX: 20,
+      DROP_LENGTH_MIN: 4,
+      DROP_LENGTH_MAX: 8,
+    };
+
+    const rain = Rain({
+      cols: 4,
+      accumulator: VariableRateAccumulator(0.001, Infinity, () => 0.001),
+    });
+    const pts = [
+      { r: 5, c: 1, char: "A", revealed: true },
+      { r: 12, c: 1, char: "B", revealed: true },
+    ];
+    const scene = DropScene({
+      name: "large-dt-hide",
+      points: pts,
+      priority: 20,
+      // Burst: all units in one settle tick.
+      stormAccumulator: VariableRateAccumulator(4, 1, () => 1),
+    });
+    stateMod.rain = rain;
+    stateMod.dropScenes = [scene];
+    stateMod.spawnPolicies = [];
+    stateMod.contentLayers = [];
+    stateMod.sceneManager = SceneManager({ scenes: [scene] });
+    stateMod.sceneManager.applyLogicalForScene(scene);
+
+    const dm = DropManager();
+    stateMod.dropManager = dm;
+
+    const lastTip = new WeakMap();
+    const paintLikeDom = () => {
+      for (const d of dm.getDrops()) {
+        const r = d.getRow();
+        const pr = lastTip.has(d) ? lastTip.get(d) : null;
+        const from = pr == null ? 0 : pr + 1;
+        const to = Math.min(r, 19);
+        for (let row = from; row <= to; row++) {
+          if (row >= 0) stateMod.sceneManager.applyTip(row, d.col, d);
+        }
+        lastTip.set(d, r);
+      }
+    };
+
+    scene.enterMode("hiding");
+    // Rebuild burst after enterMode reset.
+    scene.stormAccumulator = VariableRateAccumulator(4, 0.05, () => 1);
+    scene.startStorm();
+
+    // Spawn (settle after empty paint — new drops appear post-paint).
+    dm.advanceDrops(0.05);
+    paintLikeDom();
+    dm.settleDrops(0.05);
+    assert.ok(dm.getDrops().length >= 1, "storm spawned");
+    assert.equal(scene.columnsSelected.has(1), false, "col claimed on spawn");
+
+    // Force a completing jump; paint while still live, then settle.
+    for (const d of dm.getDrops()) {
+      d.speed = 80;
+      d._row = 0;
+    }
+    dm.advanceDrops(1); // → row 80, complete
+    const stillLive = dm.getDrops().filter((d) => d.isComplete);
+    assert.ok(stillLive.length >= 1, "completed drops still in set for paint");
+    paintLikeDom();
+    assert.equal(pts.every((p) => !p.revealed), true, "tips flushed before kill");
+    assert.equal(scene.mode, "hidden", "hide settles from large-dt flush");
+    dm.settleDrops(0.05);
+    assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
   }
 
   const green = (t) => `\x1b[32m${t}\x1b[0m`;
