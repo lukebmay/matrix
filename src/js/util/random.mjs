@@ -15,12 +15,16 @@ for (let i = 33; i < 127; i++) {
 const charset = charsetArr.join("");
 
 // Returns a random character from the given alphabet.
-// Defaults to printable ASCII (33-126).
+// Defaults to printable ASCII (33-126). Code-point safe (not UTF-16 units).
 const randomChar = (alphabet = charset) => {
   if (typeof alphabet !== "string" || alphabet.length === 0) {
     throw new Error("randomChar() expects a non-empty string");
   }
-  return alphabet[Math.floor(Math.random() * alphabet.length)];
+  const chars = Array.from(alphabet);
+  if (chars.length === 0) {
+    throw new Error("randomChar() expects a non-empty string");
+  }
+  return chars[Math.floor(Math.random() * chars.length)];
 };
 
 // Returns a random element from a string, array, Set, or iterable.

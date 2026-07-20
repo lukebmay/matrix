@@ -49,13 +49,22 @@ function Configuration(...args) {
 
   const minCharCount = 24;
   const defaultCharSize = 32;
+  // Ubuntu Sans Mono advance ≈ 0.56em; line box ≈ 1.2em.
+  const advanceEm = 0.56;
+  const heightEm = 1.2;
 
-  self.CHAR_SIZE =
+  const targetSize =
     viewWidth / defaultCharSize > minCharCount
       ? defaultCharSize
       : Math.floor(viewWidth / minCharCount);
-  self.CHAR_WIDTH = self.CHAR_SIZE * 0.6;
-  self.CHAR_HEIGHT = self.CHAR_SIZE * 1.122;
+
+  // Integer grid from target size, then stretch cells so the scene fills
+  // the viewport edge-to-edge (no letterbox black border).
+  self.COLS = Math.max(1, Math.floor(viewWidth / (targetSize * advanceEm)));
+  self.ROWS = Math.max(1, Math.floor(viewHeight / (targetSize * heightEm)));
+  self.CHAR_WIDTH = viewWidth / self.COLS;
+  self.CHAR_HEIGHT = viewHeight / self.ROWS;
+  self.CHAR_SIZE = self.CHAR_WIDTH / advanceEm;
 
   self.ASPECT_RATIO = viewWidth / viewHeight;
 
@@ -64,9 +73,6 @@ function Configuration(...args) {
   self.DISPLAY_MODE = "square";
   self.DISPLAY_MODE = self.ASPECT_RATIO > aspect_upper_bound ? "landscape" : self.DISPLAY_MODE;
   self.DISPLAY_MODE = self.ASPECT_RATIO < aspect_lower_bound ? "portrait" : self.DISPLAY_MODE;
-
-  self.ROWS = Math.floor(viewHeight / self.CHAR_HEIGHT);
-  self.COLS = Math.floor(viewWidth / self.CHAR_WIDTH);
 
   self.TOP = 0;
   self.MIDDLE = Math.floor(self.ROWS / 2);
@@ -99,8 +105,9 @@ function Configuration(...args) {
   // Optional full page reload for multi-day wall runs; 0 = off.
   self.SOFT_RELOAD_MS = 0;
 
-  self.LOW_COLOR = "#001600";
-  self.MED_COLOR = "#119922";
+  // Dimmer fill: thicker stems (see DESIGN.md glow / two-faces).
+  self.LOW_COLOR = "#000e00";
+  self.MED_COLOR = "#0d731a";
   self.HI_COLOR = "#aaffbb";
   self.LINK_COLOR = "#aaffff";
   self.LINK_HOVER_COLOR = "#ccffff";

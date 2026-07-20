@@ -7,7 +7,7 @@
  * This is part of my personal portfolio.
  * No permission is granted to copy, modify, distribute, or use this code.
  */
-import { randomChar } from "./util.mjs";
+import { randomRainGlyph } from "./RainGlyphs.mjs";
 import state from "./State.mjs";
 
 function DomManager(...args) {
@@ -23,6 +23,32 @@ function DomManager(...args) {
 
   const matrixEl = document.querySelector("#matrix");
 
+  // Glyph lives in .m-glyph so rain can scaleY without stretching the cell box.
+  const glyphOf = (el) => {
+    let span = el.firstElementChild;
+    if (!span || !span.classList.contains("m-glyph")) {
+      span = document.createElement("span");
+      span.className = "m-glyph";
+      el.replaceChildren(span);
+    }
+    return span;
+  };
+
+  const getGlyph = (el) => glyphOf(el).textContent ?? "";
+
+  // face: "matrix" | "english" | null (settled content / blank).
+  const setGlyph = (el, ch, face = null) => {
+    const span = glyphOf(el);
+    if (span.textContent !== ch) span.textContent = ch;
+    el.classList.toggle("m-rain-mx", face === "matrix");
+    el.classList.toggle("m-rain-en", face === "english");
+  };
+
+  const setRainGlyph = (el) => {
+    const { ch, face } = randomRainGlyph();
+    setGlyph(el, ch, face);
+  };
+
   const constructMatrixDom = () => {
     for (let c = 0; c < cfg.COLS; c++) {
       const columnEl = document.createElement("div");
@@ -32,7 +58,7 @@ function DomManager(...args) {
         const el = document.createElement("code");
         el.id = `_${r}_${c}`;
         el.classList.add("m-char");
-        el.textContent = " ";
+        setGlyph(el, " ");
         grid.set(r, c, el);
         columnEl.appendChild(el);
       }
@@ -57,7 +83,7 @@ function DomManager(...args) {
     const g = sm ? sm.paintGlyph(r, c) : { revealed: false, text: null };
 
     if (g.revealed && g.text) {
-      if (el.textContent !== g.text) el.textContent = g.text;
+      setGlyph(el, g.text, null);
       el.classList.add("m-revealed");
       // href/style stamped at init (m-static / m-link); keep settled look.
       return;
@@ -68,11 +94,12 @@ function DomManager(...args) {
     el.classList.remove("m-revealed", "m-link-hover");
     if (rainIfEmpty) {
       // Fresh noise on blank or after hide; keep existing rain glyph otherwise.
-      if (wasContent || el.textContent === " " || el.textContent === "") {
-        el.textContent = randomChar();
+      const cur = getGlyph(el);
+      if (wasContent || cur === " " || cur === "") {
+        setRainGlyph(el);
       }
     } else {
-      el.textContent = " ";
+      setGlyph(el, " ", null);
     }
   };
 
@@ -84,7 +111,7 @@ function DomManager(...args) {
       paintFromLogical(r, c, el, { rainIfEmpty: true });
       return;
     }
-    el.textContent = randomChar();
+    setRainGlyph(el);
   };
 
   // Public: repaint after ScenePlayer force-clears logical cells.

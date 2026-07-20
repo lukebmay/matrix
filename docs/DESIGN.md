@@ -214,12 +214,54 @@ points. One geometry, two consumers (paint + weather).
 ## Glow: settled vs tip
 
 Tip cells are allowed to be gaudy (double hi-color bloom). Settled body text
-needed a **tight black edge** plus a soft outer halo so mid-green (`#119922`)
+needed a **tight black edge** plus a soft outer halo so mid-green (`#0d731a`)
 stays crisp on pure black. Links are already bright cyan — outer halo only,
 no black edge, so they do not look muddy.
 
+After bold Ubuntu + Matrix `scaleY`, ink covers more of each cell than the
+old thin English rain, so residual (`LOW` `#000e00`) and tail/settled mid
+(`MED` `#0d731a`) were dimmed to keep roughly the same net light per
+square. Tip `HI` stays bright for the reveal pulse.
+
 CSS owns the look; paint only toggles classes. Performance loves that more
 than three stacked 25px shadows on every static cell.
+
+Cells use `overflow: visible` so bloom can spill into neighbors. The grid is
+**exact-fill**: `COLS`/`ROWS` from a target cell size, then
+`CHAR_WIDTH = viewWidth / COLS` and `CHAR_HEIGHT = viewHeight / ROWS` so
+`#matrix` is `100%` of the viewport — no letterbox black border. Outer-edge
+glow may clip slightly at the viewport; immersion beats a padded frame.
+
+---
+
+## Two faces: rain vs English
+
+| Face | Source | Role |
+| --- | --- | --- |
+| **Matrix Code** | [Rezmason/matrix](https://github.com/Rezmason/matrix) (MIT) | Rain noise + non-settled cells |
+| **Ubuntu Sans Mono Bold** | Canonical (Ubuntu Font Licence) | Settled card / quote / email |
+| **Courier Prime** | fallback only | Stack safety |
+
+Classic film rain is mostly katakana (plus a handful of Latin/symbols) from
+an archived Path of Neo SWF — Rezmason cleaned that into `Matrix-Code.ttf`.
+That alphabet is **not** a full English face, so settled business-card text
+needs a second mono.
+
+English uses the same family as Ghostty / nvim (`UbuntuSansMono Nerd Font`),
+without Nerd icon patches — **Ubuntu Sans Mono** at **Bold** so stem width
+sits near Matrix Code (pipe ink ~0.14em vs Matrix ~0.13em). Space Mono was
+too skinny next to the rain.
+
+Sizing:
+
+| Role | Family | Size | Why |
+| --- | --- | --- | --- |
+| Rain / non-settled | Matrix Code | width `0.98×CHAR_WIDTH` on `.m-glyph`, then `scaleY` | Advance fits width; Y-stretch matches English (~0.93× cell height) so rain rows aren’t short blobs |
+| Settled English | Ubuntu Sans Mono Bold | `0.95 × CHAR_SIZE` | Line box ≈ 1.2em; thick terminal stems; `transform: none` |
+| Grid cell | — | exact viewport / COLS×ROWS | No black gutter; advance target 0.56em |
+
+Without the rain `scaleY`, Matrix glyphs sat as short blobs with dark bands
+between rows while Ubuntu text filled the cell — immersion killer.
 
 ---
 
