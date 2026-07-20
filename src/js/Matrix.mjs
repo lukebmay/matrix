@@ -217,13 +217,20 @@ function Matrix(...args) {
     const live = dm?.getActiveDropCount?.() ?? 0;
     const cap = dm?.getMaxActiveDrops?.() ?? 0;
     const frameEma = dm?.getFrameEmaMs?.() ?? avgGap;
+    const baseEma = dm?.getBaselineMs?.() ?? 0;
+    const phase = dm?.getDropBudgetPhase?.() ?? "?";
+    const workEma = dm?.getWorkEmaMs?.() ?? avgWork;
+    // Labels: see DESIGN / agent notes — wall gap includes throttle wait.
     el.textContent =
-      `fps  ${fps.toFixed(1)}\n` +
-      `gap  ${wallGapMs.toFixed(0)} ms  (avg ${avgGap.toFixed(0)})\n` +
-      `work ${workMs.toFixed(1)} ms  (avg ${avgWork.toFixed(1)})\n` +
-      `tgt  ${targetInterval.toFixed(0)} ms  (base ${baseInterval})\n` +
-      `drop ${live}/${cap}  (frame ema ${frameEma.toFixed(0)} ms)\n` +
-      `qual ${q}`;
+      `fps   ${fps.toFixed(1)}   ticks/s (1/gap)\n` +
+      `gap   ${wallGapMs.toFixed(0)} ms last   avg ${avgGap.toFixed(0)}\n` +
+      `      wall time between ticks (throttle + work + paint)\n` +
+      `work  ${workMs.toFixed(1)} ms last  ema ${workEma.toFixed(1)}\n` +
+      `      JS only: advance + DOM paint + settle\n` +
+      `sched ${targetInterval.toFixed(0)} ms live   base ${baseInterval}\n` +
+      `drop  ${live} live / ${cap} max   phase ${phase}\n` +
+      `frame ema ${frameEma.toFixed(0)} ms   1-drop base ${baseEma.toFixed(0)} ms\n` +
+      `qual  ${q}`;
   };
 
   const setDebugOn = (on) => {
@@ -310,10 +317,9 @@ function Matrix(...args) {
 
     const workMs = nowMs() - workStart;
 
-    // Concurrent-drop budget from wall frame time (not JS-only work).
-    // Over FRAME_DELAY for a streak → lower max live drops; under → raise.
-    // At cap, settle waits (no new spawns) until live drops complete.
-    state.dropManager.noteFrameTiming?.(wallGapMs, workMs);
+    // Concurrent-drop budget: 1-drop baseline + knee seek (stable hold).
+    // Pass live schedule target so overruns are vs what we are trying to hit.
+    state.dropManager.noteFrameTiming?.(wallGapMs, workMs, targetInterval);
 
     // Adaptive interval: prefer fewer frames when JS work is heavy.
     // Stretch toward work×1.2 (capped); ease back a few ms when light.

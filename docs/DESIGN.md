@@ -74,11 +74,12 @@ spawn). Claim without a tip pass is no longer a hitch away.
 
 ### Frame scheduler (rAF, not sticky timeout)
 
-Rain targets **~22 Hz** (base `FRAME_DELAY` ≈ 45ms), not 60. On a 60 Hz
-display that lands near every other or third vsync thanks to one frame of
-throttle slack — not a sticky timeout. The old loop was
-`setTimeout(work, FRAME_DELAY)` *after* each tick — so a 50ms JS burst
-made the wall gap **delay + work**, and the next hitch felt sticky forever.
+Rain is rAF-throttled, not 60 FPS. Base `FRAME_DELAY` is **~75ms on
+mobile/cheap** (paint-bound) and **~45ms on desktop**. On a 60 Hz display
+ticks land on nearby vsyncs via one frame of throttle slack — not a sticky
+timeout. The old loop was `setTimeout(work, FRAME_DELAY)` *after* each tick
+— so a 50ms JS burst made the wall gap **delay + work**, and the next hitch
+felt sticky forever.
 
 **Now:** `requestAnimationFrame` drives the arm; ticks only fire when the
 **live target interval** has elapsed since the last tick. Overrun is
@@ -86,15 +87,13 @@ measured from tick-to-tick, not delay-after-work, so the cadence recovers
 as soon as the main thread breathes. We do **not** step every vsync —
 more paint is not free.
 
-**Concurrent drop budget:** `DropManager` keeps a small live
-`maxActiveDrops` (mobile init **6**, max **12**; desktop init ~20% of cols
-capped, max ≤40 — not `COLS×2`). After each tick,
-`noteFrameTiming(wallGapMs, workMs)` watches **wall frame time** against
-`FRAME_DELAY` (~45ms): a streak of over-budget frames **cuts** the cap; a
-longer under-budget streak **raises** it by one. JS work alone under-reports
-paint, so the wall gap is primary. When live count is at the max, **spawn
-waits** (rate clocks freeze; storms still get priority over rain when slots
-free). Existing drops are never culled.
+**Concurrent drop budget (baseline + knee):** floor **`ACTIVE_DROPS_MIN = 6`**.
+Startup **calibrates at 1 live drop** to learn a wall-frame baseline (browser
+paint shows up in the inter-tick gap; JS `work` alone under-reports). Then
+the cap opens to init (≥6) and **seeks** upward only when demand hits the
+cap and frames stay near baseline — a failed raise **backs off and holds
+stable** instead of climbing every “under budget” tick. Cuts never go below
+6. Spawn **waits** at the cap (storms still priority over rain).
 
 When work still spikes, the interval **stretches** toward `FRAME_DELAY_MAX`
 (~180ms) as a backstop (alongside the quality ratchet). Keep that wide ceiling

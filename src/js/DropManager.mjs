@@ -70,37 +70,56 @@ function DropManager(...args) {
   // Reused buffer for takeFinishedColumns ( DomManager reads once per frame).
   const finishedScratch = [];
 
-  // --- Dynamic concurrent-drop budget (wall frame time vs FRAME_DELAY) ---
-  // Hard bounds are small on purpose — COLS×2 was a render free-for-all.
-  // Controller uses inter-tick wall gap (paint shows up there; JS work alone
-  // often under-reports). Over budget for a streak → cut; under for a streak →
-  // raise one. Never culls live drops; spawn waits at the cap.
-  // Fallbacks only when cfg omits knobs (tests / partial config).
+  // --- Concurrent-drop budget: baseline (1 drop) + knee seek, then hold ---
+  // Goal: find the highest cap where extra drops do not significantly lengthen
+  // wall frame time vs a 1-drop baseline. Do NOT keep climbing whenever we are
+  // "under 45ms" — that shoots the max up. Never go below hardMin (default 6).
+  // Never cull live drops; spawn waits at the cap.
   const cols = cfg.COLS || 20;
-  const hardMin = Math.max(1, Number(cfg.ACTIVE_DROPS_MIN) || 2);
+  const hardMin = Math.max(1, Number(cfg.ACTIVE_DROPS_MIN) || 6);
   const hardMax = Math.max(
     hardMin,
-    Number(cfg.ACTIVE_DROPS_MAX) || Math.min(cols, 40),
+    Number(cfg.ACTIVE_DROPS_MAX) || Math.min(cols, 32),
   );
   const initRaw = Number(cfg.ACTIVE_DROPS_INIT);
-  let maxActiveDrops = Math.min(
+  const steadyInit = Math.min(
     hardMax,
     Math.max(
       hardMin,
-      Number.isFinite(initRaw) ? initRaw : Math.min(hardMax, Math.max(6, Math.floor(cols * 0.5))),
+      Number.isFinite(initRaw) ? initRaw : hardMin,
     ),
   );
-  // EMA of wall inter-tick gap (ms). JS work EMA is debug-only.
+
+  // Calibrate at 1 drop so baseline is real "cheap paint", then jump to hardMin.
+  // Production Configuration sets ACTIVE_DROPS_CALIBRATE=true; unit tests omit it.
+  const doCalibrate = cfg.ACTIVE_DROPS_CALIBRATE === true;
+  const CALIBRATE_TICKS = 24;
+  const BASELINE_NEED = 12;
+  // Seek: after holding ok for this many ticks, try +1 once.
+  const SEEK_HOLD_TICKS = 20;
+  // Probe window after a raise before judging the knee.
+  const PROBE_TICKS = 14;
+  // Knee: frame clearly worse than 1-drop baseline (relative + absolute).
+  const KNEE_RATIO = 1.28;
+  const KNEE_EXTRA_MS = 12;
+  // Severe absolute miss vs live schedule target (schedule stretch / hitch).
+  const SCHED_OVER_MS = 28;
+  // After a failed raise, do not re-probe for this many ticks.
+  const COOLDOWN_TICKS = 90;
+  // In stable, only re-seek after a long quiet period (avoid thrash).
+  const RESTABLE_TICKS = 180;
+
+  /** @type {'calibrate'|'seek'|'probe'|'stable'} */
+  let phase = doCalibrate ? "calibrate" : "seek";
+  let maxActiveDrops = doCalibrate ? 1 : steadyInit;
+  let baselineMs = 0;
+  let baselineSamples = 0;
   let frameEmaMs = 0;
   let workEmaMs = 0;
   let frameSamples = 0;
-  // Consecutive over/under budget ticks before adjusting the cap.
-  let slowStreak = 0;
-  let fastStreak = 0;
-  const SLOW_STREAK_N = 6; // ~period of slow frames before cut
-  const FAST_STREAK_N = 12; // longer under-budget run before raise
-  // Absorb vsync quantization (~50ms on a 45ms target) without false cuts.
-  const OVERRUN_SLACK_MS = 12;
+  let phaseTicks = 0;
+  let cooldownLeft = 0;
+  let kneeLocked = false; // found a failing raise; stay put until restable
 
   // Copy for tests / external callers that retain the array.
   self.getDrops = () => Array.from(drops);
@@ -109,6 +128,8 @@ function DropManager(...args) {
   self.getMaxActiveDrops = () => maxActiveDrops;
   self.getFrameEmaMs = () => frameEmaMs;
   self.getWorkEmaMs = () => workEmaMs;
+  self.getBaselineMs = () => baselineMs;
+  self.getDropBudgetPhase = () => phase;
   // Hot path: paint iterates without Array.from.
   self.forEachColumnDrops = (fn) => {
     for (const [c, list] of byCol) {
@@ -127,55 +148,134 @@ function DropManager(...args) {
     return finishedScratch;
   };
 
-  // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle.
-  // Prefer wall gap for the budget (render jank / main-thread paint show up).
-  // workMs is a secondary signal when it alone exceeds the target.
-  self.noteFrameTiming = (wallGapMs, workMs = 0) => {
+  const pushEma = (prev, sample, n, warmAlpha = 0.4, steadyAlpha = 0.15) => {
+    if (n <= 1) return sample;
+    const a = n < 10 ? warmAlpha : steadyAlpha;
+    return prev * (1 - a) + sample * a;
+  };
+
+  // Significant cost increase vs 1-drop baseline (browser paint shows in wall gap).
+  const pastKnee = (frameMs) => {
+    if (!(baselineMs > 0) || baselineSamples < BASELINE_NEED) return false;
+    const knee = baselineMs * KNEE_RATIO + KNEE_EXTRA_MS;
+    return frameMs > knee;
+  };
+
+  // Matrix: wallGapMs = inter-tick period; workMs = JS advance/paint/settle;
+  // scheduleTargetMs = live throttle target (may stretch above FRAME_DELAY).
+  self.noteFrameTiming = (wallGapMs, workMs = 0, scheduleTargetMs = 0) => {
     const gap = Number(wallGapMs);
     const work = Number(workMs);
     if (!Number.isFinite(gap) || gap < 0) return;
 
     frameSamples += 1;
-    const alpha = frameSamples < 8 ? 0.4 : 0.2;
-    frameEmaMs = frameSamples === 1 ? gap : frameEmaMs * (1 - alpha) + gap * alpha;
+    frameEmaMs = pushEma(frameEmaMs, gap, frameSamples);
     if (Number.isFinite(work) && work >= 0) {
-      workEmaMs =
-        frameSamples === 1 ? work : workEmaMs * (1 - alpha) + work * alpha;
+      workEmaMs = pushEma(workEmaMs, work, frameSamples);
     }
 
-    const targetMs = Math.max(16, Number(cfg.FRAME_DELAY) || 45);
-    // Frame "cost": wall period, or JS work if it alone blew the budget.
-    const frameMs = Math.max(gap, Number.isFinite(work) ? work : 0);
-    // Over: clearly past target (not just 3×vsync ≈50ms on a 45ms budget).
-    const over = frameMs > targetMs + OVERRUN_SLACK_MS;
-    // Under: clear headroom (e.g. 2×vsync ≈33ms) before raising density.
-    const under = frameMs < targetMs * 0.85;
+    const live = drops.size;
+    const sched =
+      Number(scheduleTargetMs) > 0
+        ? Number(scheduleTargetMs)
+        : Math.max(16, Number(cfg.FRAME_DELAY) || 75);
+    // Cost signal: wall gap (paint jank lengthens it). Work alone under-reports.
+    const frameMs = gap;
 
-    if (over) {
-      slowStreak += 1;
-      fastStreak = 0;
-      if (slowStreak >= SLOW_STREAK_N) {
-        // Cut harder when far over (e.g. 90ms on a 45ms target → cut 2).
-        const ratio = frameEmaMs / targetMs;
-        const cut = ratio >= 1.8 ? 2 : 1;
-        maxActiveDrops = Math.max(hardMin, maxActiveDrops - cut);
-        slowStreak = 0;
+    // --- Baseline: sample while lightly loaded (≤1 live drop) ---
+    if (live <= 1) {
+      baselineSamples += 1;
+      baselineMs = pushEma(baselineMs, gap, baselineSamples, 0.45, 0.2);
+    }
+
+    if (cooldownLeft > 0) cooldownLeft -= 1;
+    phaseTicks += 1;
+
+    // --- Phase machine ---
+    if (phase === "calibrate") {
+      // Hold at 1 until we have a baseline, then open to steadyInit (≥ hardMin).
+      maxActiveDrops = 1;
+      const ready =
+        baselineSamples >= BASELINE_NEED || phaseTicks >= CALIBRATE_TICKS;
+      if (ready) {
+        if (!(baselineMs > 0)) baselineMs = frameEmaMs || sched;
+        maxActiveDrops = steadyInit;
+        phase = "seek";
+        phaseTicks = 0;
+        kneeLocked = false;
       }
-    } else if (under) {
-      fastStreak += 1;
-      slowStreak = 0;
-      if (fastStreak >= FAST_STREAK_N && maxActiveDrops < hardMax) {
-        maxActiveDrops = Math.min(hardMax, maxActiveDrops + 1);
-        fastStreak = 0;
+      return;
+    }
+
+    if (phase === "probe") {
+      // Just raised: watch whether frame cost crossed the knee.
+      if (phaseTicks >= PROBE_TICKS) {
+        if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
+          // Raise failed — back off one and lock stable.
+          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
+          phase = "stable";
+          phaseTicks = 0;
+          kneeLocked = true;
+          cooldownLeft = COOLDOWN_TICKS;
+        } else {
+          // Raise accepted — keep seeking upward slowly.
+          phase = "seek";
+          phaseTicks = 0;
+        }
       }
-    } else {
-      // In the band around target: hold cap, decay streaks slowly.
-      slowStreak = Math.max(0, slowStreak - 1);
-      fastStreak = Math.max(0, fastStreak - 1);
+      return;
+    }
+
+    if (phase === "seek") {
+      // Sustained knee / schedule blowout → cut (not below hardMin) and stabilize.
+      if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
+        if (phaseTicks >= 8) {
+          maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
+          phase = "stable";
+          phaseTicks = 0;
+          kneeLocked = true;
+          cooldownLeft = COOLDOWN_TICKS;
+        }
+        return;
+      }
+      // Healthy at current cap: optional single +1 probe (not every under-budget tick).
+      if (
+        !kneeLocked &&
+        cooldownLeft <= 0 &&
+        maxActiveDrops < hardMax &&
+        phaseTicks >= SEEK_HOLD_TICKS &&
+        live >= maxActiveDrops // only probe when demand hits the cap
+      ) {
+        maxActiveDrops += 1;
+        phase = "probe";
+        phaseTicks = 0;
+      }
+      // If we never hit the cap, no need to raise — hold here.
+      if (phaseTicks >= SEEK_HOLD_TICKS * 3 && live < maxActiveDrops) {
+        phase = "stable";
+        phaseTicks = 0;
+      }
+      return;
+    }
+
+    // stable: hold cap; only cut on clear sustained knee; rare re-seek.
+    if (pastKnee(frameEmaMs) || frameEmaMs > sched + SCHED_OVER_MS) {
+      if (phaseTicks >= 10 && maxActiveDrops > hardMin) {
+        maxActiveDrops = Math.max(hardMin, maxActiveDrops - 1);
+        phaseTicks = 0;
+        cooldownLeft = COOLDOWN_TICKS;
+      }
+      return;
+    }
+    if (phaseTicks >= RESTABLE_TICKS && cooldownLeft <= 0 && maxActiveDrops < hardMax) {
+      // Quiet re-open of seek (not a rapid climb).
+      kneeLocked = false;
+      phase = "seek";
+      phaseTicks = 0;
     }
   };
 
-  // Back-compat alias (JS work only — prefer noteFrameTiming).
+  // Back-compat alias (JS work only — prefer noteFrameTiming with wall gap).
   self.noteFrameWork = (workMs) => self.noteFrameTiming(workMs, workMs);
 
   // Remaining spawn slots this tick (0 → wait; refund VRA units).
@@ -967,7 +1067,7 @@ if (isMain) {
     assert.equal(dm.getDrops().filter((d) => d.isComplete).length, 0);
   }
 
-  // --- Concurrent budget: wall frame time drives max; at cap spawn waits ---
+  // --- Concurrent budget: calibrate → seek → stable; floor at MIN; no cull ---
   {
     const { default: stateMod } = await import("./State.mjs");
     const { default: Rain } = await import("./Rain.mjs");
@@ -980,10 +1080,11 @@ if (isMain) {
       DROP_SPEED_MAX: 18,
       DROP_LENGTH_MIN: 4,
       DROP_LENGTH_MAX: 8,
-      FRAME_DELAY: 45,
-      ACTIVE_DROPS_MIN: 2,
-      ACTIVE_DROPS_MAX: 8,
-      ACTIVE_DROPS_INIT: 4,
+      FRAME_DELAY: 75,
+      ACTIVE_DROPS_MIN: 6,
+      ACTIVE_DROPS_MAX: 10,
+      ACTIVE_DROPS_INIT: 6,
+      ACTIVE_DROPS_CALIBRATE: true,
     };
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;
@@ -1002,35 +1103,42 @@ if (isMain) {
     stateMod.contentLayers = [];
 
     const dm = DropManager();
-    assert.equal(dm.getMaxActiveDrops(), 4, "init from ACTIVE_DROPS_INIT");
+    assert.equal(dm.getMaxActiveDrops(), 1, "calibrate starts at 1 drop");
+    assert.equal(dm.getDropBudgetPhase(), "calibrate");
 
-    dm.settleDrops(0.1);
-    assert.equal(dm.getActiveDropCount(), 4, "spawn fills to maxActive");
-
-    // Further settle at cap: no new drops (wait).
-    dm.settleDrops(0.1);
-    assert.equal(dm.getActiveDropCount(), 4, "at cap: wait, no extra spawn");
-
-    // Under-budget wall gaps for a streak → raise cap by 1.
-    for (let i = 0; i < 12; i++) dm.noteFrameTiming(30, 2);
-    assert.equal(dm.getMaxActiveDrops(), 5, "fast streak raises cap by 1");
-
-    // Over-budget wall gaps for a streak → cut cap.
-    const beforeCut = dm.getMaxActiveDrops();
-    for (let i = 0; i < 6; i++) dm.noteFrameTiming(80, 10);
+    // Baseline ticks with 0–1 live (settle may spawn up to cap=1).
+    for (let i = 0; i < 14; i++) {
+      dm.settleDrops(0.05);
+      dm.noteFrameTiming(40, 2, 75);
+    }
     assert.ok(
-      dm.getMaxActiveDrops() < beforeCut,
-      "slow streak cuts cap",
+      dm.getMaxActiveDrops() >= 6,
+      `after calibrate max >= MIN, got ${dm.getMaxActiveDrops()}`,
     );
-    assert.ok(dm.getMaxActiveDrops() >= 2, "floors at ACTIVE_DROPS_MIN");
+    assert.ok(
+      ["seek", "probe", "stable"].includes(dm.getDropBudgetPhase()),
+      `left calibrate, phase=${dm.getDropBudgetPhase()}`,
+    );
 
-    // Existing live drops are not culled — only new spawns wait.
+    // At cap: wait (no extra spawn beyond max).
+    const cap = dm.getMaxActiveDrops();
+    for (let i = 0; i < 5; i++) dm.settleDrops(0.1);
+    assert.ok(
+      dm.getActiveDropCount() <= cap,
+      "live never exceeds maxActive",
+    );
+
+    // Knee: sustained much-worse-than-baseline frames cut toward MIN (not below).
+    // Seed a low baseline then blow out frame times.
+    for (let i = 0; i < 20; i++) dm.noteFrameTiming(200, 5, 75);
+    assert.ok(dm.getMaxActiveDrops() >= 6, "never below ACTIVE_DROPS_MIN");
+
     const liveBefore = dm.getActiveDropCount();
     dm.settleDrops(0.05);
     assert.equal(
       dm.getActiveDropCount(),
       liveBefore,
-      "shrink does not cull; wait for natural complete",
+      "shrink does not cull live drops",
     );
   }
 

@@ -299,25 +299,25 @@ function Configuration(...args) {
   self.DROP_LENGTH_MIN_FLOOR = DROP_LENGTH_MIN_FLOOR;
 
   // Frame scheduler base target (ms). rAF-throttled; not setTimeout-after-work.
-  // DropManager trims concurrent drops so tick work stays under this budget.
-  self.FRAME_DELAY = 45;
+  // Mobile/cheap: slower cadence — bottleneck is browser paint, not JS math.
+  // Desktop keeps a snappier base; adaptive may still stretch to FRAME_DELAY_MAX.
+  self.FRAME_DELAY = self.IS_MOBILE || self.IS_CHEAP_GLOW ? 75 : 45;
   // Adaptive ceiling when frame work spikes (prefer fewer frames over thrash).
   // Keep the wide headroom — slow devices already stretch past a tighter cap.
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
-  // Concurrent live-drop budget (DropManager adjusts from wall frame time).
-  // Point is render thrift — not COLS×2. Mobile starts ~6; desktop a bit higher.
-  // Hard max is a ceiling the controller may grow into only while frames stay
-  // under FRAME_DELAY; slow devices sit near min after overrun streaks.
+  // Concurrent live-drop budget (baseline + knee probe; see DropManager).
+  // MIN is the floor for maxActiveDrops (never starve rain below this).
+  // Controller calibrates on 1 drop, then seeks a stable cap without thrashing.
+  self.ACTIVE_DROPS_MIN = 6;
+  self.ACTIVE_DROPS_CALIBRATE = true; // false in unit tests that seed multi-drop scenes
   if (self.IS_MOBILE || self.IS_CHEAP_GLOW) {
-    self.ACTIVE_DROPS_MIN = 2;
     self.ACTIVE_DROPS_INIT = 6;
-    self.ACTIVE_DROPS_MAX = 12;
+    self.ACTIVE_DROPS_MAX = 16;
   } else {
-    self.ACTIVE_DROPS_MIN = 4;
-    self.ACTIVE_DROPS_INIT = Math.min(20, Math.max(8, Math.floor(self.COLS * 0.2)));
-    self.ACTIVE_DROPS_MAX = Math.min(self.COLS, 40);
+    self.ACTIVE_DROPS_INIT = Math.min(16, Math.max(8, Math.floor(self.COLS * 0.15)));
+    self.ACTIVE_DROPS_MAX = Math.min(self.COLS, 32);
   }
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
   self.TIME_SCALE = 1;
