@@ -9,13 +9,15 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Quote playlist interlude; deploy + job-search polish; optional
-paint eyeball / theme cull (orange/yellow).
+**Next:** Mobile performance (cheap glow next); quote playlist interlude;
+deploy + job-search polish; optional paint eyeball / theme cull.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
-[plans/interactive-play.md](plans/interactive-play.md) (runtime + hover).
+[plans/interactive-play.md](plans/interactive-play.md) (runtime + hover),
+[plans/mobile-performance.md](plans/mobile-performance.md) (glyph density done;
+cheap glow next).
 
 ## Product rules
 
@@ -74,6 +76,9 @@ paint eyeball / theme cull (orange/yellow).
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
+| [mobile-performance.md](plans/mobile-performance.md) | In progress — fewer cells shipped |
+| [mobile-glyph-density.md](tasks/completed/mobile-glyph-density.md) | Done — content COLS/ROWS + quote wrap |
+| [mobile-cheap-glow.md](tasks/mobile-cheap-glow.md) | **Next** — cheap shadows on mobile |
 
 ## Stack
 
@@ -118,8 +123,9 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
-2. Optional browser polish / paint eyeball
-   ([tasks/scene-player-logical-grid-paint.md](tasks/scene-player-logical-grid-paint.md)).
+1. Mobile performance — cheap glow next
+   ([plans/mobile-performance.md](plans/mobile-performance.md),
+   [tasks/mobile-cheap-glow.md](tasks/mobile-cheap-glow.md)).
+2. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
-4. Optional later: ASCII portrait, frame-`dt` clock.
+4. Optional: paint eyeball, ASCII portrait, frame-`dt` clock.

@@ -112,7 +112,14 @@ function DomManager(...args) {
     if (g.revealed && g.text) {
       setGlyph(el, g.text, null);
       el.classList.add("m-revealed");
-      // href/style stamped at init (m-static / m-link); keep settled look.
+      // Link chrome follows *logical* href. Shared cells (e.g. mobile quote
+      // col 1 vs email vertical) may still carry m-link from another layer's
+      // init stamp — that made settled quote glyphs stick at link brightness.
+      if (g.href) {
+        el.classList.add("m-link");
+      } else {
+        el.classList.remove("m-link", "m-link-hover");
+      }
       return;
     }
 

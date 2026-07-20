@@ -25,21 +25,81 @@ import { stackVertical } from "./layout/stack.mjs";
 import { Anchors } from "./layout/Anchor.mjs";
 import { solveLayout } from "./layout/attach.mjs";
 
-// Always exactly 3 lines; balance words, truncate to maxWidth if needed.
-function wrapLinesAlways3(text, maxWidth) {
+// Word-wrap to maxWidth. Long tokens are hard-split. Variable line count.
+function wrapWords(text, maxWidth) {
+  const width = Math.max(1, Number(maxWidth) || 1);
   const words = String(text).trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return ["", "", ""];
-  const width = Math.max(1, maxWidth);
-  const n = words.length;
-  const cut1 = Math.ceil(n / 3);
-  const cut2 = Math.ceil((2 * n) / 3);
-  const raw = [
-    words.slice(0, cut1).join(" "),
-    words.slice(cut1, cut2).join(" "),
-    words.slice(cut2).join(" "),
-  ];
-  return raw.map((line) => (line.length <= width ? line : line.slice(0, width)));
+  if (!words.length) return [""];
+
+  const lines = [];
+  let cur = "";
+
+  const pushHard = (token) => {
+    for (let i = 0; i < token.length; i += width) {
+      lines.push(token.slice(i, i + width));
+    }
+  };
+
+  for (const word of words) {
+    if (word.length > width) {
+      if (cur) {
+        lines.push(cur);
+        cur = "";
+      }
+      pushHard(word);
+      continue;
+    }
+    const next = cur ? `${cur} ${word}` : word;
+    if (next.length <= width) {
+      cur = next;
+    } else {
+      lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
 }
+
+// Homepage copy (shared by grid sizing + createScene so grid tracks content).
+const SITE = "https://www.lukemay.com";
+const ROLE_SPECS = [
+  { text: "Luke Benjamin May", href: `${SITE}/resume` },
+  { text: "Full Stack Web Developer", href: `${SITE}/game-of-life` },
+  { text: "Software Engineer", href: SITE },
+  { text: "Agentic Engineer", href: SITE },
+  { text: "Graduate CS Instructor", href: "https://isu.lukemay.com" },
+  { text: "YouTube", href: "https://www.youtube.com/lukebeenjammin" },
+];
+const EMAIL_H_TEXT = "lukebmay at gmail dot com";
+const EMAIL_V_TEXT = "LukeBMay at gmail";
+const QUOTE_TEXT =
+  "Most people are willing to sacrifice their own liberty, and yours, for the illusion of safety.";
+
+// Card geometry from copy. When cards change, update copy — grid tracks this.
+function cardContentMetrics({ emailVertical = true } = {}) {
+  const rolesH = ROLE_SPECS.length;
+  const rolesW = Math.max(0, ...ROLE_SPECS.map((s) => s.text.length));
+  // Horizontal email is 1 row; vertical L-arm is length×1 when enabled.
+  const emailH = emailVertical
+    ? Math.max(1, EMAIL_V_TEXT.length)
+    : 1;
+  const emailW = Math.max(1, EMAIL_H_TEXT.length);
+  return { rolesH, rolesW, emailH, emailW, emailVertical };
+}
+
+// Widest fixed line (roles + horizontal email). Quote wraps separately.
+const MAX_CONTENT_WIDTH = Math.max(
+  EMAIL_H_TEXT.length,
+  ...ROLE_SPECS.map((s) => s.text.length),
+);
+
+// Narrow viewports: fewer cells (performance); content-driven COLS.
+const MOBILE_MAX_WIDTH = 768;
+// Extra columns beyond longest line (breathing room + side pads).
+const MOBILE_COLS_MARGIN = 5;
+// Large displays: cap quote column window (≈ prior 3-way split line length).
+const QUOTE_WRAP_MAX_DESKTOP = 40;
 
 function Configuration(...args) {
   if (!new.target) return new Configuration(...args);
@@ -52,6 +112,7 @@ function Configuration(...args) {
   const minCharCount = 24;
   const defaultCharSize = 32;
   // Ubuntu Sans Mono advance ≈ 0.56em; line box ≈ 1.2em.
+  // Cell aspect target: width/height = advanceEm/heightEm (same spacing as desktop).
   const advanceEm = 0.56;
   const heightEm = 1.2;
 
@@ -60,21 +121,88 @@ function Configuration(...args) {
       ? defaultCharSize
       : Math.floor(viewWidth / minCharCount);
 
-  // Integer grid from target size, then stretch cells so the scene fills
-  // the viewport edge-to-edge (no letterbox black border).
-  self.COLS = Math.max(1, Math.floor(viewWidth / (targetSize * advanceEm)));
-  self.ROWS = Math.max(1, Math.floor(viewHeight / (targetSize * heightEm)));
-  self.CHAR_WIDTH = viewWidth / self.COLS;
-  self.CHAR_HEIGHT = viewHeight / self.ROWS;
-  self.CHAR_SIZE = self.CHAR_WIDTH / advanceEm;
+  // Density grid: target glyph size, then exact-fill the viewport.
+  const densityCols = Math.max(
+    1,
+    Math.floor(viewWidth / (targetSize * advanceEm)),
+  );
+  const densityRows = Math.max(
+    1,
+    Math.floor(viewHeight / (targetSize * heightEm)),
+  );
 
+  // Aspect before grid size (portrait vs landscape row policy).
   self.ASPECT_RATIO = viewWidth / viewHeight;
-
   const aspect_upper_bound = 10 / 7;
   const aspect_lower_bound = 1 / aspect_upper_bound;
   self.DISPLAY_MODE = "square";
-  self.DISPLAY_MODE = self.ASPECT_RATIO > aspect_upper_bound ? "landscape" : self.DISPLAY_MODE;
-  self.DISPLAY_MODE = self.ASPECT_RATIO < aspect_lower_bound ? "portrait" : self.DISPLAY_MODE;
+  self.DISPLAY_MODE =
+    self.ASPECT_RATIO > aspect_upper_bound ? "landscape" : self.DISPLAY_MODE;
+  self.DISPLAY_MODE =
+    self.ASPECT_RATIO < aspect_lower_bound ? "portrait" : self.DISPLAY_MODE;
+
+  // Orientation-invariant: short side ≤ 768 catches phones in landscape too.
+  self.IS_MOBILE = Math.min(viewWidth, viewHeight) <= MOBILE_MAX_WIDTH;
+  self.IS_MOBILE_LANDSCAPE =
+    self.IS_MOBILE && self.DISPLAY_MODE === "landscape";
+  // Portrait + square mobile: full email L. Landscape: horizontal email only
+  // (row budget is pad + roles + gap + 1 email line + pad).
+  self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
+
+  const card = cardContentMetrics({ emailVertical: self.EMAIL_VERTICAL });
+
+  // Mobile: tight side pads + 1-row top/bottom + 1 blank between cards.
+  // Desktop: prior 2/3 visual insets (corner cards may share a vertical band).
+  self.ROLES_PAD_TOP = self.IS_MOBILE ? 1 : 2;
+  self.ROLES_PAD_RIGHT = self.IS_MOBILE ? 1 : 3;
+  self.EMAIL_PAD_LEFT = self.IS_MOBILE ? 1 : 3;
+  self.EMAIL_PAD_BOTTOM = self.IS_MOBILE ? 1 : 2;
+  self.CARD_GAP = self.IS_MOBILE ? 1 : 0;
+
+  // Content floor: padTop + roles + gap + email + padBottom.
+  const contentRows =
+    self.ROLES_PAD_TOP +
+    card.rolesH +
+    self.CARD_GAP +
+    card.emailH +
+    self.EMAIL_PAD_BOTTOM;
+  const contentCols = Math.max(
+    1,
+    card.emailW + self.EMAIL_PAD_LEFT,
+    card.rolesW + self.ROLES_PAD_RIGHT,
+    MAX_CONTENT_WIDTH + (self.IS_MOBILE ? MOBILE_COLS_MARGIN : 0),
+  );
+
+  // Ideal mono cell: CHAR_W/CHAR_H = advanceEm/heightEm.
+  // COLS from ROWS:  COLS = viewW * ROWS * heightEm / (viewH * advanceEm)
+  // ROWS from COLS:  ROWS = viewH * COLS * advanceEm / (viewW * heightEm)
+  const colsFromRows = (rows) =>
+    Math.max(
+      1,
+      Math.floor((viewWidth * rows * heightEm) / (viewHeight * advanceEm)),
+    );
+  const rowsFromCols = (cols) =>
+    Math.max(
+      1,
+      Math.floor((viewHeight * cols * advanceEm) / (viewWidth * heightEm)),
+    );
+
+  if (self.IS_MOBILE_LANDSCAPE) {
+    // Rows first (compact card stack), then columns from cell aspect.
+    self.ROWS = contentRows;
+    self.COLS = Math.max(contentCols, colsFromRows(self.ROWS));
+  } else if (self.IS_MOBILE) {
+    // Portrait / square: columns from roles+email, then rows from aspect.
+    self.COLS = contentCols;
+    self.ROWS = Math.max(contentRows, rowsFromCols(self.COLS));
+  } else {
+    self.COLS = densityCols;
+    self.ROWS = densityRows;
+  }
+
+  self.CHAR_WIDTH = viewWidth / self.COLS;
+  self.CHAR_HEIGHT = viewHeight / self.ROWS;
+  self.CHAR_SIZE = self.CHAR_WIDTH / advanceEm;
 
   self.TOP = 0;
   self.MIDDLE = Math.floor(self.ROWS / 2);
@@ -82,6 +210,15 @@ function Configuration(...args) {
   self.LEFT = 0;
   self.CENTER = Math.floor(self.COLS / 2);
   self.RIGHT = self.COLS - 1;
+
+  // Quote window: mobile 1-col side pads; desktop capped near prior line width.
+  const quoteSidePad = Math.max(self.EMAIL_PAD_LEFT, self.ROLES_PAD_RIGHT);
+  self.QUOTE_MAX_WIDTH = self.IS_MOBILE
+    ? Math.max(1, self.COLS - 2 * quoteSidePad)
+    : Math.max(
+        12,
+        Math.min(QUOTE_WRAP_MAX_DESKTOP, self.COLS - 2 * quoteSidePad),
+      );
 
   self.DROP_SPEED_MIN = 8;
   self.DROP_SPEED_MAX = 20;
@@ -141,24 +278,14 @@ function Configuration(...args) {
     };
 
   self.createScene = () => {
-    const site = "https://www.lukemay.com";
     const grid = Grid({ rows: self.ROWS, cols: self.COLS });
 
-    const rolesPadTop = 2;
-    const rolesPadRight = 3;
-    const emailPadLeft = 3;
-    const emailPadBottom = 2;
+    const rolesPadTop = self.ROLES_PAD_TOP;
+    const rolesPadRight = self.ROLES_PAD_RIGHT;
+    const emailPadLeft = self.EMAIL_PAD_LEFT;
+    const emailPadBottom = self.EMAIL_PAD_BOTTOM;
 
-    const roleSpecs = [
-      { text: "Luke Benjamin May", href: `${site}/resume` },
-      { text: "Full Stack Web Developer", href: `${site}/game-of-life` },
-      { text: "Software Engineer", href: site },
-      { text: "Agentic Engineer", href: site },
-      { text: "Graduate CS Instructor", href: "https://isu.lukemay.com" },
-      { text: "YouTube", href: "https://www.youtube.com/lukebeenjammin" },
-    ];
-
-    const roleLines = roleSpecs.map((s, i) =>
+    const roleLines = ROLE_SPECS.map((s, i) =>
       TextLine({
         text: s.text,
         href: s.href,
@@ -178,34 +305,40 @@ function Configuration(...args) {
       ],
     });
 
-    const emailHref = `${site}/resume`;
+    const emailHref = `${SITE}/resume`;
     const emailH = TextLine({
-      text: "lukebmay at gmail dot com",
+      text: EMAIL_H_TEXT,
       href: emailHref,
       lineId: 0,
       name: "email-h",
     });
-    const emailV = TextLine({
-      text: "LukeBMay at gmail",
-      orientation: "vertical",
-      href: emailHref,
-      lineId: 1,
-      name: "email-v",
-    });
+    // Landscape mobile: horizontal only (row budget is a single email line).
+    const emailV = self.EMAIL_VERTICAL
+      ? TextLine({
+          text: EMAIL_V_TEXT,
+          orientation: "vertical",
+          href: emailHref,
+          lineId: 1,
+          name: "email-v",
+        })
+      : null;
+    const emailChildren = emailV ? [emailH, emailV] : [emailH];
     const emailGroup = Group({
       name: "email",
-      children: [emailH, emailV],
-      width: Math.max(emailH.width, emailV.width),
-      height: Math.max(emailH.height, emailV.height),
+      children: emailChildren,
+      width: Math.max(emailH.width, emailV?.width ?? 0),
+      height: Math.max(emailH.height, emailV?.height ?? 0),
     });
     emailH.attach({
       this: Anchors.bottomLeft(emailH),
       that: Anchors.bottomLeft(emailGroup),
     });
-    emailV.attach({
-      this: Anchors.bottomLeft(emailV),
-      that: Anchors.bottomLeft(emailGroup),
-    });
+    if (emailV) {
+      emailV.attach({
+        this: Anchors.bottomLeft(emailV),
+        that: Anchors.bottomLeft(emailGroup),
+      });
+    }
     emailGroup.attach({
       this: Anchors.bottomLeft(emailGroup),
       that: [
@@ -214,10 +347,8 @@ function Configuration(...args) {
       ],
     });
 
-    const quoteText =
-      "Most people are willing to sacrifice their own liberty, and yours, for the illusion of safety.";
-    const quoteMaxWidth = Math.max(12, self.COLS - 4);
-    const quoteLineStrs = wrapLinesAlways3(quoteText, quoteMaxWidth);
+    // wrapWords: mobile COLS−2; desktop min(40, COLS−2×pad).
+    const quoteLineStrs = wrapWords(QUOTE_TEXT, self.QUOTE_MAX_WIDTH);
     const quoteLines = quoteLineStrs.map((text, i) =>
       TextLine({
         text,
@@ -240,7 +371,7 @@ function Configuration(...args) {
       ...roleLines,
       emailGroup,
       emailH,
-      emailV,
+      ...(emailV ? [emailV] : []),
       quoteGroup,
       ...quoteLines,
     ]);
