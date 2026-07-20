@@ -193,9 +193,9 @@ body {
 /*
  * Cheap glow (html.m-cheap-glow): quality downgrade for any slower device —
  * narrow viewport, low-power heuristic, or runtime ratchet after slow frames.
- * Trails restyle every frame — zero blur is the big win. Tips/settled keep
- * one short shadow; no color-mix. Full neon stacks above stay on without the
- * class. See agents/plans/adaptive-performance.md.
+ * Trails drop multi-blur (fill only). Tips/settled keep one short shadow; no
+ * color-mix. Full neon stacks above stay on without the class.
+ * See agents/plans/adaptive-performance.md.
  */
 html.m-cheap-glow .m-drop {
   text-shadow: none;

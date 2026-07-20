@@ -1,6 +1,6 @@
 # Plan — Adaptive performance (smooth rain on slower devices)
 
-**Status:** In progress — glyph density + cheap glow shipped  
+**Status:** In progress — density + cheap glow + dirty paint shipped  
 **Project:** `projects/matrix`  
 **Related analysis:** frame = advance → paint → settle; DOM rain + multi-shadow
 glow is the bottleneck (not drop math).
@@ -36,8 +36,8 @@ separate short-side / orientation policy — not the same as “slow.”
 | --- | --- | --- | --- | --- |
 | 1 | **Fewer glyphs (content grid)** | **Done** | High | Narrow viewport COLS/ROWS; portrait/landscape; quote wrap; link paint |
 | 2 | **Cheap glow CSS (adaptive)** | **Done** | Highest remaining | Cap/remove multi-blur; no `color-mix`; static + runtime ratchet |
-| 3 | **Dirty DomManager paint** | **Next** | High | Only restyle tip enter / trail leave / role flip; cache theme vars |
-| 4 | **Hot-path allocations** | Pending | Medium | Reuse maps; skip `getDrops()` Array; pre-split rain glyph pools |
+| 3 | **Dirty DomManager paint** | **Done** | High | Only restyle tip enter / trail leave / role flip; cache theme vars |
+| 4 | **Hot-path allocations** | **Next** | Medium | Reuse maps; skip `getDrops()` Array; pre-split rain glyph pools |
 | 5 | **Weather scale (constrained)** | Pending | Medium | Lower rain peak / shorter tails / no storm stack when quality is low or viewport is tight |
 | 6 | **Frame scheduler** | Pending | Medium | rAF + further adaptive quality when `dt` / work spikes |
 | 7 | **Canvas rain layer** (optional) | Later | Structural | Rain bitmap under DOM links/card — biggest architecture win |
@@ -65,11 +65,19 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - Tip / settled body / link / hover: one short blur; no `color-mix`.
 - Full neon unchanged without the class; ratchet only escalates (any device).
 
-## Slice 3 — Dirty DomManager paint (next)
+## Slice 3 — Dirty DomManager paint (complete)
 
-**Task (ready when started):** plan slice only — only restyle tip enter /
-trail leave / role flip; cache theme vars on the cell. Benefits every device;
-matters most when trail restyles dominate work time.
+**Task:** [tasks/completed/dirty-dom-paint.md](../tasks/completed/dirty-dom-paint.md)
+
+- Per-cell `trailRole` + `trailTheme`; skip class / CSS-var writes when clean.
+- Tip enter still resolves + paints glyph for newly covered rows only.
+- Trail leave clears drop chrome; re-sync settled content if revealed.
+- Steady mid-trail rows are free (no per-frame restyle).
+
+## Slice 4 — Hot-path allocations (next)
+
+Reuse maps / column lists; avoid `Array.from(drops)` each frame; pre-split rain
+glyph pools. Medium gain after dirty paint removes most DOM thrash.
 
 ## Out of scope (this plan)
 
@@ -81,6 +89,7 @@ matters most when trail restyles dominate work time.
 
 - [x] Content glyph density + layout fit on narrow viewports (slice 1)
 - [x] Adaptive cheap glow (slice 2) — trails none; tip/settled single short blur; slow desktops covered
+- [x] Dirty DomManager paint (slice 3) — tip enter / trail leave / role flip only
 - [ ] Slow devices feel smooth during rain + card reveal (phone **and** weak desktop)
 - [ ] Capable devices keep full neon without the quality class
 - [ ] Build green; no layout OOB for card/quote on phone portrait/landscape

@@ -154,6 +154,18 @@ logical alone (rain noise only).
 - Drop tips/trails as weather chrome
 - Settled styles win off-trail so trails do not clobber permanent glyphs
 
+### Dirty trail paint
+
+A falling column used to rewrite **every** trail cell’s classes and `--drop-*`
+vars on every frame. Most of that work is noise: the tip usually advances one
+row, one cell leaves the tail, and the middle of the trail is already correct.
+
+**Rule:** restyle only on **tip enter** (resolve + glyph), **trail leave**
+(clear drop chrome; re-sync settled content if needed), or **role / theme flip**
+(tip↔body, or a different drop owns the cell). Cache the last trail role and
+theme name on the cell so steady body rows are free. Glyph/logical still runs
+once per tip pass — not every frame for the whole tail.
+
 If you only have a DOM and no logical layer, hide/reveal across loops becomes
 a riddle written in classLists. We tried the riddle. Logical grid is the
 answer key.

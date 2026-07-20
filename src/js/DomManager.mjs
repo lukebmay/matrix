@@ -21,6 +21,9 @@ function DomManager(...args) {
 
   // Last tip row resolved per drop (paint ownership). Not Drop motion state.
   const lastTipRow = new WeakMap();
+  // Dirty trail paint: last role + theme written on each cell.
+  const trailRole = new WeakMap(); // el → "tip" | "body"
+  const trailTheme = new WeakMap(); // el → theme name last applied to --drop-*
 
   const matrixEl = document.querySelector("#matrix");
 
@@ -75,9 +78,13 @@ function DomManager(...args) {
     el.style.removeProperty("--drop-med");
     el.style.removeProperty("--drop-hi");
     // Keep --res-low: residual glyph color only changes when a drop visits.
+    trailRole.delete(el);
+    trailTheme.delete(el);
   };
 
   const applyDropPalette = (el, themeName) => {
+    if (trailTheme.has(el) && trailTheme.get(el) === themeName) return;
+
     const p =
       getPalette(themeName) ??
       getPalette(state.themeDirector?.active) ??
@@ -86,6 +93,7 @@ function DomManager(...args) {
       el.style.removeProperty("--drop-low");
       el.style.removeProperty("--drop-med");
       el.style.removeProperty("--drop-hi");
+      trailTheme.set(el, themeName);
       return;
     }
     el.style.setProperty("--drop-low", p.low);
@@ -93,6 +101,26 @@ function DomManager(...args) {
     el.style.setProperty("--drop-hi", p.hi);
     // Stamp residual: after the trail leaves, glyph keeps this theme's low.
     el.style.setProperty("--res-low", p.low);
+    trailTheme.set(el, themeName);
+  };
+
+  // Tip / body role + palette only when kind or theme flips.
+  const applyTrailRole = (el, kind, themeName) => {
+    const prevKind = trailRole.get(el);
+    const themeSame = trailTheme.has(el) && trailTheme.get(el) === themeName;
+    if (prevKind === kind && themeSame) return;
+
+    applyDropPalette(el, themeName);
+    if (prevKind !== kind) {
+      if (kind === "tip") {
+        el.classList.add("m-drop-tip");
+        el.classList.remove("m-drop");
+      } else {
+        el.classList.add("m-drop");
+        el.classList.remove("m-drop-tip");
+      }
+      trailRole.set(el, kind);
+    }
   };
 
   const clearColumnTrail = (c) => {
@@ -278,22 +306,16 @@ function DomManager(...args) {
         colEl.setAttribute("data-drop-id", colDrops[colDrops.length - 1].id);
       }
 
+      // Only restyle tip enter (above), trail leave, or role/theme flip.
       for (let i = 0; i < cfg.ROWS; i++) {
         const el = grid.get(i, c);
         if (!el) continue;
 
         const paint = rowPaint.get(i);
-        if (paint?.kind === "tip") {
-          applyDropPalette(el, paint.drop.theme);
-          el.classList.add("m-drop-tip");
-          el.classList.remove("m-drop");
-          paintFromLogical(i, c, el, { rainIfEmpty: true });
-        } else if (paint?.kind === "body") {
-          applyDropPalette(el, paint.drop.theme);
-          el.classList.add("m-drop");
-          el.classList.remove("m-drop-tip");
-          paintFromLogical(i, c, el, { rainIfEmpty: true });
-        } else {
+        if (paint?.kind === "tip" || paint?.kind === "body") {
+          applyTrailRole(el, paint.kind, paint.drop.theme);
+          // Glyph / logical already applied on tip-enter; steady trail is CSS only.
+        } else if (trailRole.has(el)) {
           clearDropPaint(el);
           // Settled content stays; empty cells not re-noised off-trail.
           if (state.sceneManager?.isContentRevealed?.(i, c)) {
