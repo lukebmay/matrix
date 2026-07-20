@@ -220,8 +220,20 @@ const SCENE_EVENT_NAMES = new Set([
   "stormStop",
 ]);
 
+// Weather scale / mid-session ratchet: stretch storm windows (fewer concurrent).
+const weatherStormDurationScale = () => {
+  const cfg = state.config;
+  const constrained =
+    state.weatherScale === true ||
+    (state.weatherScale == null && cfg?.WEATHER_SCALE === true);
+  if (!constrained) return 1;
+  const s = cfg?.WEATHER_STORM_DURATION_SCALE;
+  return typeof s === "number" && s > 1 ? s : 2;
+};
+
 // Storm coverage VRA: remaining pool cols begin within `seconds`.
 // Mild ease-in (75%→max, no tail dip) so the last unit is not slow-parked.
+// Constrained devices multiply duration so the same unit budget spreads out.
 const configureStormCoverage = (scene, seconds) => {
   if (!scene) return;
   const pool =
@@ -229,7 +241,10 @@ const configureStormCoverage = (scene, seconds) => {
       ? scene.columnsSelected.size
       : (scene.columns?.size ?? 0);
   const units = Math.max(pool, 1);
-  const durationSeconds = Math.max(Number(seconds) || 0, 0.001);
+  const durationSeconds = Math.max(
+    (Number(seconds) || 0) * weatherStormDurationScale(),
+    0.001,
+  );
   scene.stormAccumulator = VariableRateAccumulator(
     units,
     durationSeconds,

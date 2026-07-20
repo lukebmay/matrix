@@ -28,6 +28,11 @@ function Drop(...args) {
   self._row = 0.0;
   // Length band from config; runtime weather scale shortens new drops only when
   // config did not already bake WEATHER_SCALE lengths (ratchet mid-session).
+  // Floor: tip + ≥4 body (same as Configuration.DROP_LENGTH_MIN_FLOOR).
+  const lengthFloor =
+    typeof cfg.DROP_LENGTH_MIN_FLOOR === "number" && cfg.DROP_LENGTH_MIN_FLOOR > 0
+      ? cfg.DROP_LENGTH_MIN_FLOOR
+      : 5;
   let lenMin = cfg.DROP_LENGTH_MIN;
   let lenMax = cfg.DROP_LENGTH_MAX;
   if (state.weatherScale === true && cfg.WEATHER_SCALE !== true) {
@@ -35,7 +40,7 @@ function Drop(...args) {
       typeof cfg.WEATHER_LENGTH_SCALE === "number" && cfg.WEATHER_LENGTH_SCALE > 0
         ? cfg.WEATHER_LENGTH_SCALE
         : 0.6;
-    lenMin = Math.max(2, Math.floor(lenMin * scale));
+    lenMin = Math.max(lengthFloor, Math.floor(lenMin * scale));
     lenMax = Math.max(lenMin + 1, Math.floor(lenMax * scale));
   }
   self.length = Math.floor(randomInterval(lenMin, lenMax));

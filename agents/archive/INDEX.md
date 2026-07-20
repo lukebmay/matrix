@@ -2,6 +2,7 @@
 
 | Date | Entry | Tags | Summary |
 | --- | --- | --- | --- |
+| 2026-07-20 | [frame-scheduler](entries/frame-scheduler.md) | perf, frame, rAF | rAF throttle + adaptive interval + dt clamp |
 | 2026-07-20 | [color-themes-cycle](entries/color-themes-cycle.md) | themes, rain, play | Multi-theme blend, residual stamps, coverage drain |
 | 2026-07-20 | [paint-before-kill-tip-flush](entries/paint-before-kill-tip-flush.md) | storm, drops, frame | Paint before kill; large-dt tip flush |
 | 2026-07-17 | [hover-hasten-reveal](entries/hover-hasten-reveal.md) | hover, play, units | Hasten reveal; hide re-reveal+storm; hold extend |

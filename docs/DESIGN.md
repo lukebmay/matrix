@@ -72,6 +72,25 @@ the column.
 the live set so tip rows flush through the bottom) → `settleDrops` (kill +
 spawn). Claim without a tip pass is no longer a hitch away.
 
+### Frame scheduler (rAF, not sticky timeout)
+
+Rain is intentionally **~11 Hz**, not 60. The old loop was
+`setTimeout(work, FRAME_DELAY)` *after* each tick — so a 50ms JS burst made
+the wall gap **delay + work**, and the next hitch felt sticky forever.
+
+**Now:** `requestAnimationFrame` drives the arm; ticks only fire when the
+**live target interval** has elapsed since the last tick (base
+`FRAME_DELAY` ≈ 90ms). Overrun is measured from tick-to-tick, not
+delay-after-work, so the cadence recovers as soon as the main thread
+breathes. We do **not** step every vsync — more paint is not free.
+
+When JS work spikes, the target **stretches** toward `FRAME_DELAY_MAX`
+(~180ms) before (and alongside) the quality ratchet. Prefer fewer cheaper
+frames over thrashing for FPS. Sim `dt` is clamped (`FRAME_DT_MAX_MS` ≈
+250) so one long stall cannot explode advance; paint-before-kill still
+covers multi-interval tip flush. Pause / tab-hide cancel the rAF arm;
+unpause restores the residual gap.
+
 ---
 
 ## Bidirectional sets (Rain ↔ Storm)
@@ -255,8 +274,10 @@ than three stacked 25px shadows on every static cell.
 device, not layout: narrow short-side ≤ 768, static low-power hints
 (`deviceMemory` ≤ 4, `hardwareConcurrency` ≤ 2, `prefers-reduced-motion`,
 `saveData`), or a **runtime ratchet** after several heavy frames (JS work
-≥ ~55% of `FRAME_DELAY`, **or** inter-frame wall gap ≥ delay + that budget).
-Trails drop `text-shadow` (fill only); tip/settled get one short blur and no
+≥ ~55% of the **live** target interval, **or** inter-frame wall gap ≥
+interval + that budget). The frame scheduler may stretch the interval first;
+the ratchet only escalates quality after sustained pain. Trails drop
+`text-shadow` (fill only); tip/settled get one short blur and no
 `color-mix`. Capable devices keep full neon without the class. Ratchet only
 escalates (no mid-session flicker back to multi-blur). Escalate toggles the
 **DOM class + a Matrix-local flag** only — `Configuration` is frozen, so the
@@ -267,15 +288,23 @@ ratchet must not assign `cfg.IS_CHEAP_GLOW`.
 
 | Lever | Effect |
 | --- | --- |
-| Rain peak | Soft-square **max** × ~0.65 (trough unchanged) |
-| Trail length | `DROP_LENGTH_*` × ~0.6 (fewer body cells per drop) |
+| Rain peak | Soft-square **max** × ~0.65 |
+| Rain trough | Soft-square floor ~1.25 units/s (never zero; still breathes) |
+| Trail length | `DROP_LENGTH_*` × ~0.6, but never below **tip + 4 body** (length ≥ 5) |
 | Storm stack | Off — one live drop per column even during storms |
+| Storm window | Homepage base is 2× old (capable); constrained × **2** again |
+| Rain vs storm | Ambient rain **paused** while any storm is active |
 
 Fewer concurrent trail cells beat fancy last-column stack coverage when the
 device is already gasping. Mid-session ratchet uses `state.weatherScale` /
 `state.allowStormStack` (and thins ambient rain / shortens *new* drops if
-config still holds full lengths). Capable desktops keep full peak, long
-tails, and stack-behind-leader until the ratchet says otherwise.
+config still holds full lengths; also extends storms + pauses rain). Capable
+desktops keep full peak, rain-during-storm, short storm windows, and
+stack-behind-leader until the ratchet says otherwise.
+
+Ambient rain still **pulses** (soft-square) with a modest trough floor so the
+rate never idles at zero. Drop max speed is ~18 rows/s (~10% under the old
+20) for slightly more readable tips on short mobile grids.
 Plan: [adaptive-performance](../agents/plans/adaptive-performance.md).
 
 ## Color themes

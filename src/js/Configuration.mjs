@@ -105,6 +105,14 @@ const QUOTE_WRAP_MAX_DESKTOP = 40;
 // Peak rain units/s multiplier; length band multiplier; storm stack off.
 const WEATHER_RAIN_PEAK_SCALE = 0.65;
 const WEATHER_LENGTH_SCALE = 0.6;
+// Drop length includes tip: min body trail 4 + tip 1 → total length ≥ 5.
+const DROP_LENGTH_MIN_FLOOR = 5;
+// Soft-square trough floor (units/s): ambient never idles at zero.
+// (Was 5; quartered — still pulses, less dense at rest.)
+const RAIN_TROUGH_MIN_RATE = 1.25;
+// Constrained devices: another 2× on top of homepage storm windows
+// (homepage already doubled for capable machines). Same unit budget.
+const WEATHER_STORM_DURATION_SCALE = 2;
 
 /**
  * Static hints that multi-blur text-shadow is a bad idea on this client.
@@ -183,11 +191,15 @@ function Configuration(...args) {
   self.IS_LOW_POWER = detectLowPowerClient();
   self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
   // Weather scale: same static gate; runtime ratchet can escalate via state.
-  // Lower rain peak, shorter tails, no storm stack (less concurrent paint).
+  // Lower rain peak, shorter tails, no storm stack, pause rain during storms,
+  // longer storm windows (less concurrent paint).
   self.WEATHER_SCALE = self.IS_CHEAP_GLOW;
   self.WEATHER_RAIN_PEAK_SCALE = WEATHER_RAIN_PEAK_SCALE;
   self.WEATHER_LENGTH_SCALE = WEATHER_LENGTH_SCALE;
+  self.WEATHER_STORM_DURATION_SCALE = WEATHER_STORM_DURATION_SCALE;
   self.ALLOW_STORM_STACK = !self.WEATHER_SCALE;
+  // Ambient rain off while any storm runs (constrained only).
+  self.PAUSE_RAIN_DURING_STORM = self.WEATHER_SCALE;
   // Portrait + square mobile: full email L. Landscape: horizontal email only
   // (row budget is pad + roles + gap + 1 email line + pad).
   self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
@@ -264,8 +276,9 @@ function Configuration(...args) {
       );
 
   self.DROP_SPEED_MIN = 8;
-  self.DROP_SPEED_MAX = 20;
-  // Storm: floor +25% of span; max unchanged.
+  // ~10% under prior 20 — slightly slower tips, easier to read on short grids.
+  self.DROP_SPEED_MAX = 18;
+  // Storm: floor +25% of span; max matches rain max.
   const dropSpeedSpan = self.DROP_SPEED_MAX - self.DROP_SPEED_MIN;
   self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.25 * dropSpeedSpan;
   self.STORM_DROP_SPEED_MAX = self.DROP_SPEED_MAX;
@@ -273,16 +286,24 @@ function Configuration(...args) {
   const threadAvgLength = self.ROWS * 0.4;
   const threadLengthVariance = 0.5;
   const lengthScale = self.WEATHER_SCALE ? WEATHER_LENGTH_SCALE : 1;
+  // Length = tip + body band. Floor keeps ≥4 body glyphs even on short
+  // mobile-landscape ROWS (weather scale used to floor at 2).
   self.DROP_LENGTH_MIN = Math.max(
-    2,
+    DROP_LENGTH_MIN_FLOOR,
     Math.floor(threadAvgLength * (1 - threadLengthVariance) * lengthScale),
   );
   self.DROP_LENGTH_MAX = Math.max(
     self.DROP_LENGTH_MIN + 1,
     Math.floor(threadAvgLength * (1 + threadLengthVariance) * lengthScale),
   );
+  self.DROP_LENGTH_MIN_FLOOR = DROP_LENGTH_MIN_FLOOR;
 
+  // Frame scheduler base target (ms). rAF-throttled; not setTimeout-after-work.
   self.FRAME_DELAY = 90;
+  // Adaptive ceiling when frame work spikes (prefer fewer frames over thrash).
+  self.FRAME_DELAY_MAX = 180;
+  // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
+  self.FRAME_DT_MAX_MS = 250;
   // 1 = realtime; <1 slows drops + play cues (e.g. 0.2 = 5× slower for debug).
   self.TIME_SCALE = 1;
   // /kiosk path, ?kiosk=1 / ?wall=1, #kiosk, or __MATRIX_KIOSK__.
@@ -430,11 +451,16 @@ function Configuration(...args) {
 
     // Rain: ambient forever; slow → heavy by ~3s; max ~20% below prior peak.
     // softSquare peaks at period/4 ≈ 3s when period is 12.
-    // Weather scale: lower peak only (trough stays); fewer concurrent trails.
+    // Weather scale: lower peak only; trough is floored so rate never idles
+    // near zero (empty grid gaps stay short when free columns exist).
     const rainPeakScale = self.WEATHER_SCALE ? WEATHER_RAIN_PEAK_SCALE : 1;
     const baselineAvg = Math.max(2, self.COLS / 14);
-    const baselineMin = baselineAvg * 0.12;
-    const baselineMax = baselineAvg * 1.3 * 0.8 * rainPeakScale;
+    const baselineMin = Math.max(baselineAvg * 0.12, RAIN_TROUGH_MIN_RATE);
+    // Peak keeps a clear pulse above the floored trough (not a flat band).
+    const baselineMax = Math.max(
+      baselineMin * 2.2,
+      baselineAvg * 1.3 * 0.8 * rainPeakScale,
+    );
 
     const rain = Rain({
       name: "rain",

@@ -25,29 +25,37 @@ function Matrix(...args) {
   state.rain = scene.rain ?? null;
   state.dropScenes = scene.dropScenes ?? [];
   state.spawnPolicies = scene.spawnPolicies ?? [];
-  state.sceneManager =
-    scene.sceneManager ?? SceneManager({ scenes: state.dropScenes });
+  state.sceneManager = scene.sceneManager ?? SceneManager({ scenes: state.dropScenes });
   state.scenePlayer = scene.scenePlayer ?? null;
 
   self.isRunning = false;
   self.isPaused = false;
 
-  // Per-instance timers (module-level ids used to leak across restart()).
-  let runTimeoutId = null;
+  // Per-instance frame arm (module-level ids used to leak across restart()).
+  let rafId = null;
   let autopauseTimeoutId = null;
   let pauseDifference = 0;
-  let then = Date.now() - 1;
+  // performance.now() clock for the frame scheduler (not Date.now).
+  let then = 0;
   // Autopause remaining across temporary stop/start (tab hide).
   // Intentionally preserved through visibility stop — not through
   // pause-after-budget-exhausted (see unpause reset).
   let autopauseRemainingMs = cfg.AUTOPAUSE_TIME;
   let autopauseStartedAt = 0;
 
-  const clearFrameTimeout = () => {
-    if (runTimeoutId) {
-      clearTimeout(runTimeoutId);
-      runTimeoutId = null;
+  const nowMs = () =>
+    typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+
+  const clearFrameArm = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
     }
+  };
+
+  const scheduleFrame = () => {
+    // One arm only; start/stop clear before re-arming.
+    rafId = requestAnimationFrame(onFrame);
   };
 
   // Burn active arm time into remaining; clear the timeout.
@@ -90,16 +98,16 @@ function Matrix(...args) {
         self.pause();
       }, budget);
     }
-    runTimeoutId = setTimeout(updateMatrix, cfg.FRAME_DELAY);
-    then = Date.now() - pauseDifference;
+    then = nowMs() - pauseDifference;
+    scheduleFrame();
   };
   self.stop = () => {
     // Only sample frame gap while actually running (constructor stop is fine).
     if (self.isRunning) {
-      pauseDifference = Date.now() - then;
+      pauseDifference = nowMs() - then;
     }
     self.isRunning = false;
-    clearFrameTimeout();
+    clearFrameArm();
     clearAutopauseTimeout({ burn: true });
     state.scenePlayer?.pause?.();
   };
@@ -127,7 +135,7 @@ function Matrix(...args) {
     if (self.isRunning) {
       clearAutopauseTimeout({ burn: false });
       self.isRunning = false;
-      clearFrameTimeout();
+      clearFrameArm();
     }
     self.start();
   };
@@ -146,13 +154,16 @@ function Matrix(...args) {
   // Homepage hover binds cells; grid must exist first.
   state.scenePlayer?.attachHover?.();
 
-  // Quality ratchet: cheap glow + weather scale if frame work stays heavy.
-  // Only escalates; never re-enables full neon / full weather mid-session.
-  // Local flags only — Configuration freezes itself; never mutate cfg.*.
-  const frameDelay = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
-  const slowWorkMs = Math.max(40, Math.floor(frameDelay * 0.55));
-  // Wall gap: scheduled delay + heavy JS (catches main-thread stalls after paint).
-  const slowGapMs = frameDelay + slowWorkMs;
+  // --- Frame scheduler: rAF + throttle + adaptive interval ---
+  // Base cadence ~FRAME_DELAY; stretch toward max when work spikes so cheaper
+  // frames beat fighting for FPS. Quality ratchet only escalates (DOM + state).
+  const baseInterval = Math.max(1, Number(cfg.FRAME_DELAY) || 90);
+  const maxInterval = Math.max(baseInterval, Number(cfg.FRAME_DELAY_MAX) || baseInterval * 2);
+  // Cap sim step so one hitch cannot explode advance; still large enough for
+  // paint-before-kill tip flush on a multi-interval stall (~250ms).
+  const maxDtSec = Math.max(0.05, (Number(cfg.FRAME_DT_MAX_MS) || 250) / 1000);
+  // Live target ms between ticks (adaptive; starts at base).
+  let targetInterval = baseInterval;
   const slowFramesNeeded = 8;
   let slowFrameStreak = 0;
   let cheapGlowOn = !!cfg.IS_CHEAP_GLOW;
@@ -175,33 +186,53 @@ function Matrix(...args) {
     }
   };
 
-  const updateMatrix = () => {
+  // Ease interval toward `next` (ms). Heavy work stretches; light eases down.
+  const setTargetInterval = (next) => {
+    targetInterval = Math.min(maxInterval, Math.max(baseInterval, next));
+  };
+
+  const onFrame = (frameTime) => {
+    rafId = null;
     if (!self.isRunning) return;
-    const now = Date.now();
+
+    const now = typeof frameTime === "number" && Number.isFinite(frameTime) ? frameTime : nowMs();
     const wallGapMs = now - then;
-    const scale =
-      typeof cfg.TIME_SCALE === "number" && cfg.TIME_SCALE > 0
-        ? cfg.TIME_SCALE
-        : 1;
-    const elapsedSeconds = (wallGapMs / 1000) * scale;
-    const workStart =
-      typeof performance !== "undefined" && performance.now
-        ? performance.now()
-        : now;
+
+    // Throttle: skip vsyncs until the live target interval has elapsed.
+    // Uses last *tick* time (not delay-after-work) so overrun is not sticky.
+    if (wallGapMs < targetInterval * 0.92) {
+      scheduleFrame();
+      return;
+    }
+
+    const scale = typeof cfg.TIME_SCALE === "number" && cfg.TIME_SCALE > 0 ? cfg.TIME_SCALE : 1;
+    // Clamp sim dt; wall gap still informs quality / adaptive interval.
+    const elapsedSeconds = Math.min(maxDtSec, (wallGapMs / 1000) * scale);
+    const workStart = nowMs();
+
     // Advance → paint (incl. drops that completed this frame) → kill/spawn.
     // Kill-before-paint skipped tip rows on large dt; hide/reveal waited on rain.
     state.themeDirector?.tick?.(elapsedSeconds);
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
     state.dropManager.settleDrops(elapsedSeconds);
-    // Already fully constrained at config: skip measurement.
+
+    const workMs = nowMs() - workStart;
+
+    // Adaptive interval: prefer fewer frames when JS work is heavy.
+    // Stretch toward work×1.2 (capped); ease back a few ms when light.
+    const heavyWork = workMs >= Math.max(40, Math.floor(targetInterval * 0.55));
+    if (heavyWork) {
+      setTargetInterval(Math.max(targetInterval, workMs * 1.2));
+    } else if (targetInterval > baseInterval && workMs < targetInterval * 0.35) {
+      setTargetInterval(targetInterval - 5);
+    }
+
+    // Quality ratchet: cheap glow + weather scale if work / gap stays heavy.
+    // Budgets track the *current* target so intentional stretch is not punished.
     if (!cheapGlowOn || !weatherScaleOn) {
-      const workEnd =
-        typeof performance !== "undefined" && performance.now
-          ? performance.now()
-          : Date.now();
-      const workMs = workEnd - workStart;
-      // JS work budget blown, or inter-frame gap shows main-thread overrun.
+      const slowWorkMs = Math.max(40, Math.floor(targetInterval * 0.55));
+      const slowGapMs = targetInterval + slowWorkMs;
       const heavy = workMs >= slowWorkMs || wallGapMs >= slowGapMs;
       if (heavy) {
         slowFrameStreak += 1;
@@ -210,10 +241,10 @@ function Matrix(...args) {
         slowFrameStreak = 0;
       }
     }
+
+    // Anchor next throttle to this tick (not work-end) — recovers after spikes.
     then = now;
-    if (self.isRunning) {
-      runTimeoutId = setTimeout(updateMatrix, cfg.FRAME_DELAY);
-    }
+    if (self.isRunning) scheduleFrame();
   };
 }
 

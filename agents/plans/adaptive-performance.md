@@ -1,6 +1,6 @@
 # Plan — Adaptive performance (smooth rain on slower devices)
 
-**Status:** In progress — density + cheap glow + dirty paint + allocs + weather scale shipped  
+**Status:** Core slices shipped (1–6); optional canvas rain later  
 **Project:** `projects/matrix`  
 **Related analysis:** frame = advance → paint → settle; DOM rain + multi-shadow
 glow is the bottleneck (not drop math).
@@ -27,7 +27,7 @@ separate short-side / orientation policy — not the same as “slow.”
 | Full-trail DOM restyle | Every live column rewrites class + CSS vars every frame |
 | Grid density | ~1.5–2k cells on small viewports before content sizing |
 | Per-frame allocs | `Array.from(drops)`, Maps, `"r,c"` keys |
-| `setTimeout(90)` loop | No vsync; overrun feels sticky |
+| Sticky `setTimeout(90)` loop | No vsync; delay-after-work stacked overruns (fixed: rAF + adaptive) |
 | Fonts / mix glyph faces | Secondary |
 
 ## Slices (priority = largest efficiency gain first)
@@ -39,7 +39,7 @@ separate short-side / orientation policy — not the same as “slow.”
 | 3 | **Dirty DomManager paint** | **Done** | High | Only restyle tip enter / trail leave / role flip; cache theme vars |
 | 4 | **Hot-path allocations** | **Done** | Medium | Reuse maps; `forEachColumnDrops`; pre-split rain glyph pools; thrift random |
 | 5 | **Weather scale (constrained)** | **Done** | Medium | Lower rain peak / shorter tails / no storm stack when quality is low or viewport is tight |
-| 6 | **Frame scheduler** | **Next** | Medium | rAF + further adaptive quality when `dt` / work spikes |
+| 6 | **Frame scheduler** | **Done** | Medium | rAF throttle + adaptive interval + dt clamp; quality ratchet on live target |
 | 7 | **Canvas rain layer** (optional) | Later | Structural | Rain bitmap under DOM links/card — biggest architecture win |
 
 ## Slice 1 — Fewer glyphs (complete)
@@ -92,12 +92,26 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 - Same static gate as cheap glow (`WEATHER_SCALE = IS_CHEAP_GLOW`): narrow or
   low-power heuristic.
-- Rain soft-square **peak** × 0.65 (trough unchanged); `DROP_LENGTH_*` × 0.6;
-  `ALLOW_STORM_STACK = false`.
+- Rain soft-square **peak** × 0.65; trough floored (~1.25/s, not zero);
+  `DROP_LENGTH_*` × 0.6 with min length 5 (tip+4); `ALLOW_STORM_STACK = false`;
+  storm duration × 2 on top of doubled homepage bases; ambient rain paused during storms.
 - Runtime ratchet (with cheap glow): `state.weatherScale` +
   `state.allowStormStack`; thin ambient rain / shorten new drops if config was
   full quality. Never mutate frozen Configuration.
 - Storm rates unchanged (refund still honest); free selected cols still spawn.
+
+## Slice 6 — Frame scheduler (complete)
+
+**Task:** [tasks/completed/frame-scheduler.md](../tasks/completed/frame-scheduler.md)
+
+- `requestAnimationFrame` arm; throttle to base `FRAME_DELAY` (~90ms).
+- Tick clock from last tick (`performance.now` / rAF time) — not
+  delay-after-work — so overrun is not sticky.
+- Adaptive target: stretch toward `FRAME_DELAY_MAX` (~180ms) when work is
+  heavy; ease back when light. Prefer fewer frames over thrash.
+- Cap sim dt (`FRAME_DT_MAX_MS` ≈ 250) for hitch recovery.
+- Quality ratchet budgets use the **live** target interval.
+- Pause / visibility still cancel the arm; unpause restores residual gap.
 
 ## Out of scope (this plan)
 
@@ -112,6 +126,14 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - [x] Dirty DomManager paint (slice 3) — tip enter / trail leave / role flip only
 - [x] Hot-path allocations (slice 4) — glyph pools, drop iteration, free-col reuse
 - [x] Weather scale (slice 5) — lower rain peak, shorter tails, no storm stack
-- [ ] Slow devices feel smooth during rain + card reveal (phone **and** weak desktop)
-- [ ] Capable devices keep full neon without the quality class
-- [ ] Build green; no layout OOB for card/quote on phone portrait/landscape
+- [x] Frame scheduler (slice 6) — rAF + adaptive interval + dt clamp
+- [x] Slow devices: cheaper path via density / glow / weather / fewer frames
+- [x] Capable devices keep full neon without the quality class (until ratchet)
+- [x] Build green; no layout OOB for card/quote on phone portrait/landscape
+
+## Session note (2026-07-20)
+
+- Slice 6: `Matrix.mjs` rAF throttle + adaptive `targetInterval`; config
+  `FRAME_DELAY_MAX` / `FRAME_DT_MAX_MS`; DESIGN + project next-queue update.
+- Optional remaining: canvas rain layer (slice 7). Next product work: quote
+  playlist interlude / deploy polish.

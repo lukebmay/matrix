@@ -9,15 +9,15 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped). Incomplete human WIP preserved on
 `refactor_incomplete-mid-refactor`.
 
-**Next:** Adaptive performance (frame scheduler next); quote playlist
-interlude; deploy + job-search polish; optional paint eyeball / theme cull.
+**Next:** Quote playlist interlude; deploy + job-search polish; optional
+paint eyeball / theme cull / canvas rain layer.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
 
 **Plans:** [plans/scene-player.md](plans/scene-player.md) (shipped),
 [plans/interactive-play.md](plans/interactive-play.md) (runtime + hover),
-[plans/adaptive-performance.md](plans/adaptive-performance.md) (density +
-cheap glow + dirty paint + allocs + weather scale done; frame scheduler next).
+[plans/adaptive-performance.md](plans/adaptive-performance.md) (slices 1–6
+shipped; optional canvas rain later).
 
 ## Product rules
 
@@ -78,12 +78,13 @@ cheap glow + dirty paint + allocs + weather scale done; frame scheduler next).
 | [interactive-play_runtime.md](plans/interactive-play/completed/interactive-play_runtime.md) | Done — runtime + homepage |
 | [hover-hasten-reveal.md](plans/interactive-play/completed/hover-hasten-reveal.md) | Done — hasten / extend / re-reveal |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
-| [adaptive-performance.md](plans/adaptive-performance.md) | In progress — density + cheap glow + dirty paint + allocs + weather scale done |
+| [adaptive-performance.md](plans/adaptive-performance.md) | Core slices 1–6 shipped; optional canvas rain later |
 | [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + quote wrap (narrow) |
 | [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet; freeze fix) |
 | [dirty-dom-paint.md](tasks/completed/dirty-dom-paint.md) | Done — tip enter / trail leave / role flip only |
 | [hot-path-allocations.md](tasks/completed/hot-path-allocations.md) | Done — glyph pools, forEachColumnDrops, free-col reuse |
 | [weather-scale.md](tasks/completed/weather-scale.md) | Done — lower rain peak / shorter tails / no storm stack |
+| [frame-scheduler.md](tasks/completed/frame-scheduler.md) | Done — rAF throttle + adaptive interval + dt clamp |
 
 ## Stack
 
@@ -128,8 +129,7 @@ SceneManager (logical grid) + DomManager (paint)
 
 ## Priorities
 
-1. Adaptive performance — frame scheduler next
-   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 6).
-2. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
-3. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
-4. Optional: paint eyeball, ASCII portrait, frame-`dt` clock.
+1. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
+2. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
+3. Optional: paint eyeball, ASCII portrait, frame-`dt` clock, canvas rain
+   ([plans/adaptive-performance.md](plans/adaptive-performance.md) slice 7).

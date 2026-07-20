@@ -178,6 +178,13 @@ function DropManager(...args) {
     return acc.advance(elapsedSeconds);
   };
 
+  // Weather constrained: frozen cfg and/or mid-session ratchet.
+  const weatherConstrained = () => {
+    if (state.weatherScale === true) return true;
+    if (state.weatherScale === false) return false;
+    return cfg.WEATHER_SCALE === true;
+  };
+
   // Storm stack: off when weather scale (cfg or runtime ratchet).
   const allowStormStack = () => {
     if (state.allowStormStack === false) return false;
@@ -191,6 +198,22 @@ function DropManager(...args) {
     if (state.weatherScale !== true || cfg.WEATHER_SCALE === true) return 1;
     const s = cfg.WEATHER_RAIN_PEAK_SCALE;
     return typeof s === "number" && s > 0 && s < 1 ? s : 0.65;
+  };
+
+  // Any content/rain drain storm currently spawning (pause ambient rain).
+  const anyStormActive = () => {
+    if (state.rain?.stormEnabled) return true;
+    for (const scene of state.dropScenes ?? []) {
+      if (scene?.stormEnabled) return true;
+    }
+    return false;
+  };
+
+  // Constrained: ambient rain off while storms run (less concurrent paint).
+  // Ratchet mid-session: treat as on unless cfg explicitly false.
+  const pauseRainDuringStorm = () => {
+    if (!weatherConstrained()) return false;
+    return cfg.PAUSE_RAIN_DURING_STORM !== false;
   };
 
   // Exactly one live drop + still selected + head start for no-overtake speed.
@@ -253,6 +276,18 @@ function DropManager(...args) {
       // Rain: drain storm uses storm acc; ambient uses forever acc.
       // DropScenes only join when stormEnabled (storm acc).
       const isStorm = source.stormEnabled === true;
+
+      // Constrained: freeze ambient rain while any storm is active (do not
+      // advance the soft-square clock — resume cleanly when storms end).
+      if (
+        source === state.rain &&
+        !isStorm &&
+        pauseRainDuringStorm() &&
+        anyStormActive()
+      ) {
+        continue;
+      }
+
       const rateAcc =
         source === state.rain && !isStorm
           ? source.accumulator
@@ -644,6 +679,89 @@ if (isMain) {
       dm.getDropsOn(2).length >= 1,
       "free selected col still storm-spawned",
     );
+
+    stateMod.weatherScale = null;
+    stateMod.allowStormStack = null;
+  }
+
+  // --- Weather scale: ambient rain paused while a content storm is active ---
+  {
+    const { default: stateMod } = await import("./State.mjs");
+    const { default: DropScene } = await import("./DropScene.mjs");
+    const { default: Rain } = await import("./Rain.mjs");
+    const { VariableRateAccumulator } = await import("./util.mjs");
+
+    stateMod.config = {
+      COLS: 6,
+      ROWS: 20,
+      DROP_SPEED_MIN: 8,
+      DROP_SPEED_MAX: 18,
+      STORM_DROP_SPEED_MIN: 11,
+      STORM_DROP_SPEED_MAX: 18,
+      DROP_LENGTH_MIN: 5,
+      DROP_LENGTH_MAX: 8,
+      ALLOW_STORM_STACK: false,
+      WEATHER_SCALE: true,
+      PAUSE_RAIN_DURING_STORM: true,
+      WEATHER_RAIN_PEAK_SCALE: 0.65,
+      WEATHER_LENGTH_SCALE: 0.6,
+    };
+    stateMod.weatherScale = true;
+    stateMod.allowStormStack = false;
+
+    if (typeof globalThis.performance === "undefined") {
+      globalThis.performance = { now: () => Date.now() };
+    }
+
+    // Huge ambient want so any rain spawn would show up immediately.
+    const rain = Rain({
+      cols: 6,
+      accumulator: VariableRateAccumulator(500, Infinity, () => 50),
+    });
+    // Slow storm: stays active after one short settle (selection not emptied).
+    const scene = DropScene({
+      name: "pause-rain",
+      points: [
+        { r: 2, c: 0, char: "A", revealed: false },
+        { r: 2, c: 1, char: "B", revealed: false },
+        { r: 2, c: 2, char: "C", revealed: false },
+        { r: 2, c: 3, char: "D", revealed: false },
+      ],
+      priority: 10,
+      stormAccumulator: VariableRateAccumulator(20, 20, () => 0.2),
+    });
+    scene.enterMode("revealing");
+    scene.startStorm();
+
+    stateMod.rain = rain;
+    stateMod.dropScenes = [scene];
+    stateMod.spawnPolicies = [];
+    stateMod.contentLayers = [];
+
+    const dm = DropManager();
+    dm.settleDrops(0.05);
+
+    assert.equal(scene.stormEnabled, true, "storm still active mid-coverage");
+    // Free cols outside the scene must stay empty (ambient rain off).
+    assert.equal(dm.getDropsOn(4).length, 0, "no ambient rain on free col 4");
+    assert.equal(dm.getDropsOn(5).length, 0, "no ambient rain on free col 5");
+    // Soft-square clock frozen: rain acc time does not advance while paused.
+    const rainTimeDuring = rain.accumulator.currentTime ?? null;
+
+    // After storm stops, ambient rain may spawn on free cols again.
+    scene.stopStorm();
+    scene.enterMode("revealed");
+    dm.settleDrops(0.1);
+    assert.ok(
+      dm.getDropsOn(4).length + dm.getDropsOn(5).length >= 1,
+      "ambient rain resumes after storm",
+    );
+    if (rainTimeDuring != null && rain.accumulator.currentTime != null) {
+      assert.ok(
+        rain.accumulator.currentTime > rainTimeDuring,
+        "rain clock advances only after storm",
+      );
+    }
 
     stateMod.weatherScale = null;
     stateMod.allowStormStack = null;

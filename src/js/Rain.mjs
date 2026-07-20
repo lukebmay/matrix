@@ -10,6 +10,7 @@
 
 import { randomChoice, rangeArray } from "./util.mjs";
 import VariableRateAccumulator from "./util/VariableRateAccumulator.mjs";
+import state from "./State.mjs";
 
 // Ambient grid weather: soft-square forever.
 // Coverage pool (firstPass): without replacement until every column has had a
@@ -80,7 +81,17 @@ function Rain(...args) {
   self.markCovered = (col, drop) => self.onColumnSpawned(col, drop);
 
   self.startDrainStorm = (seconds = 1) => {
-    const durationSeconds = Math.max(Number(seconds) || 0, 0.001);
+    // Constrained: stretch drain window (same unit budget, fewer concurrent).
+    const cfg = state.config;
+    const constrained =
+      state.weatherScale === true ||
+      (state.weatherScale == null && cfg?.WEATHER_SCALE === true);
+    let scale = 1;
+    if (constrained) {
+      const s = cfg?.WEATHER_STORM_DURATION_SCALE;
+      scale = typeof s === "number" && s > 1 ? s : 2;
+    }
+    const durationSeconds = Math.max((Number(seconds) || 0) * scale, 0.001);
     const units = Math.max(self.firstPass.size, 1);
     self.stormAccumulator = VariableRateAccumulator(
       units,

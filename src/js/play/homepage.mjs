@@ -31,16 +31,18 @@ export function homepagePlay(player, scenes, opts = {}) {
   // After quote hide / loop: wait before roles (was 3s).
   const rolesAtMs = opts.rolesAtMs ?? 1_000;
   const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
-  const rolesStormSec = opts.rolesStormSec ?? 3;
-  const emailStormSec = opts.emailStormSec ?? 5;
+  // Storm coverage windows (capable devices). Constrained multiplies again
+  // via WEATHER_STORM_DURATION_SCALE (2×) in ScenePlayer / Rain.
+  const rolesStormSec = opts.rolesStormSec ?? 6;
+  const emailStormSec = opts.emailStormSec ?? 10;
   // Full card on screen after email settles (was 2s; +2s more before hide).
   const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 4_000;
   const afterCardGoneMs =
     opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 3_000;
   const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
-  const cardHideStormSec = opts.cardHideStormSec ?? 3;
-  const quoteStormSec = opts.quoteStormSec ?? 3;
-  const quoteHideStormSec = opts.quoteHideStormSec ?? 3;
+  const cardHideStormSec = opts.cardHideStormSec ?? 6;
+  const quoteStormSec = opts.quoteStormSec ?? 6;
+  const quoteHideStormSec = opts.quoteHideStormSec ?? 6;
   const restartGapMs = opts.restartGapMs ?? 0;
   // After hide-hover re-reveal, hold full text this long before hide restarts.
   const hideLookHoldMs = opts.hideLookHoldMs ?? 5_000;
@@ -49,8 +51,8 @@ export function homepagePlay(player, scenes, opts = {}) {
   const themeFullSec = opts.themeFullSec ?? 1.5;
   // Ambient --col-low fade after commit (residual cells use --res-low).
   const themeFadeSec = opts.themeFadeSec ?? 3;
-  // After email storm done (or hover-reveal email): 1s pool-drain storm.
-  const coverageDrainSec = opts.coverageDrainSec ?? 1;
+  // After email storm done (or hover-reveal email): pool-drain storm.
+  const coverageDrainSec = opts.coverageDrainSec ?? 2;
 
   // Thread wait target: completes now if idle, else on next theme commit.
   const themeIdleGate = {
