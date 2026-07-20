@@ -66,10 +66,16 @@ function Application(...args) {
   document.addEventListener("visibilitychange", () => {
     // Kiosk keeps the loop alive (wall tab is always open; ignore flaky hide).
     if (state.config?.KIOSK) return;
-    if (document.visibilityState === "visible" && !self.matrix?.isPaused) {
-      self.matrix?.start();
-    } else if (!self.matrix?.isPaused) {
-      self.matrix?.stop();
+    const matrix = self.matrix;
+    if (!matrix) return;
+    // User/autopause pause owns the freeze: do not start/stop underneath it.
+    if (matrix.isPaused) return;
+    if (document.visibilityState === "visible") {
+      // Resume frame loop + re-arm remaining autopause budget.
+      matrix.start();
+    } else {
+      // Tab hide: stop loop and burn active autopause time into remaining.
+      matrix.stop();
     }
   });
 }
