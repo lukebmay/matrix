@@ -22,8 +22,10 @@ function State(...args) {
   self.sceneManager = null;
   self.scenePlayer = null;
   self.themeDirector = null; // active palette + spawn blend
-  // Weather scale (runtime): Matrix may escalate mid-session with cheap glow.
-  // null = follow frozen config; false/true override allowStormStack / scale.
+  // Performance level (high | medium | low). Matrix may escalate mid-session.
+  // null = follow frozen config.PERF_LEVEL. See performance.mjs.
+  self.perfLevel = null;
+  // Compat overrides (prefer perfLevel; DropManager still honors these when set).
   self.weatherScale = null; // null | boolean — constrained weather when true
   self.allowStormStack = null; // null | boolean — storm second-drop when true
   // Monotonic order for storm FIFO (DropManager: first activated finishes first).

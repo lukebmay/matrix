@@ -10,6 +10,7 @@
 
 import state from "./State.mjs";
 import Drop from "./Drop.mjs";
+import { activePerfSettings, stormSpeedBand } from "./performance.mjs";
 
 // Max follower tip speed so that when the leader tip reaches the final grid
 // row, the follower is still ≥1 glyph behind. Follower starts at row 0.
@@ -69,7 +70,7 @@ function DropManager(...args) {
 
   // Concurrent-drop budget: start at INITIAL (=COLS). Rolling 10-frame wall-gap
   // avg; each new live peak restarts the sample. Below MIN never clamp; at/above
-  // MIN, clamp max to live when avg ≥ 200ms. Fast machines stay at COLS.
+  // MIN, clamp max to live when avg ≥ perf.frameAvgClampMs (high 200 / med|low 150).
   const cols = Math.max(1, cfg.COLS || 20);
   const cfgInitial = Number(cfg.INITIAL_DROP_MAX ?? cfg.ACTIVE_DROPS_MAX);
   const cfgMin = Number(cfg.MIN_DROP_MAX ?? cfg.ACTIVE_DROPS_MIN);
@@ -85,7 +86,11 @@ function DropManager(...args) {
     Math.max(1, Number.isFinite(cfgMin) && cfgMin > 0 ? Math.floor(cfgMin) : 12),
   );
   const ROLLING_FRAMES = 10;
-  const FRAME_AVG_LIMIT_MS = 200;
+  const frameAvgLimitMs = () => {
+    const perf = activePerfSettings(state, cfg);
+    const n = Number(perf.frameAvgClampMs ?? cfg.FRAME_AVG_CLAMP_MS);
+    return Number.isFinite(n) && n > 0 ? n : 200;
+  };
 
   // Calibrate when config declares a budget (production Configuration does).
   // Smokes that omit INITIAL/MIN/ACTIVE_DROPS_* open the full cap immediately.
@@ -192,13 +197,13 @@ function DropManager(...args) {
     // Below MIN: keep max open at INITIAL.
     if (reportDrops < MIN_DROP_MAX) return;
 
-    // At/above MIN: 200ms rolling avg → this drop count becomes the max.
-    if (avg >= FRAME_AVG_LIMIT_MS) {
+    // At/above MIN: rolling avg over clamp threshold → this drop count is max.
+    if (avg >= frameAvgLimitMs()) {
       settleAt(reportDrops);
       return;
     }
 
-    // Full grid held without tripping 200ms — lock at INITIAL.
+    // Full grid held without tripping clamp — lock at INITIAL.
     if (reportDrops >= INITIAL_DROP_MAX && framesSincePeak >= ROLLING_FRAMES) {
       settleAt(INITIAL_DROP_MAX);
     }
@@ -270,11 +275,21 @@ function DropManager(...args) {
     if (n > 0 && !allowStack) return null;
     if (n > 0 && allowStack && n >= MAX_DROPS_PER_COL) return null;
     // Theme baked at spawn so mid-air drops keep their color through blend.
-    const theme =
+    const dir = state.themeDirector;
+    let theme =
       opts.theme ??
-      state.themeDirector?.pickSpawnTheme?.() ??
-      state.themeDirector?.active ??
+      dir?.pickSpawnTheme?.() ??
+      dir?.active ??
       null;
+    // Color blend: once next-theme claims a column, old-theme may not land there.
+    if (theme != null && dir?.canSpawnOn && !dir.canSpawnOn(col, theme)) {
+      const next = dir.next;
+      if (next && dir.canSpawnOn(col, next)) {
+        theme = next;
+      } else {
+        return null;
+      }
+    }
     const drop = Drop({ col, ...opts, theme });
     drops.add(drop);
     let list = byCol.get(col);
@@ -283,6 +298,7 @@ function DropManager(...args) {
       byCol.set(col, list);
     }
     list.push(drop);
+    dir?.notifySpawn?.(col, theme);
     notifySpawnColumn(col, drop);
     return drop;
   };
@@ -293,19 +309,14 @@ function DropManager(...args) {
     return acc.advance(elapsedSeconds);
   };
 
-  // Weather constrained: frozen cfg and/or mid-session ratchet.
-  const weatherConstrained = () => {
-    if (state.weatherScale === true) return true;
-    if (state.weatherScale === false) return false;
-    return cfg.WEATHER_SCALE === true;
-  };
+  // Active perf settings (single source for weather/glow levers).
+  const perfNow = () => activePerfSettings(state, cfg);
 
-  // Storm stack: off when weather scale (cfg or runtime ratchet).
+  // Storm stack: high only (or explicit state override).
   const allowStormStack = () => {
     if (state.allowStormStack === false) return false;
     if (state.allowStormStack === true) return true;
-    if (cfg.ALLOW_STORM_STACK === false) return false;
-    return true;
+    return perfNow().allowStormStack !== false;
   };
 
   // Any content/rain drain storm still enabled (columns pending or just emptied).
@@ -317,9 +328,23 @@ function DropManager(...args) {
     return false;
   };
 
-  // Ambient rain waits until every storm has finished its columns.
-  // Config default true; tests may set false to exercise concurrent rain.
-  const pauseRainDuringStorm = () => cfg.PAUSE_RAIN_DURING_STORM !== false;
+  // Ambient rain vs storms — from perf level (high: continue through storms).
+  // Explicit cfg.PAUSE_RAIN_DURING_STORM wins for smokes without PERF_LEVEL.
+  const pauseRainDuringStorm = () => {
+    if (state.perfLevel) return perfNow().pauseRainDuringStorm !== false;
+    if (cfg.PAUSE_RAIN_DURING_STORM === false) return false;
+    if (cfg.PAUSE_RAIN_DURING_STORM === true) return true;
+    return perfNow().pauseRainDuringStorm !== false;
+  };
+
+  // How to resume ambient rain after a pause (preserve curve vs trough reset).
+  const rainResumeMode = () => {
+    if (state.perfLevel) return perfNow().rainResume ?? "restart";
+    if (cfg.RAIN_RESUME) return cfg.RAIN_RESUME;
+    // Legacy smokes: pause without resume mode ⇒ restart (old trough reset).
+    if (cfg.PAUSE_RAIN_DURING_STORM === true) return "restart";
+    return perfNow().rainResume ?? "restart";
+  };
 
   // Earliest-activated storm still enabled (FIFO). Later storms wait.
   const pickCurrentStorm = () => {
@@ -359,8 +384,10 @@ function DropManager(...args) {
   };
 
   const stormDropOpts = (source, col, isStack) => {
-    const stormMin = cfg.STORM_DROP_SPEED_MIN ?? cfg.DROP_SPEED_MIN;
-    const stormMax = cfg.STORM_DROP_SPEED_MAX ?? cfg.DROP_SPEED_MAX;
+    // Prefer live perf bands so mid-session escalate updates storm speeds.
+    const band = stormSpeedBand(perfNow());
+    const stormMin = band.min ?? cfg.STORM_DROP_SPEED_MIN ?? cfg.DROP_SPEED_MIN;
+    const stormMax = band.max ?? cfg.STORM_DROP_SPEED_MAX ?? cfg.DROP_SPEED_MAX;
     const stormTailMax = 3;
     const remaining = source.columnsSelected?.size ?? 0;
     const isTail = remaining > 0 && remaining <= stormTailMax;
@@ -409,16 +436,18 @@ function DropManager(...args) {
       // advance) until the first finishes its columnsSelected.
       if (isStorm && source !== pickCurrentStorm()) continue;
 
-      // Ambient rain held at trough while:
-      //  - any storm still has columns to process (or newly added storms), or
-      //  - global max drops is hit (resume from rate 0 when a slot frees).
-      // Reset rain rate clock once on enter so we do not resume mid-peak.
+      // Ambient rain hold while storms active (med/low) or drop cap full.
+      // Resume mode (perf): preserve = freeze curve on storm; restart = trough.
+      // Cap full always resets to trough so resume breathes from quiet.
+      // High: pauseRainDuringStorm false → only cap holds rain.
       if (source === state.rain && !isStorm) {
         const holdForStorm = pauseRainDuringStorm() && anyStormActive();
         const holdForCap = spawnRoom() <= 0;
         if (holdForStorm || holdForCap) {
           if (!rainHeldAtTrough) {
-            source.accumulator?.reset?.();
+            const resetCurve =
+              holdForCap || (holdForStorm && rainResumeMode() === "restart");
+            if (resetCurve) source.accumulator?.reset?.();
             rainHeldAtTrough = true;
           }
           continue;

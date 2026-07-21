@@ -8,7 +8,7 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 import { randomRainGlyph } from "./RainGlyphs.mjs";
-import { getPalette } from "./themes.mjs";
+import { getPalette, lerpHex } from "./themes.mjs";
 import state from "./State.mjs";
 
 function DomManager(...args) {
@@ -26,6 +26,12 @@ function DomManager(...args) {
   const trailTheme = new WeakMap(); // el → theme name last applied to --drop-*
   // Reused per frame / per column (avoid Map alloc on the hot path).
   const rowPaint = new Map(); // row → { kind: 'tip'|'body', drop }
+  // Theme blend: per-cell residual slug tracks (fromHex → toHex over t∈[0,1]).
+  // Map so new-theme stamps can drop a cell out of the lerp mid-fade.
+  /** @type {Map<Element, string> | null} el → fromHex */
+  let residualBlend = null;
+  let residualBlendTo = null;
+  let residualBlendU = 0;
 
   const matrixEl = document.querySelector("#matrix");
 
@@ -74,45 +80,100 @@ function DomManager(...args) {
   };
   constructMatrixDom();
 
+  /** Active residual low hex (committed theme), or null. */
+  const activeResidualLow = () => {
+    const name = state.themeDirector?.active;
+    const p = name ? getPalette(name) : null;
+    return p?.low ?? null;
+  };
+
+  /**
+   * Residual slug-track policy (always run; tip/trail CSS is separate).
+   *  - Visual fade: only next-theme snaps residual; lerp owns the rest.
+   *  - Spawn blend (next set, no visual yet): active or next may stamp.
+   *  - Steady (no next): only active may stamp; old mid-air drops *heal*
+   *    residual to active low so a lingering tip cannot leave one wrong glyph.
+   */
+  const stampResidualFromDrop = (el, themeName, dropLow) => {
+    if (el.classList.contains("m-revealed")) return;
+    const dir = state.themeDirector;
+    if (dir?.isResidualTransitioning?.() && residualBlend) {
+      const target = dir.residualTargetTheme?.();
+      if (themeName === target && dropLow) {
+        el.style.setProperty("--res-low", dropLow);
+        residualBlend.delete(el);
+      }
+      return;
+    }
+    const active = dir?.active ?? null;
+    const next = dir?.next ?? null;
+    if (
+      themeName == null ||
+      themeName === active ||
+      (next != null && themeName === next)
+    ) {
+      if (dropLow) el.style.setProperty("--res-low", dropLow);
+      return;
+    }
+    // Old-theme mid-air after commit only (next cleared). Heal track to active.
+    if (next != null) return;
+    const heal = activeResidualLow();
+    if (heal) el.style.setProperty("--res-low", heal);
+  };
+
   const clearDropPaint = (el) => {
     el.classList.remove("m-drop", "m-drop-tip");
     el.style.removeProperty("--drop-low");
     el.style.removeProperty("--drop-med");
     el.style.removeProperty("--drop-hi");
-    // Keep --res-low: residual glyph color only changes when a drop visits.
+    // After commit, heal residual when an old tip/trail leaves a cell.
+    // Skip during dual-color blend (next set) or residual lerp (residualBlend).
+    const dir = state.themeDirector;
+    if (
+      !residualBlend &&
+      !dir?.next &&
+      el.style.getPropertyValue("--res-low")?.trim()
+    ) {
+      const heal = activeResidualLow();
+      if (heal) el.style.setProperty("--res-low", heal);
+    }
     trailRole.delete(el);
     trailTheme.delete(el);
   };
 
   const applyDropPalette = (el, themeName) => {
-    if (trailTheme.has(el) && trailTheme.get(el) === themeName) return;
-
+    const themeSame = trailTheme.has(el) && trailTheme.get(el) === themeName;
     const p =
       getPalette(themeName) ??
       getPalette(state.themeDirector?.active) ??
       null;
-    if (!p) {
-      el.style.removeProperty("--drop-low");
-      el.style.removeProperty("--drop-med");
-      el.style.removeProperty("--drop-hi");
+
+    if (!themeSame) {
+      if (!p) {
+        el.style.removeProperty("--drop-low");
+        el.style.removeProperty("--drop-med");
+        el.style.removeProperty("--drop-hi");
+      } else {
+        el.style.setProperty("--drop-low", p.low);
+        el.style.setProperty("--drop-med", p.med);
+        el.style.setProperty("--drop-hi", p.hi);
+      }
       trailTheme.set(el, themeName);
-      return;
     }
-    el.style.setProperty("--drop-low", p.low);
-    el.style.setProperty("--drop-med", p.med);
-    el.style.setProperty("--drop-hi", p.hi);
-    // Stamp residual: after the trail leaves, glyph keeps this theme's low.
-    el.style.setProperty("--res-low", p.low);
-    trailTheme.set(el, themeName);
+
+    // Residual always re-evaluated (themeSame early-return used to skip this
+    // and leave a single wrong-color glyph under a lingering old tip).
+    stampResidualFromDrop(el, themeName, p?.low ?? null);
   };
 
-  // Tip / body role + palette only when kind or theme flips.
+  // Tip / body role + palette. Residual re-stamps even when kind/theme steady.
   const applyTrailRole = (el, kind, themeName) => {
     const prevKind = trailRole.get(el);
     const themeSame = trailTheme.has(el) && trailTheme.get(el) === themeName;
-    if (prevKind === kind && themeSame) return;
 
     applyDropPalette(el, themeName);
+    if (prevKind === kind && themeSame) return;
+
     if (prevKind !== kind) {
       if (kind === "tip") {
         el.classList.add("m-drop-tip");
@@ -183,6 +244,80 @@ function DomManager(...args) {
     const el = grid.get(r, c);
     if (!el) return;
     paintFromLogical(r, c, el, opts);
+  };
+
+  /**
+   * Capture residual slug tracks so a theme blend can lerp them to the next
+   * palette's low over ~3s (with debug HUD). Includes ambient-only cells
+   * (no stamped --res-low) so the whole field moves together.
+   * @param {string} toLowHex
+   * @param {{ fromAmbient?: string }} [opts]
+   */
+  self.beginResidualTransition = (toLowHex, opts = {}) => {
+    residualBlendTo = toLowHex ?? null;
+    residualBlend = new Map();
+    residualBlendU = 0;
+    if (!residualBlendTo) return;
+
+    const ambient =
+      (typeof opts.fromAmbient === "string" && opts.fromAmbient) ||
+      document.documentElement.style.getPropertyValue("--col-low")?.trim() ||
+      residualBlendTo;
+
+    for (let c = 0; c < cfg.COLS; c++) {
+      for (let r = 0; r < cfg.ROWS; r++) {
+        const el = grid.get(r, c);
+        if (!el) continue;
+        // Settled card/quote text uses body/link colors — skip those.
+        if (el.classList.contains("m-revealed")) continue;
+        const stamped = el.style.getPropertyValue("--res-low")?.trim();
+        const from = stamped || ambient;
+        if (!from) continue;
+        residualBlend.set(el, from);
+        // Ensure inline prop so lerp is visible (ambient-only used --col-low).
+        el.style.setProperty("--res-low", from);
+      }
+    }
+  };
+
+  /** t in [0,1]: lerp captured residuals toward the transition target. */
+  self.tickResidualTransition = (t) => {
+    if (!residualBlend?.size || !residualBlendTo) return;
+    const u = Math.max(0, Math.min(1, Number(t) || 0));
+    residualBlendU = u;
+    for (const [el, from] of residualBlend) {
+      el.style.setProperty("--res-low", lerpHex(from, residualBlendTo, u));
+    }
+  };
+
+  /** Re-apply current residual lerp (after paint may have touched cells). */
+  self.reapplyResidualTransition = () => {
+    if (!residualBlend?.size || !residualBlendTo) return;
+    self.tickResidualTransition(residualBlendU);
+  };
+
+  /**
+   * Snap every residual track to the new low (full grid, not only the blend
+   * map). Catches cells a lingering tip held out of the lerp / left dirty.
+   */
+  self.endResidualTransition = () => {
+    const to = residualBlendTo;
+    residualBlend = null;
+    residualBlendTo = null;
+    residualBlendU = 0;
+    if (!to) return;
+    for (let c = 0; c < cfg.COLS; c++) {
+      for (let r = 0; r < cfg.ROWS; r++) {
+        const el = grid.get(r, c);
+        if (!el || el.classList.contains("m-revealed")) continue;
+        // Any residual track (stamped or ambient-only with a glyph) → new low.
+        const hadStamp = el.style.getPropertyValue("--res-low")?.trim();
+        const glyph = getGlyph(el);
+        if (hadStamp || (glyph && glyph !== " ")) {
+          el.style.setProperty("--res-low", to);
+        }
+      }
+    }
   };
 
   self.repaintKeys = (keys, opts = {}) => {
@@ -331,6 +466,9 @@ function DomManager(...args) {
         colEl.removeAttribute("data-drop-id");
       }
     }
+
+    // Theme residual lerp wins over any mid-frame stamp attempts by old drops.
+    self.reapplyResidualTransition();
   };
 }
 

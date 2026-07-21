@@ -28,27 +28,29 @@ export function homepagePlay(player, scenes, opts = {}) {
   });
   const s = ctx.scenes;
 
-  const rolesAtMs = opts.rolesAtMs ?? 1_000;
+  // Opening: ambient rain only, then first roles reveal.
+  const rolesAtMs = opts.rolesAtMs ?? 3_000;
   const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
+  // Reveal scenes: rain covers columns for this long before storm finishes.
+  const revealRainLeadMs = opts.revealRainLeadMs ?? 3_000;
   const rolesStormSec = opts.rolesStormSec ?? 3;
   const emailStormSec = opts.emailStormSec ?? 3;
-  const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 4_000;
+  // After last reveal of a series (email / quote): hold full text before hide.
+  const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 6_000;
+  const quoteHoldMs = opts.quoteHoldMs ?? 6_000;
+  // After last hide of a series: empty screen before next text activates.
   const afterCardGoneMs =
     opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 3_000;
-  const quoteHoldMs = opts.quoteHoldMs ?? 5_000;
   const cardHideStormSec = opts.cardHideStormSec ?? 3;
   const quoteStormSec = opts.quoteStormSec ?? 3;
   const quoteHideStormSec = opts.quoteHideStormSec ?? 3;
+  // After quote hide + theme visual idle: optional extra gap.
   const restartGapMs = opts.restartGapMs ?? 0;
   // After hide-hover re-reveal, hold full text this long before hide restarts.
-  const hideLookHoldMs = opts.hideLookHoldMs ?? 5_000;
-  // Color blend after quote completes: ramp mixed drops, then pure next, commit.
-  const themeBlendSec = opts.themeBlendSec ?? 5;
-  const themeFullSec = opts.themeFullSec ?? 1.5;
-  // Ambient --col-low fade after commit (residual cells use --res-low).
-  const themeFadeSec = opts.themeFadeSec ?? 3;
-  // After email storm done (or hover-reveal email): flat-rate pool drain.
-  // Duration is derived from remaining firstPass / rate (see Rain.startDrainStorm).
+  const hideLookHoldMs = opts.hideLookHoldMs ?? 6_000;
+  // Color visual fade (~3s residual + debug) during post-quote-hide empty.
+  const themeBlendSec = opts.themeBlendSec ?? 3;
+  // One-time coverage drain after the *first* email reveal storm only.
   const coverageDrainRate = opts.coverageDrainRate ?? 10;
 
   // Thread wait target: completes now if idle, else on next theme commit.
@@ -80,9 +82,8 @@ export function homepagePlay(player, scenes, opts = {}) {
     onHover: "extend",
   });
 
-  // Coverage pool drain: after roles+email storms finished starting drops,
-  // or immediately if hover fully reveals email. Never before the card.
-  let coverageDrainStarted = false;
+  // --- One-shot initial coverage drain (first email only) ---
+  let initialCoverageDrainDone = false;
   let coverageDrainTimer = null;
   let rolesStormSeen = false;
   let emailStormSeen = false;
@@ -93,51 +94,37 @@ export function homepagePlay(player, scenes, opts = {}) {
     if (coverageDrainTimer != null) player.clear(coverageDrainTimer);
     coverageDrainTimer = null;
   };
-  const startCoverageDrain = () => {
-    if (coverageDrainStarted) return;
-    coverageDrainStarted = true;
+  const startInitialCoverageDrain = () => {
+    if (initialCoverageDrainDone) return;
+    initialCoverageDrainDone = true;
     const rain = state.rain;
     if (!rain?.startDrainStorm) return;
-    // Flat rate until firstPass empty (DropManager stops on empty too).
     const actualSec = rain.startDrainStorm(undefined, {
       rate: coverageDrainRate,
     });
     clearCoverageDrainTimer();
-    if (!(actualSec > 0)) return; // pool already empty
-    // Watchdog slightly past expected window if refunds stall completion.
+    if (!(actualSec > 0)) return;
     const watchMs = Math.max(Math.ceil(actualSec * 1000) + 500, 500);
     coverageDrainTimer = player.at(watchMs, () => {
       coverageDrainTimer = null;
       rain.stopDrainStorm?.();
     });
   };
-  const tryStartCoverageDrain = () => {
-    if (coverageDrainStarted) return;
+  const tryStartInitialCoverageDrain = () => {
+    if (initialCoverageDrainDone) return;
     if (emailHoverRevealed || (rolesStormDone && emailStormDone)) {
-      startCoverageDrain();
+      startInitialCoverageDrain();
     }
   };
-  // Mark card storms done so drain arms even if stormStart/Stop was missed
-  // (skip path, complete-before-storm, FIFO edge cases on mobile).
   const markRolesStormDone = () => {
     rolesStormSeen = true;
     rolesStormDone = true;
-    tryStartCoverageDrain();
+    tryStartInitialCoverageDrain();
   };
   const markEmailStormDone = () => {
     emailStormSeen = true;
     emailStormDone = true;
-    tryStartCoverageDrain();
-  };
-  const resetCoverageDrainArm = () => {
-    coverageDrainStarted = false;
-    rolesStormSeen = false;
-    emailStormSeen = false;
-    rolesStormDone = false;
-    emailStormDone = false;
-    emailHoverRevealed = false;
-    clearCoverageDrainTimer();
-    state.rain?.stopDrainStorm?.();
+    tryStartInitialCoverageDrain();
   };
   const offRolesStormStart = s.rolesReveal.on?.("stormStart", () => {
     rolesStormSeen = true;
@@ -146,7 +133,6 @@ export function homepagePlay(player, scenes, opts = {}) {
     emailStormSeen = true;
   });
   const offRolesStormStop = s.rolesReveal.on?.("stormStop", () => {
-    // Prefer stop after start; also accept stop when selection already empty.
     if (!rolesStormSeen && (s.rolesReveal.columnsSelected?.size ?? 0) > 0) {
       return;
     }
@@ -158,7 +144,6 @@ export function homepagePlay(player, scenes, opts = {}) {
     }
     markEmailStormDone();
   });
-  // Scene settled without a stormStop (e.g. rain covered cols first).
   const offRolesCompleted = s.rolesReveal.on?.("completed", () => {
     markRolesStormDone();
   });
@@ -166,32 +151,55 @@ export function homepagePlay(player, scenes, opts = {}) {
     markEmailStormDone();
   });
 
-  // After storm step: if skipped (no columns left), mark done so coverage
-  // drain is not stuck waiting for stormStart/stormStop.
-  const armStormOrSkip = (unit, scene, sec, onSkipped) => {
+  // Reveal: rain lead-in, then storm finishes coverage.
+  const armRevealStorm = (unit, scene, sec, onSkipped) => {
+    unit.onStart((t) => {
+      t.delay(revealRainLeadMs)
+        .storm(sec)
+        .call(() => {
+          if (scene?.stormEnabled) return;
+          if ((scene?.columnsSelected?.size ?? 0) > 0) return;
+          onSkipped?.();
+        });
+    });
+  };
+  // Hide: storm can start immediately (no rain lead required).
+  const armHideStorm = (unit, scene, sec) => {
     unit.onStart((t) => {
       t.storm(sec).call(() => {
         if (scene?.stormEnabled) return;
         if ((scene?.columnsSelected?.size ?? 0) > 0) return;
-        onSkipped?.();
       });
     });
   };
 
-  armStormOrSkip(roles, s.rolesReveal, rolesStormSec, markRolesStormDone);
-  armStormOrSkip(email, s.emailReveal, emailStormSec, markEmailStormDone);
-  armStormOrSkip(cardHide, s.cardHide, cardHideStormSec);
-  armStormOrSkip(quoteReveal, s.quoteReveal, quoteStormSec);
-  armStormOrSkip(quoteHide, s.quoteHide, quoteHideStormSec);
+  armRevealStorm(roles, s.rolesReveal, rolesStormSec, markRolesStormDone);
+  armRevealStorm(email, s.emailReveal, emailStormSec, markEmailStormDone);
+  armHideStorm(cardHide, s.cardHide, cardHideStormSec);
+  armRevealStorm(quoteReveal, s.quoteReveal, quoteStormSec);
+  armHideStorm(quoteHide, s.quoteHide, quoteHideStormSec);
+
+  // Quote hide activation: new color drops begin; coverage pool for next theme
+  // (no drain storm). Visual residual fade starts after hide completes.
+  quoteHide.onStart(() => {
+    const dir = state.themeDirector;
+    if (!dir) return;
+    const next = dir.peekNext();
+    dir.beginSpawnBlend(next);
+    const cols = state.config?.COLS;
+    state.rain?.resetCoverage?.({
+      cols: cols != null ? cols : undefined,
+      theme: dir.next ?? next,
+    });
+  });
 
   // Hover policies on units only (binder is hit-test).
   roles.onHover({ whileRevealing: "hasten" });
-  // Hover-reveal email: hasten + start coverage drain without waiting on storms.
   email.onHover((u) => {
     if (u.scene?.mode !== "revealing") return;
     emailHoverRevealed = true;
     u.hasten();
-    tryStartCoverageDrain();
+    tryStartInitialCoverageDrain();
   });
   quoteReveal.onHover({ whileRevealing: "hasten" });
 
@@ -240,18 +248,14 @@ export function homepagePlay(player, scenes, opts = {}) {
     return unbindHover;
   };
 
-  // Email starts 2s after roles (concurrent); main line waits email only.
-  // After email storm (or hover-reveal): flat-rate coverage-pool drain.
-  // Theme blend starts only after quote fully completes (hide done).
+  // 3s rain → roles (3s rain lead + storm) → email → hold 6s → hide → 3s empty
+  // → quote → hold 6s → hide (new color from activation) → 3s visual fade → loop.
   const show = thread(ctx, { name: "show" })
-    .call(resetCoverageDrainArm)
     .clearView()
     .delay(rolesAtMs)
     .spawn(roles)
     .delay(emailAfterRolesMs)
     .run(email)
-    // Email unit done ⇒ card is up; ensure coverage drain has started even if
-    // stormStop events were missed (common when rain already cleared cols).
     .call(() => {
       markRolesStormDone();
       markEmailStormDone();
@@ -274,19 +278,10 @@ export function homepagePlay(player, scenes, opts = {}) {
     .call(() => s.quoteReveal.stopStorm?.())
     .clear(s.cardHide)
     .run(quoteHide)
+    // Hide complete → 3s empty: residual tracks + debug fade; then old stops.
     .call(() => {
-      const dir = state.themeDirector;
-      dir?.beginNextTransition?.({
+      state.themeDirector?.startVisualTransition?.({
         blendSec: themeBlendSec,
-        fullSec: themeFullSec,
-        fadeSec: themeFadeSec,
-      });
-      // New-color first-pass: only next-theme drops drain the pool.
-      const nextTheme = dir?.next ?? dir?.active;
-      const cols = state.config?.COLS;
-      state.rain?.resetCoverage?.({
-        cols: cols != null ? cols : undefined,
-        theme: nextTheme,
       });
     })
     .wait(themeIdleGate)

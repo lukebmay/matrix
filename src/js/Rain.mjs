@@ -15,7 +15,8 @@ import state from "./State.mjs";
 // Ambient grid weather: cosine trough-start forever (period from config).
 // Coverage pool (firstPass): without replacement until every column has had a
 // drop of coverageTheme (initial green, then each color-change target).
-// Optional 1s drain storm after email: high-rate storm over remaining pool.
+// Optional one-shot drain storm after the *first* email reveal only: fill
+// residual background on every column. Later color changes use residual lerp.
 function Rain(...args) {
   if (!new.target) return new Rain(...args);
   const self = this;

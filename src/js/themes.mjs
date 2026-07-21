@@ -15,18 +15,9 @@
 //   hi    — drop tip (bright, still on-hue)
 //   link / linkHover — settled links (brighter; hover closest to white)
 
-/** Fixed open sequence, then random from THEME_POOL. */
-export const THEME_INTRO = [
-  "green",
-  "blue",
-  "purple",
-  "red",
-  "orange",
-  "yellow",
-  "green",
-];
+import state from "./State.mjs";
 
-/** All selectable themes (random pool after intro). */
+/** Starting order for the “one of each color” phase. */
 export const THEME_ORDER = [
   "green",
   "blue",
@@ -36,6 +27,20 @@ export const THEME_ORDER = [
   "yellow",
 ];
 
+/**
+ * Super-cycle: 3× green, then one cycle of each non-green color in THEME_ORDER
+ * (starting order), then repeat. Built once; ThemeDirector walks it forever.
+ */
+export function buildThemeCycle(order = THEME_ORDER) {
+  const rest = order.filter((n) => n !== "green");
+  return ["green", "green", "green", ...rest];
+}
+
+export const THEME_CYCLE = buildThemeCycle(THEME_ORDER);
+
+/** @deprecated use THEME_CYCLE — kept for older call sites. */
+export const THEME_INTRO = [...THEME_CYCLE];
+/** @deprecated pool no longer used for random picks. */
 export const THEME_POOL = [...THEME_ORDER];
 
 // hi/link: bright but keep a touch of hue (not pure white).
@@ -171,7 +176,6 @@ export function applyTheme(nameOrPalette, opts = {}) {
   root.style.setProperty("--col-hi", palette.hi);
   root.style.setProperty("--col-link", palette.link);
   root.style.setProperty("--col-link-hover", palette.linkHover);
-  // Default: snap debug with theme. Commit path skips and fades with --col-low.
   if (!skipDebug) applyDebugFromPalette(palette);
   return palette;
 }
@@ -187,31 +191,38 @@ export function themeAt(index, order = THEME_ORDER) {
   return order[i];
 }
 
-function pickRandomTheme(pool, exclude) {
-  const choices = pool.filter((n) => n !== exclude && THEMES[n]);
-  if (!choices.length) {
-    const any = pool.filter((n) => THEMES[n]);
-    return any[Math.floor(Math.random() * any.length)] ?? exclude;
-  }
-  return choices[Math.floor(Math.random() * choices.length)];
-}
-
 /**
- * Owns active palette + blended spawn of next-theme drops.
- * Intro sequence first, then random picks from the pool.
+ * Owns active palette + dual-color spawn + residual slug-track fade.
+ *
+ * Cycle: 3 greens, then one of each non-green color in THEME_ORDER, repeat.
+ *
+ * Color change timeline (homepage):
+ *  1) quote hide **activates** → beginSpawnBlend (new color drops may spawn;
+ *     old still allowed; coverage pool refilled for next; no drain storm)
+ *  2) quote hide **completes** → startVisualTransition (~3s): residual tracks
+ *     + debug HUD + ambient low lerp with the empty window
+ *  3) visual ends → commit: only new color; old stops; settled roles snap
+ *
+ * Column ownership: once a next-theme drop spawns on a column, old-theme
+ * drops may not spawn there for the rest of the blend.
  */
 export function ThemeDirector(opts = {}) {
-  const intro = opts.intro?.length ? [...opts.intro] : [...THEME_INTRO];
-  const pool = opts.pool?.length ? [...opts.pool] : [...THEME_POOL];
-  // introStep: index of the next intro theme (1 after start on intro[0]).
-  let introStep = 1;
-  let activeName = opts.start ?? intro[0] ?? "green";
+  const cycle =
+    opts.cycle?.length > 0
+      ? [...opts.cycle]
+      : buildThemeCycle(opts.order ?? THEME_ORDER);
+  // Index of the *next* theme in cycle (start already applied).
+  let cycleIndex = 1 % cycle.length;
+  let activeName = opts.start ?? cycle[0] ?? "green";
   let nextName = null;
-  let phase = "steady"; // steady | ramp | full
+  // steady | blend (spawn dual from hide start; visual may lag until empty)
+  let phase = "steady";
+  let visualActive = false;
   let blendElapsed = 0;
-  let blendSec = 5;
-  let fullSec = 1.5;
-  // Ambient --col-low + debug HUD fade (unstamped residual; cell text uses --res-low).
+  let blendSec = 3;
+  /** @type {Set<number>} */
+  const claimedByNext = new Set();
+  // Ambient --col-low + debug HUD lerp during visual fade.
   let fadeFromLow = null;
   let fadeToLow = null;
   let fadeFromHi = null;
@@ -220,9 +231,6 @@ export function ThemeDirector(opts = {}) {
   let fadeToMed = null;
   let fadeFromBody = null;
   let fadeToBody = null;
-  let fadeElapsed = 0;
-  let fadeSec = Math.max(0.2, Number(opts.fadeSec) || 3);
-  let fadingLow = false;
   const listeners = new Map();
 
   applyTheme(activeName);
@@ -250,51 +258,34 @@ export function ThemeDirector(opts = {}) {
     return () => set.delete(fn);
   };
 
+  const clearFades = () => {
+    fadeFromLow = null;
+    fadeToLow = null;
+    fadeFromHi = null;
+    fadeToHi = null;
+    fadeFromMed = null;
+    fadeToMed = null;
+    fadeFromBody = null;
+    fadeToBody = null;
+  };
+
   const commit = () => {
     if (!nextName) {
       phase = "steady";
+      visualActive = false;
       return;
     }
-    const fromPal = THEMES[activeName];
-    const toPal = THEMES[nextName];
     activeName = nextName;
     nextName = null;
     phase = "steady";
+    visualActive = false;
     blendElapsed = 0;
-    if (introStep < intro.length) introStep += 1;
+    claimedByNext.clear();
+    cycleIndex = (cycleIndex + 1) % cycle.length;
 
-    // Settled roles snap for the next card; ambient low + debug accents fade.
-    // Residual glyphs keep --res-low until a drop visits the cell.
-    applyTheme(activeName, { skipLow: true, skipDebug: true });
-    if (fromPal && toPal) {
-      const lowChanges = fromPal.low !== toPal.low;
-      const accentChanges =
-        fromPal.hi !== toPal.hi ||
-        fromPal.med !== toPal.med ||
-        (fromPal.body ?? fromPal.med) !== (toPal.body ?? toPal.med);
-      if (lowChanges || accentChanges) {
-        fadeFromLow = fromPal.low;
-        fadeToLow = toPal.low;
-        fadeFromHi = fromPal.hi;
-        fadeToHi = toPal.hi;
-        fadeFromMed = fromPal.med;
-        fadeToMed = toPal.med;
-        fadeFromBody = fromPal.body ?? fromPal.med;
-        fadeToBody = toPal.body ?? toPal.med;
-        fadeElapsed = 0;
-        fadingLow = true;
-        applyLowColor(fadeFromLow);
-        applyDebugColors(fadeFromHi, fadeFromMed, fadeFromBody);
-      } else {
-        applyLowColor(toPal.low);
-        applyDebugFromPalette(toPal);
-        fadingLow = false;
-      }
-    } else if (toPal) {
-      applyLowColor(toPal.low);
-      applyDebugFromPalette(toPal);
-      fadingLow = false;
-    }
+    applyTheme(activeName);
+    state.domManager?.endResidualTransition?.();
+    clearFades();
 
     emit("committed", { theme: activeName });
     emit("completed", { theme: activeName });
@@ -310,102 +301,177 @@ export function ThemeDirector(opts = {}) {
     get phase() {
       return phase;
     },
+    get visualActive() {
+      return visualActive;
+    },
+    get cycle() {
+      return cycle;
+    },
+    /** @deprecated alias of cycle */
     get intro() {
-      return intro;
+      return cycle;
     },
     get pool() {
-      return pool;
+      return THEME_ORDER;
     },
-    /** True while still walking THEME_INTRO. */
     get inIntro() {
-      return introStep < intro.length;
+      return false;
     },
     on,
 
     peekNext() {
-      if (introStep < intro.length) return intro[introStep];
-      return pickRandomTheme(pool, activeName);
+      return cycle[cycleIndex] ?? "green";
     },
 
-    /** Start ramping spawn toward `to` (default: next intro / random). */
-    beginTransition(toName, timing = {}) {
+    /**
+     * Quote-hide activation: allow next-theme drops alongside old.
+     * Does not start residual/debug fade (that is startVisualTransition).
+     */
+    beginSpawnBlend(toName) {
       const to = toName ?? self.peekNext();
       if (!to || !THEMES[to]) return self;
-      if (to === activeName && phase === "steady") return self;
+      if (phase !== "steady") return self;
 
       nextName = to;
-      blendSec = Math.max(0.2, Number(timing.blendSec) || 5);
-      fullSec = Math.max(0, Number(timing.fullSec) || 1.5);
-      if (timing.fadeSec != null) {
-        fadeSec = Math.max(0.2, Number(timing.fadeSec) || 3);
-      }
+      phase = "blend";
+      visualActive = false;
       blendElapsed = 0;
-      phase = "ramp";
+      claimedByNext.clear();
+      clearFades();
+
       emit("started", { from: activeName, to: nextName });
       return self;
+    },
+
+    /**
+     * Start residual slug-track + debug/ambient fade (post-hide empty window).
+     * Commits when blendSec elapses — old-color spawns stop at commit.
+     */
+    startVisualTransition(timing = {}) {
+      if (phase !== "blend" || !nextName) {
+        // Same-color / no spawn blend: still hold empty window then complete.
+        if (phase === "steady") {
+          nextName = activeName;
+          phase = "blend";
+          claimedByNext.clear();
+        } else {
+          return self;
+        }
+      }
+      if (visualActive) return self;
+
+      blendSec = Math.max(0.2, Number(timing.blendSec) || 3);
+      blendElapsed = 0;
+      visualActive = true;
+
+      const fromPal = THEMES[activeName];
+      const toPal = THEMES[nextName];
+      const colorChange = activeName !== nextName && fromPal && toPal;
+      if (colorChange) {
+        fadeFromLow = fromPal.low;
+        fadeToLow = toPal.low;
+        fadeFromHi = fromPal.hi;
+        fadeToHi = toPal.hi;
+        fadeFromMed = fromPal.med;
+        fadeToMed = toPal.med;
+        fadeFromBody = fromPal.body ?? fromPal.med;
+        fadeToBody = toPal.body ?? toPal.med;
+        applyLowColor(fadeFromLow);
+        applyDebugColors(fadeFromHi, fadeFromMed, fadeFromBody);
+        state.domManager?.beginResidualTransition?.(toPal.low, {
+          fromAmbient: fromPal.low,
+        });
+      } else {
+        clearFades();
+      }
+
+      emit("visual", { from: activeName, to: nextName, blendSec });
+      return self;
+    },
+
+    /**
+     * Combined: spawn blend + visual immediately (compat / tests).
+     * Prefer beginSpawnBlend + startVisualTransition on the homepage.
+     */
+    beginTransition(toName, timing = {}) {
+      self.beginSpawnBlend(toName);
+      return self.startVisualTransition(timing);
     },
 
     beginNextTransition(timing = {}) {
       return self.beginTransition(self.peekNext(), timing);
     },
 
-    /** Frame advance (seconds). Call from Matrix loop. */
+    /** Frame advance (seconds). Call from Matrix *after* paint so residuals stick. */
     tick(dtSec) {
       const dt = Number(dtSec);
       if (!(dt > 0)) return;
+      if (phase !== "blend" || !nextName || !visualActive) return;
 
-      // Ambient low + debug HUD fade continue after commit (independent of blend).
-      if (fadingLow && fadeFromLow && fadeToLow) {
-        fadeElapsed += dt;
-        const t = Math.min(1, fadeElapsed / fadeSec);
-        // Smoothstep so the mid-cross feels softer.
-        const u = t * t * (3 - 2 * t);
-        applyLowColor(lerpHex(fadeFromLow, fadeToLow, u));
-        if (fadeFromHi && fadeToHi) {
-          applyDebugColors(
-            lerpHex(fadeFromHi, fadeToHi, u),
-            lerpHex(fadeFromMed, fadeToMed, u),
-            lerpHex(fadeFromBody, fadeToBody, u),
-          );
-        }
-        if (t >= 1) fadingLow = false;
-      }
-
-      if (phase === "steady" || !nextName) return;
       blendElapsed += dt;
+      const t = Math.min(1, blendElapsed / blendSec);
+      // Smoothstep mid-cross (matches debug HUD feel).
+      const u = t * t * (3 - 2 * t);
 
-      if (phase === "ramp") {
-        if (blendElapsed >= blendSec) {
-          phase = "full";
-          blendElapsed = 0;
-          if (fullSec <= 0) commit();
-        }
-        return;
+      if (fadeFromLow && fadeToLow) {
+        applyLowColor(lerpHex(fadeFromLow, fadeToLow, u));
       }
+      if (fadeFromHi && fadeToHi) {
+        applyDebugColors(
+          lerpHex(fadeFromHi, fadeToHi, u),
+          lerpHex(fadeFromMed, fadeToMed, u),
+          lerpHex(fadeFromBody, fadeToBody, u),
+        );
+      }
+      state.domManager?.tickResidualTransition?.(u);
 
-      if (phase === "full" && blendElapsed >= fullSec) {
-        commit();
-      }
+      if (t >= 1) commit();
     },
 
     /**
-     * Theme name for a newly spawned drop.
-     * Ramp: ease-in probability of next (rare new color first, then mix).
+     * Theme for a new drop. Dual-color while blending; only next after commit.
+     * New color is eligible from spawn-blend start (quote hide activation).
      */
     pickSpawnTheme() {
       if (phase === "steady" || !nextName) return activeName;
-      if (phase === "full") return nextName;
+      // Before visual: allow a steady stream of new color (not only ease-in).
+      // During visual: ease toward next so old fades out of the mix.
+      if (!visualActive) {
+        return Math.random() < 0.45 ? nextName : activeName;
+      }
       const t = Math.min(1, blendElapsed / blendSec);
-      const p = t * t;
+      const p = 0.35 + 0.65 * (t * t);
       return Math.random() < p ? nextName : activeName;
+    },
+
+    /** Once next-theme hits a column, old-theme may not spawn there. */
+    canSpawnOn(col, themeName) {
+      if (phase !== "blend" || !nextName) return true;
+      if (themeName === nextName) return true;
+      if (themeName === activeName && claimedByNext.has(col)) return false;
+      return true;
+    },
+
+    notifySpawn(col, themeName) {
+      if (phase !== "blend" || !nextName) return;
+      if (themeName === nextName) claimedByNext.add(col);
+    },
+
+    /** True while residual/debug visual fade is running. */
+    isResidualTransitioning() {
+      return visualActive && phase === "blend";
+    },
+
+    /** Next-theme name during blend (for residual stamp policy). */
+    residualTargetTheme() {
+      return visualActive ? nextName : null;
     },
 
     paletteFor(name) {
       return THEMES[name] ?? THEMES[activeName];
     },
 
-    /** Call fn when idle; else once on next commit. Returns off.
-     * Immediate case is async so thread.wait can finish arming. */
+    /** Call fn when idle; else once on next commit. Returns off. */
     whenIdle(fn) {
       if (typeof fn !== "function") return () => {};
       if (phase === "steady") {
@@ -432,8 +498,10 @@ export function ThemeDirector(opts = {}) {
 export default {
   THEMES,
   THEME_ORDER,
+  THEME_CYCLE,
   THEME_INTRO,
   THEME_POOL,
+  buildThemeCycle,
   applyTheme,
   applyLowColor,
   applyDebugColors,

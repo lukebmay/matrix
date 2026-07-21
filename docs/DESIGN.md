@@ -303,49 +303,24 @@ bright for the reveal pulse.
 CSS owns the look; paint only toggles classes. Performance loves that more
 than three stacked 25px shadows on every static cell.
 
-**Cheap glow** (`html.m-cheap-glow`) is a *quality* gate for **any** slower
-device, not layout: narrow short-side ≤ 768, static low-power hints
-(`deviceMemory` ≤ 4, `hardwareConcurrency` ≤ 2, `prefers-reduced-motion`,
-`saveData`), or a **runtime ratchet** after several heavy frames (JS work
-≥ ~55% of the **live** target interval, **or** inter-frame wall gap high
-relative to the schedule). The frame scheduler may stretch the interval first;
-the ratchet only escalates after sustained pain. **Rain only:** trails drop
-`text-shadow` (fill only); tips get one short blur. **Settled** body text and
-links keep the **full** multi-blur neon always — when a tip or trail lands on
-a revealed static/link cell, CSS reasserts settled color + shadow so rain thrift
-does not dim or kill that glow. (Full neon still allows the tip-over-static
-bright pulse.) Capable devices keep full rain neon without the class. Ratchet
-only escalates (no mid-session flicker). Escalate toggles the **DOM class + a
-Matrix-local flag** only — `Configuration` is frozen, so the ratchet must not
-assign `cfg.IS_CHEAP_GLOW`.
+**Performance levels** (`high` / `medium` / `low`) centralize every quality
+lever in [`src/js/performance.mjs`](../src/js/performance.mjs). Call sites
+should read `activePerfSettings(state, cfg)` (or cfg fields baked at
+construction) instead of scattering mobile / cheap-glow / weather-scale checks.
 
-**Flat glow** (`html.m-flat-glow`) is the **second tier** when inter-render
-time stays high *after* cheap glow: rain tip/trail shadows go fully away
-(fill only). Settled body/links stay full neon; tip/trail over settled must not
-strip that glow (same reassert as cheap). Same triggers (heavy work / high gap /
-interval near `FRAME_DELAY_MAX`); during drop-budget climb, escalate sooner so
-thrifty rain paint applies early.
+| Level | When | Drops | Glow | Storms | Rain vs storm |
+| --- | --- | --- | --- | --- | --- |
+| **high** | capable desktop (default) | slow long (len ≤ 60% of max(R,C)); more concurrent; stack ok; clamp ~200ms | full tip + tail neon; tip may brighten settled | 30–100% of high rain speed; shortest window (1×) | **continues** through storms |
+| **medium** | narrow ≤768 or low-power hints, or ratchet | faster floor (20–100% of high span); len ≤ 50% min 5; clamp ~150ms | rain trails thrift; settled/link glow **fixed** under drops (`m-perf-med`) | 50–100%; window ×1.5 | **pauses**; resumes mid-curve |
+| **low** | further ratchet | faster still (40–100%); len ≤ 40% min 4; clamp ~150ms | rain tip/trail flat (`m-perf-low`); settled fixed under drops | 70–100%; window ×2.5 | **pauses**; resumes at trough |
 
-**Weather scale** rides the same gate (static `WEATHER_SCALE` =
-`IS_CHEAP_GLOW`, or the same frame ratchet). When on:
+Static gate: `detectInitialPerfLevel` (mobile or low-power → medium). Runtime
+ratchet only escalates (high → medium → low) after sustained heavy frames /
+high inter-render gap. Escalate updates `state.perfLevel` + HTML class —
+`Configuration` is frozen, so the ratchet must not mutate cfg.
 
-| Lever | Effect |
-| --- | --- |
-| Rain rate | **Same as capable** — mean `COLS / period` (no peak thin) |
-| Trail length | `DROP_LENGTH_*` × ~0.6, but never below **tip + 4 body** (length ≥ 5) |
-| Storm stack | Off — one live drop per column even during storms |
-| Storm window | **Same as capable** (homepage storm seconds; no extra stretch) |
-| Rain vs storm | Ambient rain **paused** while any storm is active |
-
-Shorter trails and no stack cut concurrent painted cells without starving the
-rain cadence or stretching reveal storms. Mid-session ratchet uses
-`state.weatherScale` / `state.allowStormStack` (shortens *new* drops if config
-still holds full lengths; disables stack). Capable desktops keep full lengths
-and stack-behind-leader until the ratchet says otherwise.
-
-Ambient rain still **pulses** (cosine trough-start) so the rate breathes
-above a floor of 1. Drop max speed is ~18 rows/s (~10% under the old 20) for
-slightly more readable tips on short mobile grids.
+Ambient rain still **pulses** (cosine trough-start) so the rate breathes above
+a floor of 1. Rain mean stays `COLS / period` on all levels.
 Plan: [adaptive-performance](../agents/plans/completed/adaptive-performance.md).
 
 ## Color themes
@@ -363,40 +338,44 @@ per-cell `--drop-*` so mid-air trails keep their color.
 | **link** | Settled links (brighter; more hue than pure white) |
 | **linkHover** | Link hover (closest to white, still tinted) |
 
-### Blend, not snap
+### Color change (spawn blend + visual fade)
 
-`ThemeDirector` owns the sequence. On **quote hide** the homepage starts a
-transition to the next theme:
+`ThemeDirector` owns the sequence:
 
-1. **Ramp** (~5s): spawn probability of the *next* color eases in (`t²`) —
-   first a few foreign tips, then a mix of old and new drops.
-2. **Full** (~1.5s): every new drop is the next color; residual old drops
-   finish falling in their baked palette.
-3. **Commit**: settled roles (`body` / `link` / …) snap for the next card.
-   Ambient `--col-low` **fades** over a few seconds (unstamped residual).
-4. **Residual glyphs** keep per-cell `--res-low` from the last drop that
-   painted them — they do **not** follow the ambient fade. A cell only
-   changes residual hue when a drop of another theme passes through.
+1. **Quote hide activates** → `beginSpawnBlend`: **new** color drops may spawn
+   alongside old; coverage pool **refills** for the next theme (**no** drain
+   storm). Once a next-theme drop lands on a column, old-theme drops may not
+   spawn on that column again.
+2. **Quote hide completes** → `startVisualTransition` (~3s empty window):
+   residual slug tracks (`--res-low`), ambient `--col-low`, and debug HUD
+   accents lerp to the next palette together. Paint must not stomp the lerp
+   (old-theme trails leave residual alone; theme tick runs after paint).
+3. **Commit** (end of 3s): settled roles snap; only the new color spawns;
+   residual blend ends.
 
-No global flash of the residual field: new color creeps in drop by drop,
-while the ambient default eases for cells never visited.
+**One-shot coverage drain storm:** after the **first** email reveal storm only,
+so every column gets residual background text. Never again after that.
 
-**Order:** fixed intro `green → blue → purple → red → orange → yellow →
-green`, then **random** picks from the pool (never same as active).
+**Order (repeat forever):** 3 cycles of **green**, then one cycle of each
+other color in `THEME_ORDER` (`blue → purple → red → orange → yellow`),
+then back to 3× green.
+
+### Hold / open timings (all performance levels)
+
+| Moment | Duration |
+| --- | --- |
+| Opening rain before first roles | **3s** |
+| Rain lead before reveal storm finishes a scene | **3s** |
+| After last reveal of a series (email / quote fully up) | **6s** full text before hide |
+| After last hide of a series (all text gone) | **3s** empty before next text |
+| Color residual + debug fade (after quote hide) | **3s** (same-color green still holds 3s) |
 
 ### Coverage pool (first-pass + color change)
 
-Rain keeps a **without-replacement** column pool (`firstPass`), same idea as
-the initial scene: pick only from remaining columns until every column has
-had a drop of the **coverage theme**. Rain *and* content storms both drain
-the pool when they spawn that theme (wrong-theme drops during a blend do not).
-
+Rain keeps a **without-replacement** column pool (`firstPass`): pick only from
+remaining columns until every column has had a drop of the **coverage theme**.
 On each color transition start the pool **refills** and `coverageTheme`
-becomes the next palette, so the field must be re-walked in the new color.
-
-After the **email storm finishes starting its drops** (or a hover fully
-reveals email), a **1s drain storm** on Rain targets whatever is left in the
-pool — initial green coverage and post-change re-coverage alike.
+becomes the next palette (ambient drain only — no storm).
 
 Cells use `overflow: visible` so bloom can spill into neighbors. The grid is
 **exact-fill**: `COLS`/`ROWS` from a target cell size, then

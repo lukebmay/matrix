@@ -15,7 +15,14 @@ import SceneManager from "./SceneManager.mjs";
 import ScenePlayer from "./ScenePlayer.mjs";
 import { homepagePlay } from "./play/homepage.mjs";
 import { resolveKiosk } from "./kiosk.mjs";
-import { applyTheme, THEMES, ThemeDirector, THEME_INTRO, THEME_POOL } from "./themes.mjs";
+import { applyTheme, THEMES, ThemeDirector } from "./themes.mjs";
+import {
+  applyPerfCss,
+  applyPerfToConfig,
+  detectInitialPerfLevel,
+  HIGH_STORM_DURATION_SEC,
+  stormDurationSeconds,
+} from "./performance.mjs";
 import state from "./State.mjs";
 import { VariableRateAccumulator } from "./util.mjs";
 import Grid from "./layout/Grid.mjs";
@@ -96,24 +103,17 @@ const MOBILE_COLS_MARGIN = 5;
 // Large displays: cap quote column window (≈ prior 3-way split line length).
 const QUOTE_WRAP_MAX_DESKTOP = 40;
 
-// Weather scale when quality is low or viewport is tight (fewer painted cells).
-// Length band multiplier; storm stack off. Rain rate matches capable defaults.
-const WEATHER_LENGTH_SCALE = 0.6;
-// Drop length includes tip: min body trail 4 + tip 1 → total length ≥ 5.
-const DROP_LENGTH_MIN_FLOOR = 5;
 // Ambient rain cosine period (seconds). Area under one period = COLS.
 // Trough (t=0) is RAIN_START_RATE; amplitude set so mean = COLS/T.
 const RAIN_PERIOD_SECONDS = 30;
 const RAIN_START_RATE = 1;
 
 /**
- * Static hints that multi-blur text-shadow is a bad idea on this client.
- * Incomplete on purpose — Matrix can still ratchet cheap-glow on after slow frames.
- * (Adaptive performance: capable devices keep full neon; others downgrade.)
+ * Static hints that full neon is a bad idea on this client.
+ * Incomplete on purpose — Matrix can still escalate perf level after slow frames.
  */
 function detectLowPowerClient() {
   if (typeof navigator === "undefined") return false;
-  // User asked for less motion / data — honor as cheaper paint.
   try {
     if (
       typeof matchMedia === "function" &&
@@ -126,10 +126,8 @@ function detectLowPowerClient() {
   }
   const conn = navigator.connection ?? navigator.mozConnection ?? navigator.webkitConnection;
   if (conn?.saveData) return true;
-  // deviceMemory is Chrome-ish (GiB, floored). ≤4 → older / constrained boxes.
   const mem = navigator.deviceMemory;
   if (typeof mem === "number" && mem > 0 && mem <= 4) return true;
-  // Dual-core (or unknown-as-1) machines still show up in the wild.
   const cores = navigator.hardwareConcurrency;
   if (typeof cores === "number" && cores > 0 && cores <= 2) return true;
   return false;
@@ -170,16 +168,8 @@ function Configuration(...args) {
   // Orientation-invariant: short side ≤ 768 catches phones in landscape too.
   self.IS_MOBILE = Math.min(viewWidth, viewHeight) <= MOBILE_MAX_WIDTH;
   self.IS_MOBILE_LANDSCAPE = self.IS_MOBILE && self.DISPLAY_MODE === "landscape";
-  // Cheap glow CSS: quality (any slow device), not layout. Narrow + low-power.
+  // Quality hints (not layout). Perf level owns glow/weather levers.
   self.IS_LOW_POWER = detectLowPowerClient();
-  self.IS_CHEAP_GLOW = self.IS_MOBILE || self.IS_LOW_POWER;
-  // Weather scale: same static gate; runtime ratchet can escalate via state.
-  // Shorter tails + no storm stack. Rain rate / storm windows match capable.
-  self.WEATHER_SCALE = self.IS_CHEAP_GLOW;
-  self.WEATHER_LENGTH_SCALE = WEATHER_LENGTH_SCALE;
-  self.ALLOW_STORM_STACK = !self.WEATHER_SCALE;
-  // Ambient rain off while any storm still has columns to cover (always).
-  self.PAUSE_RAIN_DURING_STORM = true;
   // Portrait + square mobile: full email L. Landscape: horizontal email only
   // (row budget is pad + roles + gap + 1 email line + pad).
   self.EMAIL_VERTICAL = self.IS_MOBILE ? !self.IS_MOBILE_LANDSCAPE : true;
@@ -242,43 +232,21 @@ function Configuration(...args) {
     ? Math.max(1, self.COLS - 2 * quoteSidePad)
     : Math.max(12, Math.min(QUOTE_WRAP_MAX_DESKTOP, self.COLS - 2 * quoteSidePad));
 
-  self.DROP_SPEED_MIN = 10;
-  // ~10% under prior 20 — slightly slower tips, easier to read on short grids.
-  self.DROP_SPEED_MAX = 20;
-  // Storm: upper 30% of the rain speed span (70–100%) so tips clear faster
-  // and free concurrency slots while storms still need columns.
-  const dropSpeedSpan = self.DROP_SPEED_MAX - self.DROP_SPEED_MIN;
-  self.STORM_DROP_SPEED_MIN = self.DROP_SPEED_MIN + 0.7 * dropSpeedSpan;
-  self.STORM_DROP_SPEED_MAX = self.DROP_SPEED_MAX;
+  // --- Performance level (high / medium / low) ---
+  // All drop speed, length, storm, rain-pause, and glow thrift settings are
+  // applied here via performance.mjs so call sites stay free of ad-hoc gates.
+  const initialPerf = detectInitialPerfLevel({
+    isMobile: self.IS_MOBILE,
+    isLowPower: self.IS_LOW_POWER,
+  });
+  applyPerfToConfig(self, initialPerf);
 
-  const threadAvgLength = self.ROWS * 0.4;
-  const threadLengthVariance = 0.5;
-  const lengthScale = self.WEATHER_SCALE ? WEATHER_LENGTH_SCALE : 1;
-  // Length = tip + body band. Floor keeps ≥4 body glyphs even on short
-  // mobile-landscape ROWS (weather scale used to floor at 2).
-  self.DROP_LENGTH_MIN = Math.max(
-    DROP_LENGTH_MIN_FLOOR,
-    Math.floor(threadAvgLength * (1 - threadLengthVariance) * lengthScale),
-  );
-  self.DROP_LENGTH_MAX = Math.max(
-    self.DROP_LENGTH_MIN + 1,
-    Math.floor(threadAvgLength * (1 + threadLengthVariance) * lengthScale),
-  );
-  self.DROP_LENGTH_MIN_FLOOR = DROP_LENGTH_MIN_FLOOR;
-
-  // Frame scheduler base target (ms). rAF-throttled; not setTimeout-after-work.
-  // Mobile/cheap: slower cadence — bottleneck is browser paint, not JS math.
-  // Desktop keeps a snappier base; adaptive may still stretch to FRAME_DELAY_MAX.
-  self.FRAME_DELAY = self.IS_MOBILE || self.IS_CHEAP_GLOW ? 75 : 45;
   // Adaptive ceiling when frame work spikes (prefer fewer frames over thrash).
-  // Keep the wide headroom — slow devices already stretch past a tighter cap.
   self.FRAME_DELAY_MAX = 180;
   // Max sim step (ms) for one tick after a hitch (paint-before-kill still ok).
   self.FRAME_DT_MAX_MS = 250;
   // Concurrent live-drop budget (DropManager): max starts at INITIAL (=COLS).
-  // As live drops grow, after 10 frames at each live count log drops + avg.
-  // Never clamp before MIN (12, or COLS if narrower); at/above MIN, clamp max
-  // to current live when 10-frame wall-gap avg ≥ 200ms. Fast path stays COLS.
+  // Clamp threshold is FRAME_AVG_CLAMP_MS from the active perf level.
   self.INITIAL_DROP_MAX = self.COLS;
   self.MIN_DROP_MAX = 12;
   // Aliases kept for older tests / overlays.
@@ -295,7 +263,7 @@ function Configuration(...args) {
   // Optional full page reload for multi-day wall runs; 0 = off.
   self.SOFT_RELOAD_MS = 0;
 
-  // Palette via ThemeDirector (intro then random; blend on quote hide).
+  // Palette via ThemeDirector (3× green then one of each color; blend on quote hide).
   const green = THEMES.green;
   self.LOW_COLOR = green.low;
   self.MED_COLOR = green.med;
@@ -306,13 +274,11 @@ function Configuration(...args) {
   self.RED_COLOR = "#bb2222";
 
   const htmlEl = document.getElementsByTagName("html")[0];
-  // Quality CSS (trails/tip/settled). Runtime may escalate via enableCheapGlow().
-  htmlEl.classList.toggle("m-cheap-glow", self.IS_CHEAP_GLOW);
-  state.themeDirector = ThemeDirector({
-    intro: THEME_INTRO,
-    pool: THEME_POOL,
-    start: "green",
-  });
+  // Quality CSS (m-perf-med / m-perf-low). Runtime may escalate via Matrix.
+  applyPerfCss(self.PERF_LEVEL, htmlEl);
+  state.perfLevel = self.PERF_LEVEL;
+  // Theme cycle: 3× green, then one of each remaining color, repeat.
+  state.themeDirector = ThemeDirector({ start: "green" });
   applyTheme(state.themeDirector.active);
   htmlEl.style.setProperty("--col-red", self.RED_COLOR);
   htmlEl.style.setProperty("--char-size", `${self.CHAR_SIZE}`);
@@ -434,7 +400,9 @@ function Configuration(...args) {
     });
 
     // Seed storm VRA; play-chain storm(seconds) rebuilds coverage duration.
-    const revealStorm = (colCount, durationSeconds = 3) => {
+    // Duration scale comes from perf level (high violent / med / low stretched).
+    const baseStormSec = stormDurationSeconds(self.PERF_LEVEL, HIGH_STORM_DURATION_SEC);
+    const revealStorm = (colCount, durationSeconds = baseStormSec) => {
       const units = Math.max(colCount, 1);
       const T = Math.max(durationSeconds, 0.001);
       return VariableRateAccumulator(
@@ -494,6 +462,10 @@ function Configuration(...args) {
     const sceneManager = SceneManager({ scenes: dropScenes });
 
     const scenePlayer = ScenePlayer();
+    // Hold / gap timings (all perf levels): 3s rain open; reveal rain lead then
+    // storm; 6s full text after last reveal; 3s empty after last hide; 3s color
+    // residual fade (see homepagePlay).
+    const stormSec = stormDurationSeconds(self.PERF_LEVEL, HIGH_STORM_DURATION_SEC);
     homepagePlay(
       scenePlayer,
       {
@@ -504,9 +476,18 @@ function Configuration(...args) {
         quoteHide,
       },
       {
+        rolesAtMs: 3_000,
+        revealRainLeadMs: 3_000,
+        rolesStormSec: stormSec,
+        emailStormSec: stormSec,
+        cardHideStormSec: stormSec,
+        quoteStormSec: stormSec,
+        quoteHideStormSec: stormSec,
+        cardHoldAfterEmailMs: 6_000,
+        quoteHoldMs: 6_000,
         afterCardGoneMs: 3_000,
-        quoteHoldMs: 5_000,
         restartGapMs: 0,
+        themeBlendSec: 3,
         completionWatchdogMs: self.COMPLETION_WATCHDOG_MS,
       },
     );

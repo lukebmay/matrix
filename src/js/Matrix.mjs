@@ -13,6 +13,14 @@ import DomGrid from "./DomGrid.mjs";
 import DomManager from "./DomManager.mjs";
 import DropManager from "./DropManager.mjs";
 import SceneManager from "./SceneManager.mjs";
+import {
+  applyPerfCss,
+  getPerfSettings,
+  nextPerfLevel,
+  PERF_HIGH,
+  PERF_LOW,
+  PERF_MEDIUM,
+} from "./performance.mjs";
 
 function Matrix(...args) {
   if (!new.target) return new Matrix(...args);
@@ -160,21 +168,17 @@ function Matrix(...args) {
   const maxDtSec = Math.max(0.05, (Number(cfg.FRAME_DT_MAX_MS) || 250) / 1000);
   // Live target ms between ticks (adaptive; starts at base).
   let targetInterval = baseInterval;
-  // Quality tiers (escalate only): full rain neon → cheap rain glow → flat
-  // rain (no tip/trail shadow). Settled static/link always keep full neon.
-  // During drop-budget climb, escalate quality sooner.
+  // Performance levels (escalate only): high → medium → low.
+  // Settings live in performance.mjs; DOM class + state.perfLevel update here.
+  // During drop-budget climb, escalate sooner.
   const slowFramesNeeded = 8;
   const slowFramesNeededClimb = 4;
-  const flatFramesNeeded = 6;
-  const flatFramesNeededClimb = 3;
   let slowFrameStreak = 0;
-  let flatFrameStreak = 0;
-  let cheapGlowOn = !!cfg.IS_CHEAP_GLOW;
-  let flatGlowOn = false;
-  // Seed runtime weather from frozen config (null state = follow cfg).
-  state.weatherScale = cfg.WEATHER_SCALE === true ? true : null;
-  state.allowStormStack = cfg.ALLOW_STORM_STACK === false ? false : null;
-  let weatherScaleOn = state.weatherScale === true;
+  let perfLevel = cfg.PERF_LEVEL ?? PERF_HIGH;
+  state.perfLevel = perfLevel;
+  state.allowStormStack = getPerfSettings(perfLevel).allowStormStack ? null : false;
+  // Compat for any leftover readers.
+  state.weatherScale = perfLevel === PERF_HIGH ? null : true;
 
   // --- Debug HUD (click top-left cell to toggle; fixed-layout table) ---
   const ROLL_N = 30;
@@ -248,13 +252,13 @@ function Matrix(...args) {
 
     const tbody = document.createElement("tbody");
     // label → column meaning (short, intuitive)
-    // fps: tick rate | gap: wall ms | work: JS ms | drop: live / max | glow
+    // fps: tick rate | gap: wall ms | work: JS ms | drop: live / max | perf
     const rows = [
       ["fps", "fps"],
       ["gap", "gap"],
       ["work", "work"],
       ["drop", "drop"],
-      ["glow", "glow"],
+      ["perf", "perf"],
     ];
     const cells = new Map();
     for (const [key, label] of rows) {
@@ -291,7 +295,8 @@ function Matrix(...args) {
     const avgGap = mean(rollGaps);
     const avgWork = mean(rollWork);
     const fps = avgGap > 0 ? 1000 / avgGap : 0;
-    const q = flatGlowOn ? "flat" : cheapGlowOn || weatherScaleOn ? "cheap" : "full";
+    const q =
+      perfLevel === PERF_LOW ? "low" : perfLevel === PERF_MEDIUM ? "med" : "high";
     const dm = state.dropManager;
     const live = dm?.getActiveDropCount?.() ?? 0;
     const cap = dm?.getMaxActiveDrops?.() ?? 0;
@@ -303,7 +308,7 @@ function Matrix(...args) {
     setRow("gap", n0(wallGapMs), n0(avgGap));
     setRow("work", n1(workMs), n1(workEma));
     setRow("drop", n0(live), n0(cap));
-    setRow("glow", t6(q), blank);
+    setRow("perf", t6(q), blank);
   };
 
   const setDebugOn = (on) => {
@@ -340,26 +345,17 @@ function Matrix(...args) {
     prevDestroy();
   };
 
-  const enableConstrainedQuality = () => {
-    if (!cheapGlowOn) {
-      cheapGlowOn = true;
-      document.documentElement.classList.add("m-cheap-glow");
-    }
-    if (!weatherScaleOn) {
-      weatherScaleOn = true;
-      // Runtime shorter new tails (cfg lengths were full); rain rate stays full.
-      state.weatherScale = true;
-      // No second drop on occupied storm cols (less concurrent paint).
-      state.allowStormStack = false;
-    }
-  };
-
-  // Second tier: kill rain tip/trail shadows (settled static still full neon).
-  const enableFlatGlow = () => {
-    enableConstrainedQuality();
-    if (flatGlowOn) return;
-    flatGlowOn = true;
-    document.documentElement.classList.add("m-flat-glow");
+  // Escalate one step (high→med→low). Updates CSS + state; never relaxes.
+  const escalatePerf = () => {
+    const next = nextPerfLevel(perfLevel);
+    if (!next) return false;
+    perfLevel = next;
+    state.perfLevel = next;
+    const s = getPerfSettings(next);
+    state.weatherScale = next === PERF_HIGH ? null : true;
+    state.allowStormStack = s.allowStormStack ? null : false;
+    applyPerfCss(next);
+    return true;
   };
 
   // Ease interval toward `next` (ms). Heavy work stretches; light eases down.
@@ -389,11 +385,12 @@ function Matrix(...args) {
     const elapsedSeconds = Math.min(maxDtSec, (wallGapMs / 1000) * scale);
     const workStart = nowMs();
 
-    // Advance → paint (incl. drops that completed this frame) → kill/spawn.
+    // Advance → paint → theme residual tick (after paint so lerp sticks) → spawn.
     // Kill-before-paint skipped tip rows on large dt; hide/reveal waited on rain.
-    state.themeDirector?.tick?.(elapsedSeconds);
     state.dropManager.advanceDrops(elapsedSeconds);
     state.domManager.updateDom();
+    // Residual slug-track + debug fade after paint (paint must not win over lerp).
+    state.themeDirector?.tick?.(elapsedSeconds);
     state.dropManager.settleDrops(elapsedSeconds);
 
     const workMs = nowMs() - workStart;
@@ -412,41 +409,28 @@ function Matrix(...args) {
       setTargetInterval(targetInterval - 5);
     }
 
-    // Quality ratchet (escalate only):
-    //   1) cheap glow + weather scale
-    //   2) flat rain glow (no tip/trail shadow; settled keeps full)
+    // Performance ratchet (escalate only): high → medium → low.
     // Budgets track the *current* target so intentional stretch is not punished.
-    // Keep a ~40ms work floor so a faster base cadence does not ratchet full
-    // neon away on moderate paint that still fits under the old 90ms budget.
-    // During drop-budget climb, escalate sooner so thrifty CSS applies early.
+    // During drop-budget climb, escalate sooner so thrifty settings apply early.
     const budgetPhase = state.dropManager?.getDropBudgetPhase?.() ?? "stable";
     const climbing = budgetPhase === "climb";
     const slowWorkMs = Math.max(40, Math.floor(targetInterval * 0.55));
     const slowGapMs = targetInterval + slowWorkMs;
-    // High inter-render gap: wall period well above the schedule we want.
     const highGap =
       wallGapMs >= Math.max(targetInterval * 1.15, baseInterval * 1.4);
-    // Interval already stretched hard → prefer zero-shadow paint next.
     const stretchedHard = targetInterval >= maxInterval * 0.85;
-    const heavyFrame = workMs >= slowWorkMs || wallGapMs >= slowGapMs || highGap;
+    const heavyFrame =
+      workMs >= slowWorkMs || wallGapMs >= slowGapMs || highGap || stretchedHard;
 
-    if (!cheapGlowOn || !weatherScaleOn) {
+    if (perfLevel !== PERF_LOW) {
       if (heavyFrame) {
         slowFrameStreak += 1;
         const need = climbing ? slowFramesNeededClimb : slowFramesNeeded;
-        if (slowFrameStreak >= need) enableConstrainedQuality();
+        if (slowFrameStreak >= need) {
+          if (escalatePerf()) slowFrameStreak = 0;
+        }
       } else {
         slowFrameStreak = 0;
-      }
-    } else if (!flatGlowOn) {
-      // After cheap: still heavy, or schedule stuck near max → strip shadows.
-      const stillHeavy = heavyFrame || stretchedHard;
-      if (stillHeavy) {
-        flatFrameStreak += 1;
-        const need = climbing ? flatFramesNeededClimb : flatFramesNeeded;
-        if (flatFrameStreak >= need) enableFlatGlow();
-      } else {
-        flatFrameStreak = 0;
       }
     }
 
