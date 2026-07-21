@@ -198,29 +198,74 @@ body {
  * Cheap glow (html.m-cheap-glow): quality thrift for rain only — any slower
  * device (narrow / low-power heuristic / runtime ratchet). Trails: no shadow.
  * Tips: one short blur. Settled static text + links keep full multi-blur neon
- * (painted once on reveal, not every tip step). Tip-over-static uses the tip
- * thrift (motion path). See agents/plans/completed/adaptive-performance.md.
+ * always — tip/trail classes on a revealed cell must not thrift or kill that
+ * glow (motion paint is rain-only). See adaptive-performance plan.
  */
 html.m-cheap-glow .m-drop {
   text-shadow: none;
 }
-html.m-cheap-glow .m-drop-tip,
-html.m-cheap-glow .m-static.m-revealed.m-drop-tip,
-html.m-cheap-glow .m-static.m-drop-tip {
+html.m-cheap-glow .m-drop-tip {
   text-shadow: 0 0 6px var(--drop-hi, var(--col-hi));
 }
-/* Settled body/link: leave base full-neon rules (no thrift override). */
+/* Settled under tip/trail: restore body neon (beats .m-drop / tip thrift). */
+html.m-cheap-glow .m-static.m-revealed.m-drop,
+html.m-cheap-glow .m-static.m-revealed.m-drop-tip {
+  color: var(--col-body, var(--col-med));
+  text-shadow:
+    0 0 1px #000,
+    0 0 2px #000,
+    0 0 10px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white),
+    0 0 18px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white);
+}
+html.m-cheap-glow .m-static.m-revealed.m-link.m-drop,
+html.m-cheap-glow .m-static.m-revealed.m-link.m-drop-tip {
+  color: var(--col-link);
+  text-shadow:
+    0 0 14px color-mix(in srgb, var(--col-link) 90%, white),
+    0 0 24px color-mix(in srgb, var(--col-link) 90%, white);
+}
+/* Hover still pulses even when a tip/trail class is present. */
+html.m-cheap-glow .m-static.m-revealed.m-link.m-link-hover {
+  z-index: 4;
+  color: var(--col-link-hover);
+  text-shadow:
+    0 0 25px var(--col-link-hover),
+    0 0 25px var(--col-link-hover),
+    0 0 5px var(--col-link);
+}
 
 /*
  * Flat glow (html.m-flat-glow): second tier after cheap when inter-render gaps
  * / frame work stay high. Rain tip/trail: no shadow. Settled static + links
- * still full neon (same as cheap). Tip-over-static stays thrifted with tips.
+ * still full neon; tip/trail over settled must not strip that glow.
  */
 html.m-flat-glow .m-drop,
-html.m-flat-glow .m-drop-tip,
-html.m-flat-glow .m-static.m-revealed.m-drop-tip,
-html.m-flat-glow .m-static.m-drop-tip {
+html.m-flat-glow .m-drop-tip {
   text-shadow: none;
+}
+html.m-flat-glow .m-static.m-revealed.m-drop,
+html.m-flat-glow .m-static.m-revealed.m-drop-tip {
+  color: var(--col-body, var(--col-med));
+  text-shadow:
+    0 0 1px #000,
+    0 0 2px #000,
+    0 0 10px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white),
+    0 0 18px color-mix(in srgb, var(--col-body, var(--col-med)) 90%, white);
+}
+html.m-flat-glow .m-static.m-revealed.m-link.m-drop,
+html.m-flat-glow .m-static.m-revealed.m-link.m-drop-tip {
+  color: var(--col-link);
+  text-shadow:
+    0 0 14px color-mix(in srgb, var(--col-link) 90%, white),
+    0 0 24px color-mix(in srgb, var(--col-link) 90%, white);
+}
+html.m-flat-glow .m-static.m-revealed.m-link.m-link-hover {
+  z-index: 4;
+  color: var(--col-link-hover);
+  text-shadow:
+    0 0 25px var(--col-link-hover),
+    0 0 25px var(--col-link-hover),
+    0 0 5px var(--col-link);
 }
 
 /*

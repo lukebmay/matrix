@@ -311,18 +311,20 @@ device, not layout: narrow short-side ≤ 768, static low-power hints
 relative to the schedule). The frame scheduler may stretch the interval first;
 the ratchet only escalates after sustained pain. **Rain only:** trails drop
 `text-shadow` (fill only); tips get one short blur. **Settled** body text and
-links keep the **full** multi-blur neon (once on reveal + rare trail-leave
-re-sync — not every tip step). Tip-over-static uses the tip thrift (motion
-path). Capable devices keep full rain neon without the class. Ratchet only
-escalates (no mid-session flicker). Escalate toggles the **DOM class + a
+links keep the **full** multi-blur neon always — when a tip or trail lands on
+a revealed static/link cell, CSS reasserts settled color + shadow so rain thrift
+does not dim or kill that glow. (Full neon still allows the tip-over-static
+bright pulse.) Capable devices keep full rain neon without the class. Ratchet
+only escalates (no mid-session flicker). Escalate toggles the **DOM class + a
 Matrix-local flag** only — `Configuration` is frozen, so the ratchet must not
 assign `cfg.IS_CHEAP_GLOW`.
 
 **Flat glow** (`html.m-flat-glow`) is the **second tier** when inter-render
 time stays high *after* cheap glow: rain tip/trail shadows go fully away
-(fill only). Settled body/links stay full neon (same policy as cheap). Same
-triggers (heavy work / high gap / interval near `FRAME_DELAY_MAX`); during
-drop-budget climb, escalate sooner so thrifty rain paint applies early.
+(fill only). Settled body/links stay full neon; tip/trail over settled must not
+strip that glow (same reassert as cheap). Same triggers (heavy work / high gap /
+interval near `FRAME_DELAY_MAX`); during drop-budget climb, escalate sooner so
+thrifty rain paint applies early.
 
 **Weather scale** rides the same gate (static `WEATHER_SCALE` =
 `IS_CHEAP_GLOW`, or the same frame ratchet). When on:

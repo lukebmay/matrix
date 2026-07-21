@@ -144,7 +144,8 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - `html.m-cheap-glow`: thrift **rain only** (trails none; tips short blur).
 - `html.m-flat-glow`: no rain tip/trail `text-shadow` (after cheap).
 - Settled static + links keep **full** multi-blur neon at both thrift tiers
-  (once-on-reveal paint). Tip-over-static stays thrifted (tip motion).
+  (once-on-reveal paint). Tip/trail over settled reasserts settled neon
+  under cheap/flat so rain thrift never dims card text.
 - Matrix escalate-only path: full rain → cheap rain (+ weather) → flat rain.
 - High inter-render gap / stretched interval / heavy work feed both tiers.
 - Drop-budget **ladder** uses a shorter streak so early samples favor thrifty
