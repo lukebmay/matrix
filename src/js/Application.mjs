@@ -85,11 +85,11 @@ function Application(...args) {
     // User/autopause pause owns the freeze: do not start/stop underneath it.
     if (matrix.isPaused) return;
     if (document.visibilityState === "visible") {
-      // Resume frame loop + re-arm remaining autopause budget.
+      // Auto-resume; start() clears the BACKGROUND PAUSED diagnostic badge.
       matrix.start();
     } else {
-      // Tab hide: stop loop and burn active autopause time into remaining.
-      matrix.stop();
+      // Tab hide: temporary stop + diagnostic badge (should never be visible).
+      matrix.pause("background");
     }
   });
 }

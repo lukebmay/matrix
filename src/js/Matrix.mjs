@@ -80,9 +80,51 @@ function Matrix(...args) {
     autopauseStartedAt = 0;
   };
 
+  // --- Paused HUD (same panel chrome as #m-debug; center of viewport) ---
+  // Reasons → label. "background" is temporary (auto-resume); others own freeze.
+  const PAUSE_LABELS = {
+    manual: "PAUSED",
+    auto: "AUTO-PAUSED",
+    background: "BACKGROUND PAUSED",
+  };
+  /** @type {null | "manual" | "auto" | "background"} */
+  let pauseReason = null;
+  let pausedEl = null;
+  const removePausedHud = () => {
+    if (pausedEl?.parentNode) pausedEl.parentNode.removeChild(pausedEl);
+    pausedEl = null;
+  };
+  const ensurePausedHud = () => {
+    if (pausedEl) return pausedEl;
+    const root = document.createElement("div");
+    root.id = "m-paused";
+    root.setAttribute("role", "status");
+    root.setAttribute("aria-live", "polite");
+    document.body.appendChild(root);
+    pausedEl = root;
+    return root;
+  };
+  /** @param {null | "manual" | "auto" | "background"} reason */
+  const setPausedHud = (reason) => {
+    if (!reason) {
+      removePausedHud();
+      return;
+    }
+    const root = ensurePausedHud();
+    const label = PAUSE_LABELS[reason] ?? PAUSE_LABELS.manual;
+    if (root.textContent !== label) root.textContent = label;
+  };
+  const clearBackgroundHud = () => {
+    if (pauseReason !== "background") return;
+    pauseReason = null;
+    setPausedHud(null);
+  };
+
   self.start = () => {
     // Idempotent: visibility can re-enter; never stack frame/autopause arms.
     if (self.isRunning) return;
+    // Leaving a temporary tab-hide freeze (auto-resume path).
+    clearBackgroundHud();
     self.isRunning = true;
     state.scenePlayer?.unpause?.();
     // Kiosk / AUTOPAUSE_TIME 0: never arm portfolio autopause.
@@ -92,6 +134,8 @@ function Matrix(...args) {
       if (autopauseRemainingMs <= 0) {
         self.isRunning = false;
         self.isPaused = true;
+        pauseReason = "auto";
+        setPausedHud("auto");
         state.scenePlayer?.pause?.();
         return;
       }
@@ -102,7 +146,7 @@ function Matrix(...args) {
         autopauseTimeoutId = null;
         autopauseStartedAt = 0;
         autopauseRemainingMs = 0;
-        self.pause();
+        self.pause("auto");
       }, budget);
     }
     then = nowMs() - pauseDifference;
@@ -120,6 +164,8 @@ function Matrix(...args) {
   };
   self.destroy = () => {
     self.stop();
+    pauseReason = null;
+    setPausedHud(null);
     state.scenePlayer?.cancel?.();
     state.scenePlayer = null;
     state.sceneManager = null;
@@ -128,8 +174,11 @@ function Matrix(...args) {
       s.cancel?.();
     }
   };
+
   self.unpause = () => {
     self.isPaused = false;
+    pauseReason = null;
+    setPausedHud(null);
     // After autopause fires remaining is 0; a fresh click must re-arm a full
     // window. Without this, start() arms setTimeout(pause, 0) and freezes again.
     if (cfg.AUTOPAUSE_TIME > 0 && autopauseRemainingMs <= 0) {
@@ -143,9 +192,33 @@ function Matrix(...args) {
     }
     self.start();
   };
-  self.pause = () => {
-    if (self.isPaused && !self.isRunning) return;
+  /**
+   * Freeze the matrix and show a reason badge.
+   * @param {"manual" | "auto" | "background"} [reason="manual"]
+   *   manual     — click-to-pause; owns freeze until unpause
+   *   auto       — autopause budget; owns freeze until unpause
+   *   background — tab hide; temporary stop, auto-resume on start()
+   */
+  self.pause = (reason = "manual") => {
+    if (reason === "background") {
+      // User/autopause freeze owns the session — do not clobber label or isPaused.
+      if (self.isPaused) return;
+      pauseReason = "background";
+      setPausedHud("background");
+      self.stop();
+      return;
+    }
+    // Always re-assert the badge when already frozen (double-fire, etc.).
+    if (self.isPaused && !self.isRunning) {
+      if (reason === "manual" || reason === "auto") {
+        pauseReason = reason;
+      }
+      setPausedHud(pauseReason || reason);
+      return;
+    }
     self.isPaused = true;
+    pauseReason = reason === "auto" ? "auto" : "manual";
+    setPausedHud(pauseReason);
     self.stop();
   };
 
@@ -342,6 +415,7 @@ function Matrix(...args) {
       cornerClickHandler = null;
     }
     setDebugOn(false);
+    setPausedHud(null);
     prevDestroy();
   };
 

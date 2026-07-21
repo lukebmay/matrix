@@ -324,14 +324,12 @@ html.m-flat-glow .m-static.m-revealed.m-link.m-link-hover {
 }
 
 /*
- * Debug HUD (toggle: click top-left cell). Fixed-layout table — columns do
- * not grow/shrink with value width. Monospace + tabular nums; no click steal.
- * Column widths sized for padded values (see Matrix n0/n1); no overflow clip.
+ * Overlay panels (debug HUD + paused badge). Shared chrome: fixed panel,
+ * theme-tied debug accents, monospace, no click steal.
  */
-#m-debug {
+#m-debug,
+#m-paused {
   position: fixed;
-  right: 10px;
-  bottom: 10px;
   z-index: 10000;
   margin: 0;
   padding: 6px 10px 8px;
@@ -347,6 +345,23 @@ html.m-flat-glow .m-static.m-revealed.m-link.m-link-hover {
   pointer-events: none;
   user-select: none;
   text-shadow: none;
+}
+/* Paused badge: center of viewport (click-to-pause / autopause). */
+#m-paused {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 14px;
+  letter-spacing: 0.2em;
+}
+/*
+ * Debug HUD (toggle: click top-left cell). Fixed-layout table — columns do
+ * not grow/shrink with value width. Monospace + tabular nums; no click steal.
+ * Column widths sized for padded values (see Matrix n0/n1); no overflow clip.
+ */
+#m-debug {
+  right: 10px;
+  bottom: 10px;
 }
 #m-debug .m-debug-table {
   table-layout: fixed;
