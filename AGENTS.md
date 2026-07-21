@@ -17,7 +17,7 @@ Submodule; deploys to `/home/luke/www/matrix/`. Root shell loads `./matrix/*`.
 ownership shipped; adaptive perf core shipped). Incomplete human WIP
 preserved on `refactor_incomplete-mid-refactor`.
 
-**Next:** Quote playlist interlude; deploy + job-search polish; optional
+**Next:** Saying playlist interlude; deploy + job-search polish; optional
 ASCII portrait / theme cull / canvas rain.
 
 **Design:** [docs/DESIGN.md](../docs/DESIGN.md).
@@ -92,7 +92,7 @@ ASCII portrait / theme cull / canvas rain.
 | [storm-stack-behind-leader.md](tasks/completed/storm-stack-behind-leader.md) | Done — multi-drop + maxSafeStackSpeed |
 | [kiosk-long-running.md](tasks/completed/kiosk-long-running.md) | Done — path `/kiosk` + detect; portfolio polite pauses gated |
 | [color-themes-cycle.md](tasks/completed/color-themes-cycle.md) | Done — multi-theme blend + coverage drain |
-| [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + quote wrap (narrow) |
+| [content-glyph-density.md](tasks/completed/content-glyph-density.md) | Done — content COLS/ROWS + saying wrap (narrow) |
 | [cheap-glow.md](tasks/completed/cheap-glow.md) | Done — `m-cheap-glow` (narrow + low-power + ratchet; freeze fix) |
 | [dirty-dom-paint.md](tasks/completed/dirty-dom-paint.md) | Done — tip enter / trail leave / role flip only |
 | [hot-path-allocations.md](tasks/completed/hot-path-allocations.md) | Done — glyph pools, forEachColumnDrops, free-col reuse |
@@ -142,7 +142,7 @@ SceneManager (logical grid) + DomManager (paint)
 
 ### Priorities
 
-1. Quote playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
+1. Saying playlist interlude ([plans/interactive-play.md](plans/interactive-play.md)).
 2. Deploy + job-search polish (includes root `/kiosk/` shell with matrix).
 3. Optional: ASCII portrait, frame-`dt` clock, canvas rain
    ([plans/completed/adaptive-performance.md](plans/completed/adaptive-performance.md) slice 7).

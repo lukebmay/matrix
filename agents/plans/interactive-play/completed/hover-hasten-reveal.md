@@ -78,4 +78,4 @@ See [plans/interactive-play.md](../../interactive-play.md).
 DomManager filled cells — listeners never attached. Defer via
 `player.attachHover()` after DomGrid+DomManager in `Matrix.mjs`.
 
-**Next:** quote playlist interlude; optional paint eyeball; deploy polish.
+**Next:** saying playlist interlude; optional paint eyeball; deploy polish.

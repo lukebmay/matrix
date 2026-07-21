@@ -89,7 +89,7 @@ Optional sugar over same primitives.
 
 ```js
 const ctx = scenePlayer.context({
-  scenes: { roles, email, cardHide, quote, quoteHide },
+  scenes: { roles, email, cardHide, saying, sayingHide },
 });
 
 ctx.on("appStart").delay(3_000).activate(ctx.scenes.roles);
@@ -106,7 +106,7 @@ ctx
 
 ```js
 const ctx = scenePlayer.context({
-  scenes: { roles, email, cardHide, quote, quoteHide },
+  scenes: { roles, email, cardHide, saying, sayingHide },
 });
 const s = ctx.scenes;
 
@@ -125,13 +125,13 @@ ctx
   .storm(3)
   .on(s.cardHide.events.completed)
   .delay(3_000)
-  .activate(s.quote)
+  .activate(s.saying)
   .storm(4)
-  .on(s.quote.events.completed)
+  .on(s.saying.events.completed)
   .delay(5_000)
-  .hide(s.quoteHide)
+  .hide(s.sayingHide)
   .storm(3)
-  .on(s.quoteHide.events.completed)
+  .on(s.sayingHide.events.completed)
   .loop();
 ```
 

@@ -56,7 +56,7 @@ Ship programmatic play authoring on ScenePlayer:
    then `startStorm()`. Rain still drains; do not invent stop-on-timer as
    primary semantics.
 4. **Homepage:** `src/js/play/homepage.mjs` — linear Style C matching
-   current card→quote pacing intent (delays from interim opts are fine
+   current card→saying pacing intent (delays from interim opts are fine
    defaults).
 5. **Configuration:** build scenes as today; call homepage play instead of
    `cardQuoteLoop`. Keep `Phase` / `cardQuoteLoop` exportable for tests or
@@ -81,7 +81,7 @@ Ship programmatic play authoring on ScenePlayer:
 ## Done when
 
 - [x] `player.context({ scenes })` returns chainable builder
-- [x] Style C homepage play runs card → quote → loop without
+- [x] Style C homepage play runs card → saying → loop without
       `cardQuoteLoop`
 - [x] Style A multi-chain works (at least smoke / minimal parallel chain)
 - [x] `.storm(n)` rebuilds VRA for coverage window and starts storm on

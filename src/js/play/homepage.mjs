@@ -8,7 +8,7 @@
  * No permission is granted to copy, modify, distribute, or use this code.
  */
 
-// Homepage play via Unit/Thread sugar (card → quote → loop).
+// Homepage play via Unit/Thread sugar (card → saying → loop).
 
 import {
   revealUnit,
@@ -35,23 +35,25 @@ export function homepagePlay(player, scenes, opts = {}) {
   const revealRainLeadMs = opts.revealRainLeadMs ?? 3_000;
   const rolesStormSec = opts.rolesStormSec ?? 3;
   const emailStormSec = opts.emailStormSec ?? 3;
-  // After last reveal of a series (email / quote): hold full text before hide.
+  // After last reveal of a series (email / saying): hold full text before hide.
   const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 6_000;
-  const quoteHoldMs = opts.quoteHoldMs ?? 6_000;
+  const sayingHoldMs = opts.sayingHoldMs ?? 6_000;
   // After last hide of a series: empty screen before next text activates.
   const afterCardGoneMs =
-    opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 3_000;
+    opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 2_000;
   const cardHideStormSec = opts.cardHideStormSec ?? 3;
-  const quoteStormSec = opts.quoteStormSec ?? 3;
-  const quoteHideStormSec = opts.quoteHideStormSec ?? 3;
-  // After quote hide + theme visual idle: optional extra gap.
+  const sayingStormSec = opts.sayingStormSec ?? 3;
+  const sayingHideStormSec = opts.sayingHideStormSec ?? 3;
+  // After saying hide + theme visual idle: optional extra gap.
   const restartGapMs = opts.restartGapMs ?? 0;
   // After hide-hover re-reveal, hold full text this long before hide restarts.
   const hideLookHoldMs = opts.hideLookHoldMs ?? 6_000;
-  // Color visual fade (~3s residual + debug) during post-quote-hide empty.
-  const themeBlendSec = opts.themeBlendSec ?? 3;
+  // Color visual fade (~2s residual + debug) during post-saying-hide empty.
+  const themeBlendSec = opts.themeBlendSec ?? 2;
   // One-time coverage drain after the *first* email reveal storm only.
   const coverageDrainRate = opts.coverageDrainRate ?? 10;
+  // Playlist: draw next saying before each reveal (pool primed in createScene).
+  const loadNextSaying = opts.loadNextSaying;
 
   // Thread wait target: completes now if idle, else on next theme commit.
   const themeIdleGate = {
@@ -69,16 +71,16 @@ export function homepagePlay(player, scenes, opts = {}) {
   const roles = revealUnit(ctx, s.rolesReveal, { name: "roles" });
   const email = revealUnit(ctx, s.emailReveal, { name: "email" });
   const cardHide = hideUnit(ctx, s.cardHide, { name: "cardHide" });
-  const quoteReveal = revealUnit(ctx, s.quoteReveal, { name: "quote" });
-  const quoteHide = hideUnit(ctx, s.quoteHide, { name: "quoteHide" });
+  const sayingReveal = revealUnit(ctx, s.sayingReveal, { name: "saying" });
+  const sayingHide = hideUnit(ctx, s.sayingHide, { name: "sayingHide" });
   const afterEmail = holdUnit(ctx, {
     name: "afterEmail",
     ms: cardHoldAfterEmailMs,
     onHover: "extend",
   });
-  const quoteHold = holdUnit(ctx, {
-    name: "quoteHold",
-    ms: quoteHoldMs,
+  const sayingHold = holdUnit(ctx, {
+    name: "sayingHold",
+    ms: sayingHoldMs,
     onHover: "extend",
   });
 
@@ -176,12 +178,12 @@ export function homepagePlay(player, scenes, opts = {}) {
   armRevealStorm(roles, s.rolesReveal, rolesStormSec, markRolesStormDone);
   armRevealStorm(email, s.emailReveal, emailStormSec, markEmailStormDone);
   armHideStorm(cardHide, s.cardHide, cardHideStormSec);
-  armRevealStorm(quoteReveal, s.quoteReveal, quoteStormSec);
-  armHideStorm(quoteHide, s.quoteHide, quoteHideStormSec);
+  armRevealStorm(sayingReveal, s.sayingReveal, sayingStormSec);
+  armHideStorm(sayingHide, s.sayingHide, sayingHideStormSec);
 
-  // Quote hide activation: new color drops begin; coverage pool for next theme
+  // Saying hide activation: new color drops begin; coverage pool for next theme
   // (no drain storm). Visual residual fade starts after hide completes.
-  quoteHide.onStart(() => {
+  sayingHide.onStart(() => {
     const dir = state.themeDirector;
     if (!dir) return;
     const next = dir.peekNext();
@@ -201,7 +203,7 @@ export function homepagePlay(player, scenes, opts = {}) {
     u.hasten();
     tryStartInitialCoverageDrain();
   });
-  quoteReveal.onHover({ whileRevealing: "hasten" });
+  sayingReveal.onHover({ whileRevealing: "hasten" });
 
   // Hide hover: re-reveal, look-hold, then restart hide (re-hover re-arms hold).
   const lookHoldTimers = new Map();
@@ -229,7 +231,7 @@ export function homepagePlay(player, scenes, opts = {}) {
   };
 
   cardHide.onHover(() => hideHoverReReveal(cardHide, [roles, email]));
-  quoteHide.onHover(() => hideHoverReReveal(quoteHide, [quoteReveal]));
+  sayingHide.onHover(() => hideHoverReReveal(sayingHide, [sayingReveal]));
 
   // Bind after DomGrid exists (Matrix creates grid after createScene).
   const hoverBindings = [
@@ -237,9 +239,9 @@ export function homepagePlay(player, scenes, opts = {}) {
     { unit: email, cells: s.emailReveal.points },
     { unit: afterEmail, cells: s.cardHide.points },
     { unit: cardHide, cells: s.cardHide.points },
-    { unit: quoteReveal, cells: s.quoteReveal.points },
-    { unit: quoteHold, cells: s.quoteReveal.points },
-    { unit: quoteHide, cells: s.quoteHide.points },
+    { unit: sayingReveal, cells: s.sayingReveal.points },
+    { unit: sayingHold, cells: s.sayingReveal.points },
+    { unit: sayingHide, cells: s.sayingHide.points },
   ];
   let unbindHover = () => {};
   player.attachHover = () => {
@@ -248,8 +250,12 @@ export function homepagePlay(player, scenes, opts = {}) {
     return unbindHover;
   };
 
-  // 3s rain → roles (3s rain lead + storm) → email → hold 6s → hide → 3s empty
-  // → quote → hold 6s → hide (new color from activation) → 3s visual fade → loop.
+  // First saying is primed in createScene; later loops draw the next pool item
+  // before reveal (without replacement until the pool is empty).
+  let sayingCycle = 0;
+
+  // 3s rain → roles (3s rain lead + storm) → email → hold 6s → hide → 2s empty
+  // → saying → hold 6s → hide (new color from activation) → 2s visual fade → loop.
   const show = thread(ctx, { name: "show" })
     .clearView()
     .delay(rolesAtMs)
@@ -265,20 +271,25 @@ export function homepagePlay(player, scenes, opts = {}) {
       s.rolesReveal.stopStorm?.();
       s.emailReveal.stopStorm?.();
     })
-    .clear(s.quoteHide)
-    .clear(s.quoteReveal)
+    .clear(s.sayingHide)
+    .clear(s.sayingReveal)
     .run(cardHide)
     .call(() => {
       if (s.rolesReveal.mode !== "hidden") s.rolesReveal.enterMode("hidden");
       if (s.emailReveal.mode !== "hidden") s.emailReveal.enterMode("hidden");
     })
     .delay(afterCardGoneMs)
-    .run(quoteReveal)
-    .run(quoteHold)
-    .call(() => s.quoteReveal.stopStorm?.())
+    .call(() => {
+      // Cycle 0 already has loadNextSaying() from createScene.
+      if (sayingCycle > 0) loadNextSaying?.();
+      sayingCycle += 1;
+    })
+    .run(sayingReveal)
+    .run(sayingHold)
+    .call(() => s.sayingReveal.stopStorm?.())
     .clear(s.cardHide)
-    .run(quoteHide)
-    // Hide complete → 3s empty: residual tracks + debug fade; then old stops.
+    .run(sayingHide)
+    // Hide complete → 2s empty: residual tracks + debug fade; then old stops.
     .call(() => {
       state.themeDirector?.startVisualTransition?.({
         blendSec: themeBlendSec,

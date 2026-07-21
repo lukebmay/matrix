@@ -33,7 +33,7 @@ desktops that alone can exceed the ~90ms frame budget.
    - Settled body/link: one soft glow; no multi `color-mix` stacks.
 4. Prefer a single class toggle over per-cell style hacks.
 5. Keep full neon CSS as the default without the class; ratchet only escalates.
-6. Build + eyeball: slow/narrow rain + card reveal + quote; capable desktop
+6. Build + eyeball: slow/narrow rain + card reveal + saying; capable desktop
    stays neon until/unless work spikes.
 
 ## Out of scope
@@ -46,7 +46,7 @@ desktops that alone can exceed the ~90ms frame budget.
 - [x] Trail/settled glow is cheaper when the quality class is on
 - [x] Full neon look without the class (capable devices)
 - [x] Slow desktops covered via heuristic and/or frame ratchet
-- [x] No stuck-bright / wrong settled colors on quote/card
+- [x] No stuck-bright / wrong settled colors on saying/card
 - [x] `scripts/build.sh` green
 
 ## Session note (2026-07-20)

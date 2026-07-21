@@ -69,6 +69,35 @@ function DropScene(...args) {
   self.mode = opts.mode && MODES.includes(opts.mode) ? opts.mode : "hidden";
   self.isComplete = false;
 
+  // Rebuild cellMap + columns from current self.points (shared-array swaps).
+  self.resyncGeometry = () => {
+    rebuildCellMap();
+    self.columns = new Set(self.points.map((p) => p.c));
+    self.columnsSelected = new Set();
+    return self;
+  };
+
+  /**
+   * Replace content points. Mutates self.points **in place** so scenes that
+   * share the same array (saying reveal/hide) stay linked.
+   * Caller should resyncGeometry() on any sibling that shares the array.
+   */
+  self.setPoints = (cells) => {
+    const next = Array.isArray(cells) ? cells : Array.from(cells ?? []);
+    self.points.length = 0;
+    for (const p of next) {
+      if (p == null) continue;
+      if (p.revealed === undefined) p.revealed = false;
+      self.points.push(p);
+    }
+    self.positions = self.points;
+    rebuildCellMap();
+    self.columns = new Set(self.points.map((p) => p.c));
+    self.columnsSelected = new Set();
+    self.isComplete = false;
+    return self;
+  };
+
   // Built only on enterMode(revealing|hiding); pre-activation drops ignored.
   self.modeEnteredAt = null;
 
@@ -389,154 +418,157 @@ export { DropScene, MODES, ACTIVE, STABLE };
 export default DropScene;
 
 // ===========================================================
-// Smoke tests: node src/js/DropScene.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href === import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
+    const assert = (await import("node:assert/strict")).default;
 
-  console.log("Running DropScene smoke tests...");
+    console.log("Running DropScene smoke tests...");
 
-  const pts = [
-    { r: 0, c: 1, char: "A", revealed: false },
-    { r: 0, c: 2, char: "B", revealed: false },
-  ];
-  const scene = DropScene({ name: "t", points: pts });
-  assert.equal(scene.mode, "hidden");
-  assert.equal(scene.isModeActive(), false);
-  assert.equal(scene.isActive, false);
+    const pts = [
+      { r: 0, c: 1, char: "A", revealed: false },
+      { r: 0, c: 2, char: "B", revealed: false },
+    ];
+    const scene = DropScene({ name: "t", points: pts });
+    assert.equal(scene.mode, "hidden");
+    assert.equal(scene.isModeActive(), false);
+    assert.equal(scene.isActive, false);
 
-  const events = [];
-  scene.on("started", (d) => events.push(["started", d.mode]));
-  scene.on("dropSelected", (d) => events.push(["dropSelected", d.col]));
-  scene.on("completed", (d) => events.push(["completed", d.mode]));
-  scene.on("modeEnter", (d) => events.push(["modeEnter", d.mode]));
+    const events = [];
+    scene.on("started", (d) => events.push(["started", d.mode]));
+    scene.on("dropSelected", (d) => events.push(["dropSelected", d.col]));
+    scene.on("completed", (d) => events.push(["completed", d.mode]));
+    scene.on("modeEnter", (d) => events.push(["modeEnter", d.mode]));
 
-  scene.enterMode("revealing");
-  assert.equal(scene.mode, "revealing");
-  assert.equal(scene.isActive, true);
-  assert.equal(scene.columnsSelected.size, 2);
-  assert.equal(scene.stormEnabled, false);
-  assert.ok(scene.modeEnteredAt != null);
-  assert.ok(events.some((e) => e[0] === "started"));
+    scene.enterMode("revealing");
+    assert.equal(scene.mode, "revealing");
+    assert.equal(scene.isActive, true);
+    assert.equal(scene.columnsSelected.size, 2);
+    assert.equal(scene.stormEnabled, false);
+    assert.ok(scene.modeEnteredAt != null);
+    assert.ok(events.some((e) => e[0] === "started"));
 
-  // Pre-activation drop does not affect (spawn before modeEnteredAt).
-  assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt - 1 }), false);
-  assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt + 1 }), true);
+    // Pre-activation drop does not affect (spawn before modeEnteredAt).
+    assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt - 1 }), false);
+    assert.equal(scene.dropAffects({ spawnAt: scene.modeEnteredAt + 1 }), true);
 
-  scene.onColumnSpawned(1);
-  assert.equal(scene.columnsSelected.size, 1);
-  assert.ok(events.some((e) => e[0] === "dropSelected" && e[1] === 1));
+    scene.onColumnSpawned(1);
+    assert.equal(scene.columnsSelected.size, 1);
+    assert.ok(events.some((e) => e[0] === "dropSelected" && e[1] === 1));
 
-  // Hide path resets full set.
-  scene.enterMode("hiding");
-  assert.equal(scene.mode, "hiding");
-  assert.equal(scene.columnsSelected.size, 2);
+    // Hide path resets full set.
+    scene.enterMode("hiding");
+    assert.equal(scene.mode, "hiding");
+    assert.equal(scene.columnsSelected.size, 2);
 
-  scene.onColumnSpawned(1);
-  scene.onColumnSpawned(2);
-  assert.equal(scene.columnsSelected.size, 0);
-  assert.equal(scene.mode, "hidden");
-  assert.ok(events.some((e) => e[0] === "completed" && e[1] === "hidden"));
+    scene.onColumnSpawned(1);
+    scene.onColumnSpawned(2);
+    assert.equal(scene.columnsSelected.size, 0);
+    assert.equal(scene.mode, "hidden");
+    assert.ok(events.some((e) => e[0] === "completed" && e[1] === "hidden"));
 
-  // Reveal path: selection empty then points → revealed
-  const pts2 = [
-    { r: 1, c: 3, char: "X", revealed: false },
-    { r: 1, c: 4, char: "Y", revealed: false },
-  ];
-  const rev = DropScene({ name: "rev", points: pts2 });
-  rev.enterMode("revealing");
-  rev.onColumnSpawned(3);
-  rev.onColumnSpawned(4);
-  assert.equal(rev.mode, "revealing");
-  rev.notifyPointRevealed(1, 3);
-  rev.notifyPointRevealed(1, 4);
-  assert.equal(rev.mode, "revealed");
+    // Reveal path: selection empty then points → revealed
+    const pts2 = [
+      { r: 1, c: 3, char: "X", revealed: false },
+      { r: 1, c: 4, char: "Y", revealed: false },
+    ];
+    const rev = DropScene({ name: "rev", points: pts2 });
+    rev.enterMode("revealing");
+    rev.onColumnSpawned(3);
+    rev.onColumnSpawned(4);
+    assert.equal(rev.mode, "revealing");
+    rev.notifyPointRevealed(1, 3);
+    rev.notifyPointRevealed(1, 4);
+    assert.equal(rev.mode, "revealed");
 
-  // Stable scenes ignore column spawn
-  const stable = DropScene({
-    name: "s",
-    points: [{ r: 0, c: 0, char: "Z", revealed: true }],
-    mode: "revealed",
-  });
-  assert.equal(stable.onColumnSpawned(0), false);
+    // Stable scenes ignore column spawn
+    const stable = DropScene({
+      name: "s",
+      points: [{ r: 0, c: 0, char: "Z", revealed: true }],
+      mode: "revealed",
+    });
+    assert.equal(stable.onColumnSpawned(0), false);
 
-  const fakePos = { cells: () => [{ r: 2, c: 5, char: "Q" }] };
-  const from = DropScene.from(fakePos, { name: "from" });
-  assert.equal(from.points.length, 1);
-  assert.ok(from.columns.has(5));
+    const fakePos = { cells: () => [{ r: 2, c: 5, char: "Q" }] };
+    const from = DropScene.from(fakePos, { name: "from" });
+    assert.equal(from.points.length, 1);
+    assert.ok(from.columns.has(5));
 
-  // Layout-group shape: cells() aggregate (F glue).
-  const groupLike = {
-    cells: () => [
-      { r: 0, c: 10, char: "L", href: "/x", lineId: 0 },
-      { r: 1, c: 10, char: "M", href: "/x", lineId: 1 },
-      { r: 1, c: 11, char: "N", href: "/x", lineId: 1 },
-    ],
-  };
-  const glued = DropScene.from(groupLike, { name: "roles-reveal", mode: "hidden" });
-  assert.equal(glued.mode, "hidden");
-  assert.equal(glued.points.length, 3);
-  assert.equal(glued.columns.size, 2);
-  assert.equal(glued.cellMap.size, 3);
-  assert.ok(glued.hasPoint(0, 10));
-  assert.equal(glued.getCell(0, 10)?.char, "L");
-  glued.enterMode("revealing");
-  assert.equal(glued.mode, "revealing");
-  assert.equal(glued.columnsSelected.size, 2);
-  glued.onColumnSpawned(10);
-  glued.onColumnSpawned(11);
-  assert.equal(glued.columnsSelected.size, 0);
-  assert.equal(glued.mode, "revealing"); // points not yet shown
-  for (const p of glued.points) glued.notifyPointRevealed(p.r, p.c);
-  assert.equal(glued.mode, "revealed");
-  assert.equal(glued.isComplete, true);
-  // Stable: no set drain
-  assert.equal(glued.onColumnSpawned(10), false);
+    // Layout-group shape: cells() aggregate (F glue).
+    const groupLike = {
+      cells: () => [
+        { r: 0, c: 10, char: "L", href: "/x", lineId: 0 },
+        { r: 1, c: 10, char: "M", href: "/x", lineId: 1 },
+        { r: 1, c: 11, char: "N", href: "/x", lineId: 1 },
+      ],
+    };
+    const glued = DropScene.from(groupLike, { name: "roles-reveal", mode: "hidden" });
+    assert.equal(glued.mode, "hidden");
+    assert.equal(glued.points.length, 3);
+    assert.equal(glued.columns.size, 2);
+    assert.equal(glued.cellMap.size, 3);
+    assert.ok(glued.hasPoint(0, 10));
+    assert.equal(glued.getCell(0, 10)?.char, "L");
+    glued.enterMode("revealing");
+    assert.equal(glued.mode, "revealing");
+    assert.equal(glued.columnsSelected.size, 2);
+    glued.onColumnSpawned(10);
+    glued.onColumnSpawned(11);
+    assert.equal(glued.columnsSelected.size, 0);
+    assert.equal(glued.mode, "revealing"); // points not yet shown
+    for (const p of glued.points) glued.notifyPointRevealed(p.r, p.c);
+    assert.equal(glued.mode, "revealed");
+    assert.equal(glued.isComplete, true);
+    // Stable: no set drain
+    assert.equal(glued.onColumnSpawned(10), false);
 
-  // forceSettle: stuck revealing → revealed + completed
-  const stuckRev = DropScene({
-    name: "stuck-rev",
-    points: [
-      { r: 0, c: 0, char: "S", revealed: false },
-      { r: 0, c: 1, char: "T", revealed: false },
-    ],
-  });
-  const forceEv = [];
-  stuckRev.on("completed", (d) => forceEv.push(d));
-  stuckRev.enterMode("revealing");
-  stuckRev.onColumnSpawned(0);
-  // Leave col 1 + points unfinished.
-  assert.equal(stuckRev.forceSettle(), true);
-  assert.equal(stuckRev.mode, "revealed");
-  assert.equal(stuckRev.isComplete, true);
-  assert.equal(stuckRev.columnsSelected.size, 0);
-  assert.ok(stuckRev.points.every((p) => p.revealed));
-  assert.equal(forceEv[0]?.mode, "revealed");
-  assert.equal(forceEv[0]?.forced, true);
-  assert.equal(stuckRev.forceSettle(), false, "stable: no re-force");
+    // forceSettle: stuck revealing → revealed + completed
+    const stuckRev = DropScene({
+      name: "stuck-rev",
+      points: [
+        { r: 0, c: 0, char: "S", revealed: false },
+        { r: 0, c: 1, char: "T", revealed: false },
+      ],
+    });
+    const forceEv = [];
+    stuckRev.on("completed", (d) => forceEv.push(d));
+    stuckRev.enterMode("revealing");
+    stuckRev.onColumnSpawned(0);
+    // Leave col 1 + points unfinished.
+    assert.equal(stuckRev.forceSettle(), true);
+    assert.equal(stuckRev.mode, "revealed");
+    assert.equal(stuckRev.isComplete, true);
+    assert.equal(stuckRev.columnsSelected.size, 0);
+    assert.ok(stuckRev.points.every((p) => p.revealed));
+    assert.equal(forceEv[0]?.mode, "revealed");
+    assert.equal(forceEv[0]?.forced, true);
+    assert.equal(stuckRev.forceSettle(), false, "stable: no re-force");
 
-  // forceSettle: stuck hiding → hidden + completed
-  const stuckHide = DropScene({
-    name: "stuck-hide",
-    points: [
-      { r: 1, c: 0, char: "H", revealed: true },
-      { r: 1, c: 1, char: "I", revealed: true },
-    ],
-  });
-  const hideEv = [];
-  stuckHide.on("completed", (d) => hideEv.push(d));
-  stuckHide.enterMode("hiding");
-  assert.equal(stuckHide.forceSettle(), true);
-  assert.equal(stuckHide.mode, "hidden");
-  assert.ok(stuckHide.points.every((p) => !p.revealed));
-  assert.equal(hideEv[0]?.mode, "hidden");
-  assert.equal(hideEv[0]?.forced, true);
+    // forceSettle: stuck hiding → hidden + completed
+    const stuckHide = DropScene({
+      name: "stuck-hide",
+      points: [
+        { r: 1, c: 0, char: "H", revealed: true },
+        { r: 1, c: 1, char: "I", revealed: true },
+      ],
+    });
+    const hideEv = [];
+    stuckHide.on("completed", (d) => hideEv.push(d));
+    stuckHide.enterMode("hiding");
+    assert.equal(stuckHide.forceSettle(), true);
+    assert.equal(stuckHide.mode, "hidden");
+    assert.ok(stuckHide.points.every((p) => !p.revealed));
+    assert.equal(hideEv[0]?.mode, "hidden");
+    assert.equal(hideEv[0]?.forced, true);
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`DropScene smoke tests passed! ${green("✓")}`);
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`DropScene smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

@@ -51,6 +51,6 @@ thresholds track the live interval.
 - Quality ratchet budgets use **live** target (not frozen base only).
 - Config: `FRAME_DELAY_MAX`, `FRAME_DT_MAX_MS` on frozen Configuration.
 - Docs: DESIGN frame-scheduler section; plan slice 6 complete; project next =
-  quote playlist / deploy.
+  saying playlist / deploy.
 - Files: `Matrix.mjs`, `Configuration.mjs`, `docs/DESIGN.md`, plan + project.
 - Next optional plan slice: canvas rain layer (slice 7).

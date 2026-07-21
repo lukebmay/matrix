@@ -57,53 +57,58 @@ export default Queue;
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  let q = Queue();
+    console.log("Running tests...");
 
-  assert.strictEqual(q.size(), 0);
-  assert.throws(() => q.remove(), /Cannot remove from empty queue/);
+    let q = Queue();
 
-  q.add("a");
-  assert.strictEqual(q.size(), 1);
-  assert.strictEqual(q.remove(), "a");
-  assert.strictEqual(q.size(), 0);
+    assert.strictEqual(q.size(), 0);
+    assert.throws(() => q.remove(), /Cannot remove from empty queue/);
 
-  q.add(["a", "b"]);
-  assert.strictEqual(q.remove(), "a");
-  assert.strictEqual(q.size(), 1);
+    q.add("a");
+    assert.strictEqual(q.size(), 1);
+    assert.strictEqual(q.remove(), "a");
+    assert.strictEqual(q.size(), 0);
 
-  q.add("c");
-  assert.strictEqual(q.remove(), "b");
-  assert.strictEqual(q.size(), 1);
+    q.add(["a", "b"]);
+    assert.strictEqual(q.remove(), "a");
+    assert.strictEqual(q.size(), 1);
 
-  q.add(["d", "e"]);
-  assert.strictEqual(q.remove(), "c");
-  assert.strictEqual(q.size(), 2);
+    q.add("c");
+    assert.strictEqual(q.remove(), "b");
+    assert.strictEqual(q.size(), 1);
 
-  q.clear();
-  assert.strictEqual(q.size(), 0);
-  assert.throws(() => q.remove(), /Cannot remove from empty queue/);
+    q.add(["d", "e"]);
+    assert.strictEqual(q.remove(), "c");
+    assert.strictEqual(q.size(), 2);
 
-  // Test specific item removal
-  q.add(["a", "b", "c", "d", "e"]);
-  assert.strictEqual(q.remove("b"), "b");
-  assert.strictEqual(q.remove(), "a");
-  assert.strictEqual(q.remove("e"), "e");
-  assert.strictEqual(q.size(), 2);
+    q.clear();
+    assert.strictEqual(q.size(), 0);
+    assert.throws(() => q.remove(), /Cannot remove from empty queue/);
 
-  // Test removing non-existent item + duplicates (with explicit clear)
-  q.clear();
-  q.add(["a", "b", "c", "b", "e"]);
+    // Test specific item removal
+    q.add(["a", "b", "c", "d", "e"]);
+    assert.strictEqual(q.remove("b"), "b");
+    assert.strictEqual(q.remove(), "a");
+    assert.strictEqual(q.remove("e"), "e");
+    assert.strictEqual(q.size(), 2);
 
-  assert.strictEqual(q.size(), 5);
-  assert.strictEqual(q.remove("b"), "b");
-  assert.strictEqual(q.remove("foo"), undefined);
-  assert.strictEqual(q.size(), 4);
+    // Test removing non-existent item + duplicates (with explicit clear)
+    q.clear();
+    q.add(["a", "b", "c", "b", "e"]);
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+    assert.strictEqual(q.size(), 5);
+    assert.strictEqual(q.remove("b"), "b");
+    assert.strictEqual(q.remove("foo"), undefined);
+    assert.strictEqual(q.size(), 4);
+
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

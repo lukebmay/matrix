@@ -51,7 +51,7 @@ The bug that launched a thousand last-column lags:
 
 A rain drop can **occupy** a column before a content scene activates. That
 drop never counted for reveal (`dropAffects` is false — it was born too
-early). The column looks “busy,” so rain waits, storm waits, and the quote’s
+early). The column looks “busy,” so rain waits, storm waits, and the saying’s
 last letter sits in purgatory for a second while a tourist finishes falling.
 
 **Rule:** occupation ≠ coverage. Coverage is “a post-activation spawn claimed
@@ -274,7 +274,7 @@ Old DomManager link `mouseover` force-tipped incomplete lines — a partial
 
 Binder (`play/hover.mjs`) maps content cells → `unit.handleHover()`.
 Hide abort must not emit `completed` or the parent thread jumps to the
-quote. Shared card points mean hide re-reveal force-shows roles **and**
+saying. Shared card points mean hide re-reveal force-shows roles **and**
 email before restarting `cardHide`.
 
 ---
@@ -282,7 +282,7 @@ email before restarting `cardHide`.
 ## Layout without a layout engine
 
 `layout/` is anchors, groups, text lines, and a small solver — enough to pin
-roles top-right, email bottom-left, quote center, without importing a UI
+roles top-right, email bottom-left, saying center, without importing a UI
 framework into a Matrix homage. Cells from positionables become DropScene
 points. One geometry, two consumers (paint + weather).
 
@@ -342,15 +342,15 @@ per-cell `--drop-*` so mid-air trails keep their color.
 
 `ThemeDirector` owns the sequence:
 
-1. **Quote hide activates** → `beginSpawnBlend`: **new** color drops may spawn
+1. **Saying hide activates** → `beginSpawnBlend`: **new** color drops may spawn
    alongside old; coverage pool **refills** for the next theme (**no** drain
    storm). Once a next-theme drop lands on a column, old-theme drops may not
    spawn on that column again.
-2. **Quote hide completes** → `startVisualTransition` (~3s empty window):
+2. **Saying hide completes** → `startVisualTransition` (~2s empty window):
    residual slug tracks (`--res-low`), ambient `--col-low`, and debug HUD
    accents lerp to the next palette together. Paint must not stomp the lerp
    (old-theme trails leave residual alone; theme tick runs after paint).
-3. **Commit** (end of 3s): settled roles snap; only the new color spawns;
+3. **Commit** (end of empty window): settled roles snap; only the new color spawns;
    residual blend ends.
 
 **One-shot coverage drain storm:** after the **first** email reveal storm only,
@@ -366,9 +366,9 @@ then back to 3× green.
 | --- | --- |
 | Opening rain before first roles | **3s** |
 | Rain lead before reveal storm finishes a scene | **3s** |
-| After last reveal of a series (email / quote fully up) | **6s** full text before hide |
-| After last hide of a series (all text gone) | **3s** empty before next text |
-| Color residual + debug fade (after quote hide) | **3s** (same-color green still holds 3s) |
+| After last reveal of a series (email / saying fully up) | **6s** full text before hide |
+| After last hide of a series (all text gone) | **2s** empty before next text |
+| Color residual + debug fade (after saying hide) | **2s** (same-color green still holds 2s) |
 
 ### Coverage pool (first-pass + color change)
 
@@ -390,7 +390,7 @@ glow may clip slightly at the viewport; immersion beats a padded frame.
 | Face | Source | Role |
 | --- | --- | --- |
 | **Matrix Code** | [Rezmason/matrix](https://github.com/Rezmason/matrix) (MIT) | Rain noise + non-settled cells |
-| **Ubuntu Sans Mono Bold** | Canonical (Ubuntu Font Licence) | Settled card / quote / email |
+| **Ubuntu Sans Mono Bold** | Canonical (Ubuntu Font Licence) | Settled card / saying / email |
 | **Courier Prime** | fallback only | Stack safety |
 
 Classic film rain is mostly katakana (plus a handful of Latin/symbols) from

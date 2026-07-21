@@ -687,416 +687,418 @@ export default {
 };
 
 // ===========================================================
-// Smoke tests: node src/js/play/runtime.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href ===
-    import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
-  const { ScenePlayer } = await import("../ScenePlayer.mjs");
-  const { DropScene } = await import("../DropScene.mjs");
+    const assert = (await import("node:assert/strict")).default;
+    const { ScenePlayer } = await import("../ScenePlayer.mjs");
+    const { DropScene } = await import("../DropScene.mjs");
 
-  console.log("Running play runtime smoke tests...");
+    console.log("Running play runtime smoke tests...");
 
-  const mkScene = (name, cols = [0, 1]) =>
-    DropScene({
-      name,
-      points: cols.map((c) => ({ r: 0, c, char: "X", revealed: false })),
-    });
+    const mkScene = (name, cols = [0, 1]) =>
+      DropScene({
+        name,
+        points: cols.map((c) => ({ r: 0, c, char: "X", revealed: false })),
+      });
 
-  const settleReveal = (sc) => {
-    for (const c of [...sc.columns]) sc.onColumnSpawned(c);
-    for (const p of sc.points) sc.notifyPointRevealed(p.r, p.c);
-  };
+    const settleReveal = (sc) => {
+      for (const c of [...sc.columns]) sc.onColumnSpawned(c);
+      for (const p of sc.points) sc.notifyPointRevealed(p.r, p.c);
+    };
 
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // --- chain advance: run(a).run(b) ---
-  {
-    const a = mkScene("a");
-    const b = mkScene("b");
-    const player = ScenePlayer();
-    const ctx = player.context({
-      scenes: { a, b },
-      completionWatchdogMs: 0,
-    });
+    // --- chain advance: run(a).run(b) ---
+    {
+      const a = mkScene("a");
+      const b = mkScene("b");
+      const player = ScenePlayer();
+      const ctx = player.context({
+        scenes: { a, b },
+        completionWatchdogMs: 0,
+      });
 
-    const ua = revealUnit(ctx, a, { name: "a" });
-    const ub = revealUnit(ctx, b, { name: "b" });
-    const order = [];
-    ua.on("start", () => order.push("a-start"));
-    ua.on("completed", () => order.push("a-done"));
-    ub.on("start", () => order.push("b-start"));
-    ub.on("completed", () => order.push("b-done"));
+      const ua = revealUnit(ctx, a, { name: "a" });
+      const ub = revealUnit(ctx, b, { name: "b" });
+      const order = [];
+      ua.on("start", () => order.push("a-start"));
+      ua.on("completed", () => order.push("a-done"));
+      ub.on("start", () => order.push("b-start"));
+      ub.on("completed", () => order.push("b-done"));
 
-    const t = thread(ctx, { name: "chain" }).run(ua).run(ub);
-    let threadDone = false;
-    t.on("completed", () => {
-      threadDone = true;
-    });
-    t.start();
+      const t = thread(ctx, { name: "chain" }).run(ua).run(ub);
+      let threadDone = false;
+      t.on("completed", () => {
+        threadDone = true;
+      });
+      t.start();
 
-    assert.equal(a.mode, "revealing");
-    assert.equal(b.mode, "hidden");
-    settleReveal(a);
-    assert.equal(a.mode, "revealed");
-    await sleep(5);
-    assert.equal(b.mode, "revealing", "b starts after a completed");
-    settleReveal(b);
-    await sleep(5);
-    assert.equal(threadDone, true);
-    assert.deepEqual(order, ["a-start", "a-done", "b-start", "b-done"]);
-    player.cancel();
-  }
+      assert.equal(a.mode, "revealing");
+      assert.equal(b.mode, "hidden");
+      settleReveal(a);
+      assert.equal(a.mode, "revealed");
+      await sleep(5);
+      assert.equal(b.mode, "revealing", "b starts after a completed");
+      settleReveal(b);
+      await sleep(5);
+      assert.equal(threadDone, true);
+      assert.deepEqual(order, ["a-start", "a-done", "b-start", "b-done"]);
+      player.cancel();
+    }
 
-  // --- restart without double-complete ---
-  {
-    const sc = mkScene("r");
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+    // --- restart without double-complete ---
+    {
+      const sc = mkScene("r");
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
 
-    const u = revealUnit(ctx, sc, { name: "r" });
-    let advances = 0;
-    const t = thread(ctx).run(u).call(() => {
-      advances += 1;
-    });
-    t.start();
-    assert.equal(sc.mode, "revealing");
+      const u = revealUnit(ctx, sc, { name: "r" });
+      let advances = 0;
+      const t = thread(ctx).run(u).call(() => {
+        advances += 1;
+      });
+      t.start();
+      assert.equal(sc.mode, "revealing");
 
-    // Restart mid-reveal: must not emit completed for aborted run.
-    u.restart();
-    assert.equal(sc.mode, "revealing");
-    assert.equal(advances, 0, "no advance on restart");
+      // Restart mid-reveal: must not emit completed for aborted run.
+      u.restart();
+      assert.equal(sc.mode, "revealing");
+      assert.equal(advances, 0, "no advance on restart");
 
-    settleReveal(sc);
-    await sleep(5);
-    assert.equal(advances, 1, "exactly one advance after real complete");
+      settleReveal(sc);
+      await sleep(5);
+      assert.equal(advances, 1, "exactly one advance after real complete");
 
-    // Stale: complete again should not re-fire parent (already advanced)
-    // Parent already moved past run; only one advance.
-    player.cancel();
-  }
+      // Stale: complete again should not re-fire parent (already advanced)
+      // Parent already moved past run; only one advance.
+      player.cancel();
+    }
 
-  // --- stop disposes waits (no listener leak / no fire) ---
-  {
-    const sc = mkScene("stop");
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+    // --- stop disposes waits (no listener leak / no fire) ---
+    {
+      const sc = mkScene("stop");
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
 
-    const u = revealUnit(ctx, sc, { name: "stop" });
-    let advanced = false;
-    const t = thread(ctx).run(u).call(() => {
-      advanced = true;
-    });
-    t.start();
-    t.stop();
-    settleReveal(sc);
-    await sleep(10);
-    assert.equal(advanced, false, "stop: parent must not advance");
-    player.cancel();
-  }
-
-  // --- ctx cancel disposes ---
-  {
-    const sc = mkScene("ctxc");
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
-
-    const u = revealUnit(ctx, sc);
-    let bad = false;
-    thread(ctx).run(u).call(() => {
-      bad = true;
-    }).start();
-    ctx.cancel();
-    settleReveal(sc);
-    await sleep(10);
-    assert.equal(bad, false, "ctx.cancel disposes waits");
-    player.cancel();
-  }
-
-  // --- loop gen ---
-  {
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
-
-    let cycles = 0;
-    const t = thread(ctx, { name: "loop" })
-      .call(() => {
-        cycles += 1;
-      })
-      .delay(15)
-      .loop();
-    t.start();
-    const gen1 = t.gen;
-    await sleep(40);
-    assert.ok(cycles >= 2, `loop ran multiple cycles (got ${cycles})`);
-    assert.ok(t.gen > gen1, "loop bumps gen");
-    t.stop();
-    const stoppedAt = cycles;
-    await sleep(30);
-    assert.equal(cycles, stoppedAt, "stop ends loop");
-    player.cancel();
-  }
-
-  // --- delay pause ---
-  {
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
-
-    let fired = false;
-    const t = thread(ctx).delay(40).call(() => {
-      fired = true;
-    });
-    t.start();
-    player.pause();
-    await sleep(60);
-    assert.equal(fired, false, "paused delay");
-    player.unpause();
-    await sleep(50);
-    assert.equal(fired, true, "unpause fires delay");
-    player.cancel();
-  }
-
-  // --- holdUnit timer ---
-  {
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
-
-    let done = false;
-    const h = holdUnit(ctx, { name: "h", ms: 25 });
-    h.on("completed", () => {
-      done = true;
-    });
-    h.start();
-    await sleep(10);
-    assert.equal(done, false);
-    await sleep(30);
-    assert.equal(done, true, "hold completes");
-    player.cancel();
-  }
-
-  // --- hold rearm (extend) ---
-  {
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
-
-    let done = false;
-    const h = holdUnit(ctx, { name: "ext", ms: 30, onHover: "extend" });
-    h.on("completed", () => {
-      done = true;
-    });
-    h.start();
-    await sleep(20);
-    h.rearm(40);
-    await sleep(25);
-    assert.equal(done, false, "rearm extends");
-    await sleep(30);
-    assert.equal(done, true);
-    player.cancel();
-  }
-
-  // --- hideUnit + storm onStart ---
-  {
-    const sc = mkScene("hide", [0, 1]);
-    for (const p of sc.points) p.revealed = true;
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
-
-    const u = hideUnit(ctx, sc, { name: "hide" });
-    u.onStart((side) => side.storm(1));
-    let done = false;
-    u.on("completed", () => {
-      done = true;
-    });
-    u.start();
-    assert.equal(sc.mode, "hiding");
-    assert.equal(sc.stormEnabled, true, "storm onStart");
-    for (const c of [...sc.columns]) sc.onColumnSpawned(c);
-    for (const p of sc.points) sc.notifyPointHidden(p.r, p.c);
-    assert.equal(sc.mode, "hidden");
-    assert.equal(done, true);
-    player.cancel();
-  }
-
-  // --- spawn concurrent (no wait) ---
-  {
-    const a = mkScene("sa");
-    const b = mkScene("sb");
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { a, b }, completionWatchdogMs: 0 });
-
-    const ua = revealUnit(ctx, a);
-    const ub = revealUnit(ctx, b);
-    const t = thread(ctx).spawn(ua).run(ub);
-    t.start();
-    assert.equal(a.mode, "revealing", "spawn starts a");
-    assert.equal(b.mode, "revealing", "run starts b without waiting a");
-    settleReveal(b);
-    await sleep(5);
-    // a still revealing is fine
-    t.stop();
-    player.cancel();
-  }
-
-  // --- player.clear ---
-  {
-    const player = ScenePlayer();
-    let n = 0;
-    const id = player.at(20, () => {
-      n += 1;
-    });
-    player.clear(id);
-    await sleep(40);
-    assert.equal(n, 0, "player.clear drops cue");
-    player.cancel();
-  }
-
-  // --- abort restart does not emit completed ---
-  {
-    const sc = mkScene("abort");
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
-
-    const u = revealUnit(ctx, sc);
-    let completes = 0;
-    u.on("completed", () => {
-      completes += 1;
-    });
-    u.start();
-    u.restart();
-    u.stop();
-    settleReveal(sc);
-    await sleep(5);
-    assert.equal(completes, 0, "stop/restart: no completed");
-    player.cancel();
-  }
-
-  // --- hover hasten reveal (same gen, one completed) ---
-  {
-    const sc = mkScene("hast", [0, 1, 2]);
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
-
-    const u = revealUnit(ctx, sc, { name: "hast" });
-    u.onHover({ whileRevealing: "hasten" });
-    let advances = 0;
-    thread(ctx).run(u).call(() => {
-      advances += 1;
-    }).start();
-    assert.equal(sc.mode, "revealing");
-    u.handleHover();
-    await sleep(5);
-    assert.equal(sc.mode, "revealed", "hasten settles reveal");
-    assert.equal(advances, 1, "hasten: one parent advance");
-    u.handleHover();
-    await sleep(5);
-    assert.equal(advances, 1, "hasten after settle is no-op");
-    player.cancel();
-  }
-
-  // --- hover mid-hide: re-reveal + restart, never hasten hide ---
-  {
-    const rev = mkScene("cardR", [0, 1]);
-    const hide = DropScene({
-      name: "cardH",
-      points: rev.points,
-    });
-    for (const p of rev.points) p.revealed = true;
-    const player = ScenePlayer();
-    const ctx = player.context({
-      scenes: { rev, hide },
-      completionWatchdogMs: 0,
-    });
-
-    const revealU = revealUnit(ctx, rev, { name: "rev" });
-    const hideU = hideUnit(ctx, hide, { name: "hide" });
-    hideU.onStart((side) => side.storm(1));
-    hideU.onHover({
-      whileHiding: () => {
-        softLeaveActive(hide);
-        revealU.forceRevealed();
-        hideU.restart();
-      },
-    });
-
-    let hideCompletes = 0;
-    let advanced = false;
-    hideU.on("completed", () => {
-      hideCompletes += 1;
-    });
-    thread(ctx)
-      .run(hideU)
-      .call(() => {
+      const u = revealUnit(ctx, sc, { name: "stop" });
+      let advanced = false;
+      const t = thread(ctx).run(u).call(() => {
         advanced = true;
-      })
-      .start();
+      });
+      t.start();
+      t.stop();
+      settleReveal(sc);
+      await sleep(10);
+      assert.equal(advanced, false, "stop: parent must not advance");
+      player.cancel();
+    }
 
-    assert.equal(hide.mode, "hiding");
-    // Partial hide progress
-    hide.notifyPointHidden(0, 0);
-    assert.equal(rev.points[0].revealed, false);
+    // --- ctx cancel disposes ---
+    {
+      const sc = mkScene("ctxc");
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
 
-    hideU.handleHover();
-    await sleep(5);
+      const u = revealUnit(ctx, sc);
+      let bad = false;
+      thread(ctx).run(u).call(() => {
+        bad = true;
+      }).start();
+      ctx.cancel();
+      settleReveal(sc);
+      await sleep(10);
+      assert.equal(bad, false, "ctx.cancel disposes waits");
+      player.cancel();
+    }
 
-    assert.equal(advanced, false, "hide hover must not complete aborted run");
-    assert.equal(hide.mode, "hiding", "hide restarted");
-    assert.equal(hide.stormEnabled, true, "storm re-armed on restart");
-    assert.ok(
-      rev.points.every((p) => p.revealed),
-      "full re-reveal after hide hover",
-    );
-    assert.equal(hideCompletes, 0, "no completed until real settle");
+    // --- loop gen ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
 
-    // Finish the restarted hide
-    for (const c of [...hide.columns]) hide.onColumnSpawned(c);
-    for (const p of hide.points) hide.notifyPointHidden(p.r, p.c);
-    await sleep(5);
-    assert.equal(hide.mode, "hidden");
-    assert.equal(advanced, true, "parent advances once after real hide");
-    assert.equal(hideCompletes, 1);
-    player.cancel();
-  }
+      let cycles = 0;
+      const t = thread(ctx, { name: "loop" })
+        .call(() => {
+          cycles += 1;
+        })
+        .delay(15)
+        .loop();
+      t.start();
+      const gen1 = t.gen;
+      await sleep(40);
+      assert.ok(cycles >= 2, `loop ran multiple cycles (got ${cycles})`);
+      assert.ok(t.gen > gen1, "loop bumps gen");
+      t.stop();
+      const stoppedAt = cycles;
+      await sleep(30);
+      assert.equal(cycles, stoppedAt, "stop ends loop");
+      player.cancel();
+    }
 
-  // --- hold extend on hover ---
-  {
-    const player = ScenePlayer();
-    const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
+    // --- delay pause ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
 
-    let done = false;
-    const h = holdUnit(ctx, { name: "hov", ms: 30, onHover: "extend" });
-    h.on("completed", () => {
-      done = true;
-    });
-    h.start();
-    await sleep(20);
-    h.handleHover();
-    await sleep(20);
-    assert.equal(done, false, "hover extend keeps hold alive");
-    await sleep(25);
-    assert.equal(done, true, "hold completes after full rearm");
-    player.cancel();
-  }
+      let fired = false;
+      const t = thread(ctx).delay(40).call(() => {
+        fired = true;
+      });
+      t.start();
+      player.pause();
+      await sleep(60);
+      assert.equal(fired, false, "paused delay");
+      player.unpause();
+      await sleep(50);
+      assert.equal(fired, true, "unpause fires delay");
+      player.cancel();
+    }
 
-  // --- softLeaveActive does not emit completed ---
-  {
-    const sc = mkScene("soft", [0]);
-    for (const p of sc.points) p.revealed = true;
-    sc.enterMode("hiding");
-    let n = 0;
-    sc.on("completed", () => {
-      n += 1;
-    });
-    assert.equal(softLeaveActive(sc), true);
-    assert.equal(sc.mode, "hidden");
-    assert.equal(n, 0, "soft leave: no completed");
-    assert.equal(softLeaveActive(sc), false, "stable: no-op");
-  }
+    // --- holdUnit timer ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`Play runtime smoke tests passed! ${green("✓")}`);
+      let done = false;
+      const h = holdUnit(ctx, { name: "h", ms: 25 });
+      h.on("completed", () => {
+        done = true;
+      });
+      h.start();
+      await sleep(10);
+      assert.equal(done, false);
+      await sleep(30);
+      assert.equal(done, true, "hold completes");
+      player.cancel();
+    }
+
+    // --- hold rearm (extend) ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
+
+      let done = false;
+      const h = holdUnit(ctx, { name: "ext", ms: 30, onHover: "extend" });
+      h.on("completed", () => {
+        done = true;
+      });
+      h.start();
+      await sleep(20);
+      h.rearm(40);
+      await sleep(25);
+      assert.equal(done, false, "rearm extends");
+      await sleep(30);
+      assert.equal(done, true);
+      player.cancel();
+    }
+
+    // --- hideUnit + storm onStart ---
+    {
+      const sc = mkScene("hide", [0, 1]);
+      for (const p of sc.points) p.revealed = true;
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+
+      const u = hideUnit(ctx, sc, { name: "hide" });
+      u.onStart((side) => side.storm(1));
+      let done = false;
+      u.on("completed", () => {
+        done = true;
+      });
+      u.start();
+      assert.equal(sc.mode, "hiding");
+      assert.equal(sc.stormEnabled, true, "storm onStart");
+      for (const c of [...sc.columns]) sc.onColumnSpawned(c);
+      for (const p of sc.points) sc.notifyPointHidden(p.r, p.c);
+      assert.equal(sc.mode, "hidden");
+      assert.equal(done, true);
+      player.cancel();
+    }
+
+    // --- spawn concurrent (no wait) ---
+    {
+      const a = mkScene("sa");
+      const b = mkScene("sb");
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { a, b }, completionWatchdogMs: 0 });
+
+      const ua = revealUnit(ctx, a);
+      const ub = revealUnit(ctx, b);
+      const t = thread(ctx).spawn(ua).run(ub);
+      t.start();
+      assert.equal(a.mode, "revealing", "spawn starts a");
+      assert.equal(b.mode, "revealing", "run starts b without waiting a");
+      settleReveal(b);
+      await sleep(5);
+      // a still revealing is fine
+      t.stop();
+      player.cancel();
+    }
+
+    // --- player.clear ---
+    {
+      const player = ScenePlayer();
+      let n = 0;
+      const id = player.at(20, () => {
+        n += 1;
+      });
+      player.clear(id);
+      await sleep(40);
+      assert.equal(n, 0, "player.clear drops cue");
+      player.cancel();
+    }
+
+    // --- abort restart does not emit completed ---
+    {
+      const sc = mkScene("abort");
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+
+      const u = revealUnit(ctx, sc);
+      let completes = 0;
+      u.on("completed", () => {
+        completes += 1;
+      });
+      u.start();
+      u.restart();
+      u.stop();
+      settleReveal(sc);
+      await sleep(5);
+      assert.equal(completes, 0, "stop/restart: no completed");
+      player.cancel();
+    }
+
+    // --- hover hasten reveal (same gen, one completed) ---
+    {
+      const sc = mkScene("hast", [0, 1, 2]);
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: { sc }, completionWatchdogMs: 0 });
+
+      const u = revealUnit(ctx, sc, { name: "hast" });
+      u.onHover({ whileRevealing: "hasten" });
+      let advances = 0;
+      thread(ctx).run(u).call(() => {
+        advances += 1;
+      }).start();
+      assert.equal(sc.mode, "revealing");
+      u.handleHover();
+      await sleep(5);
+      assert.equal(sc.mode, "revealed", "hasten settles reveal");
+      assert.equal(advances, 1, "hasten: one parent advance");
+      u.handleHover();
+      await sleep(5);
+      assert.equal(advances, 1, "hasten after settle is no-op");
+      player.cancel();
+    }
+
+    // --- hover mid-hide: re-reveal + restart, never hasten hide ---
+    {
+      const rev = mkScene("cardR", [0, 1]);
+      const hide = DropScene({
+        name: "cardH",
+        points: rev.points,
+      });
+      for (const p of rev.points) p.revealed = true;
+      const player = ScenePlayer();
+      const ctx = player.context({
+        scenes: { rev, hide },
+        completionWatchdogMs: 0,
+      });
+
+      const revealU = revealUnit(ctx, rev, { name: "rev" });
+      const hideU = hideUnit(ctx, hide, { name: "hide" });
+      hideU.onStart((side) => side.storm(1));
+      hideU.onHover({
+        whileHiding: () => {
+          softLeaveActive(hide);
+          revealU.forceRevealed();
+          hideU.restart();
+        },
+      });
+
+      let hideCompletes = 0;
+      let advanced = false;
+      hideU.on("completed", () => {
+        hideCompletes += 1;
+      });
+      thread(ctx)
+        .run(hideU)
+        .call(() => {
+          advanced = true;
+        })
+        .start();
+
+      assert.equal(hide.mode, "hiding");
+      // Partial hide progress
+      hide.notifyPointHidden(0, 0);
+      assert.equal(rev.points[0].revealed, false);
+
+      hideU.handleHover();
+      await sleep(5);
+
+      assert.equal(advanced, false, "hide hover must not complete aborted run");
+      assert.equal(hide.mode, "hiding", "hide restarted");
+      assert.equal(hide.stormEnabled, true, "storm re-armed on restart");
+      assert.ok(
+        rev.points.every((p) => p.revealed),
+        "full re-reveal after hide hover",
+      );
+      assert.equal(hideCompletes, 0, "no completed until real settle");
+
+      // Finish the restarted hide
+      for (const c of [...hide.columns]) hide.onColumnSpawned(c);
+      for (const p of hide.points) hide.notifyPointHidden(p.r, p.c);
+      await sleep(5);
+      assert.equal(hide.mode, "hidden");
+      assert.equal(advanced, true, "parent advances once after real hide");
+      assert.equal(hideCompletes, 1);
+      player.cancel();
+    }
+
+    // --- hold extend on hover ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
+
+      let done = false;
+      const h = holdUnit(ctx, { name: "hov", ms: 30, onHover: "extend" });
+      h.on("completed", () => {
+        done = true;
+      });
+      h.start();
+      await sleep(20);
+      h.handleHover();
+      await sleep(20);
+      assert.equal(done, false, "hover extend keeps hold alive");
+      await sleep(25);
+      assert.equal(done, true, "hold completes after full rearm");
+      player.cancel();
+    }
+
+    // --- softLeaveActive does not emit completed ---
+    {
+      const sc = mkScene("soft", [0]);
+      for (const p of sc.points) p.revealed = true;
+      sc.enterMode("hiding");
+      let n = 0;
+      sc.on("completed", () => {
+        n += 1;
+      });
+      assert.equal(softLeaveActive(sc), true);
+      assert.equal(sc.mode, "hidden");
+      assert.equal(n, 0, "soft leave: no completed");
+      assert.equal(softLeaveActive(sc), false, "stable: no-op");
+    }
+
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`Play runtime smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

@@ -71,36 +71,41 @@ export default {
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  // range tests
-  assert.deepStrictEqual(rangeArray(5), [0, 1, 2, 3, 4]);
-  assert.deepStrictEqual(rangeArray(2, 6), [2, 3, 4, 5]);
-  assert.deepStrictEqual(rangeArray(1, 10, 2), [1, 3, 5, 7, 9]);
-  assert.deepStrictEqual(rangeArray(10, 0, -2), [10, 8, 6, 4, 2]);
-  assert.deepStrictEqual(rangeArray(5, 5), []);
-  assert.deepStrictEqual(rangeArray(5, -1, -1), [5, 4, 3, 2, 1, 0]);
+    console.log("Running tests...");
 
-  // rangeMap / rangeMapArray tests
-  let arr = ["a", "b", "c", "d", "e", "f", "g"];
-  assert.deepStrictEqual(
-    rangeMapArray(1, 6, 2, (i) => arr[i].toUpperCase()),
-    ["B", "D", "F"],
-  );
-  assert.deepStrictEqual(
-    rangeMapArray(5, (x) => x * x),
-    [0, 1, 4, 9, 16],
-  );
+    // range tests
+    assert.deepStrictEqual(rangeArray(5), [0, 1, 2, 3, 4]);
+    assert.deepStrictEqual(rangeArray(2, 6), [2, 3, 4, 5]);
+    assert.deepStrictEqual(rangeArray(1, 10, 2), [1, 3, 5, 7, 9]);
+    assert.deepStrictEqual(rangeArray(10, 0, -2), [10, 8, 6, 4, 2]);
+    assert.deepStrictEqual(rangeArray(5, 5), []);
+    assert.deepStrictEqual(rangeArray(5, -1, -1), [5, 4, 3, 2, 1, 0]);
 
-  // error cases
-  assert.throws(() => Array.from(range(1, 2, 3, 4)), /takes 1-3 arguments/);
-  assert.throws(() => Array.from(rangeMap(5, "not fn")), /final argument must be a function/);
-  assert.throws(() => Array.from(range(1, 5, 0)), /step argument must not be zero/);
+    // rangeMap / rangeMapArray tests
+    let arr = ["a", "b", "c", "d", "e", "f", "g"];
+    assert.deepStrictEqual(
+      rangeMapArray(1, 6, 2, (i) => arr[i].toUpperCase()),
+      ["B", "D", "F"],
+    );
+    assert.deepStrictEqual(
+      rangeMapArray(5, (x) => x * x),
+      [0, 1, 4, 9, 16],
+    );
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    // error cases
+    assert.throws(() => Array.from(range(1, 2, 3, 4)), /takes 1-3 arguments/);
+    assert.throws(() => Array.from(rangeMap(5, "not fn")), /final argument must be a function/);
+    assert.throws(() => Array.from(range(1, 5, 0)), /step argument must not be zero/);
 
-  console.log(`All tests passed! ${green("✓")}`);
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

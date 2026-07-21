@@ -9,7 +9,7 @@
 
 Lock how we **stitch scenes** in a **dev-friendly** way when the show is not
 a pure animation — it must support **hover interrupts**, **segment restart**,
-and later **quote/portrait playlists**.
+and later **saying/portrait playlists**.
 
 No product code in this task unless a tiny spike is explicitly requested.
 

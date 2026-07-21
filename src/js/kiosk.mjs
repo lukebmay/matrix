@@ -93,38 +93,43 @@ export {
 };
 export default resolveKiosk;
 
-// --- smoke (node: node --check or direct import) ---
+// --- smoke (async IIFE — no top-level await; Safari/WebKit / DDG iOS) ---
 if (
   typeof process !== "undefined" &&
   process.argv?.[1] &&
   String(process.argv[1]).endsWith("kiosk.mjs")
 ) {
-  const assert = await import("node:assert/strict");
-  console.log("Running kiosk smoke tests...");
+  void (async () => {
 
-  assert.equal(pathLooksLikeKiosk("/kiosk"), true);
-  assert.equal(pathLooksLikeKiosk("/kiosk/"), true);
-  assert.equal(pathLooksLikeKiosk("/matrix/kiosk"), true);
-  assert.equal(pathLooksLikeKiosk("/matrix/kiosk/"), true);
-  assert.equal(pathLooksLikeKiosk("/matrix"), false);
-  assert.equal(pathLooksLikeKiosk("/"), false);
-  assert.equal(pathLooksLikeKiosk("/kiosk-extra"), false);
+    const assert = await import("node:assert/strict");
+    console.log("Running kiosk smoke tests...");
 
-  assert.equal(queryLooksLikeKiosk("?kiosk=1"), true);
-  assert.equal(queryLooksLikeKiosk("?wall=true"), true);
-  assert.equal(queryLooksLikeKiosk("?kiosk=0"), false);
-  assert.equal(queryLooksLikeKiosk("?env=dev"), false);
+    assert.equal(pathLooksLikeKiosk("/kiosk"), true);
+    assert.equal(pathLooksLikeKiosk("/kiosk/"), true);
+    assert.equal(pathLooksLikeKiosk("/matrix/kiosk"), true);
+    assert.equal(pathLooksLikeKiosk("/matrix/kiosk/"), true);
+    assert.equal(pathLooksLikeKiosk("/matrix"), false);
+    assert.equal(pathLooksLikeKiosk("/"), false);
+    assert.equal(pathLooksLikeKiosk("/kiosk-extra"), false);
 
-  assert.equal(hashLooksLikeKiosk("#kiosk"), true);
-  assert.equal(hashLooksLikeKiosk("#wall"), true);
-  assert.equal(hashLooksLikeKiosk("#other"), false);
+    assert.equal(queryLooksLikeKiosk("?kiosk=1"), true);
+    assert.equal(queryLooksLikeKiosk("?wall=true"), true);
+    assert.equal(queryLooksLikeKiosk("?kiosk=0"), false);
+    assert.equal(queryLooksLikeKiosk("?env=dev"), false);
 
-  assert.equal(resolveKiosk({ pathname: "/matrix/kiosk" }), true);
-  assert.equal(resolveKiosk({ search: "?kiosk=1", pathname: "/" }), true);
-  assert.equal(resolveKiosk({ hash: "#kiosk", pathname: "/" }), true);
-  assert.equal(resolveKiosk({ kiosk: false, pathname: "/kiosk" }), false);
-  assert.equal(resolveKiosk({ kiosk: true, pathname: "/" }), true);
-  assert.equal(resolveKiosk({ pathname: "/", search: "", hash: "" }), false);
+    assert.equal(hashLooksLikeKiosk("#kiosk"), true);
+    assert.equal(hashLooksLikeKiosk("#wall"), true);
+    assert.equal(hashLooksLikeKiosk("#other"), false);
 
-  console.log("kiosk smoke tests passed! ✓");
+    assert.equal(resolveKiosk({ pathname: "/matrix/kiosk" }), true);
+    assert.equal(resolveKiosk({ search: "?kiosk=1", pathname: "/" }), true);
+    assert.equal(resolveKiosk({ hash: "#kiosk", pathname: "/" }), true);
+    assert.equal(resolveKiosk({ kiosk: false, pathname: "/kiosk" }), false);
+    assert.equal(resolveKiosk({ kiosk: true, pathname: "/" }), true);
+    assert.equal(resolveKiosk({ pathname: "/", search: "", hash: "" }), false);
+
+    console.log("kiosk smoke tests passed! ✓");
+
+  })();
 }
+

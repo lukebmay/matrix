@@ -175,109 +175,112 @@ export { SceneManager, cellKey };
 export default SceneManager;
 
 // ===========================================================
-// Smoke tests: node src/js/SceneManager.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href === import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
-  const { DropScene } = await import("./DropScene.mjs");
+    const assert = (await import("node:assert/strict")).default;
+    const { DropScene } = await import("./DropScene.mjs");
 
-  console.log("Running SceneManager smoke tests...");
+    console.log("Running SceneManager smoke tests...");
 
-  const revA = DropScene({
-    name: "a",
-    points: [{ r: 1, c: 2, char: "A", href: "/a", style: "link" }],
-  });
-  const revB = DropScene({
-    name: "b",
-    points: [{ r: 1, c: 2, char: "B" }],
-  });
-  const hide = DropScene({
-    name: "h",
-    points: [{ r: 1, c: 2, char: "A" }],
-  });
+    const revA = DropScene({
+      name: "a",
+      points: [{ r: 1, c: 2, char: "A", href: "/a", style: "link" }],
+    });
+    const revB = DropScene({
+      name: "b",
+      points: [{ r: 1, c: 2, char: "B" }],
+    });
+    const hide = DropScene({
+      name: "h",
+      points: [{ r: 1, c: 2, char: "A" }],
+    });
 
-  const sm = SceneManager({ scenes: [revA, revB, hide] });
+    const sm = SceneManager({ scenes: [revA, revB, hide] });
 
-  revA.enterMode("revealing");
-  revA.modeEnteredAt = 100;
-  revB.enterMode("revealing");
-  revB.modeEnteredAt = 200;
-  hide.enterMode("hiding");
-  hide.modeEnteredAt = 300;
+    revA.enterMode("revealing");
+    revA.modeEnteredAt = 100;
+    revB.enterMode("revealing");
+    revB.modeEnteredAt = 200;
+    hide.enterMode("hiding");
+    hide.modeEnteredAt = 300;
 
-  const drop = { spawnAt: 1000 };
-  // Newest reveal (B) wins over older reveal and over hide.
-  const res = sm.resolve(1, 2, drop);
-  assert.equal(res.kind, "reveal");
-  assert.equal(res.char, "B");
-  assert.equal(res.scene.name, "b");
+    const drop = { spawnAt: 1000 };
+    // Newest reveal (B) wins over older reveal and over hide.
+    const res = sm.resolve(1, 2, drop);
+    assert.equal(res.kind, "reveal");
+    assert.equal(res.char, "B");
+    assert.equal(res.scene.name, "b");
 
-  revB.enterMode("hidden");
-  const res2 = sm.resolve(1, 2, drop);
-  assert.equal(res2.kind, "reveal");
-  assert.equal(res2.char, "A");
-  assert.equal(res2.href, "/a");
+    revB.enterMode("hidden");
+    const res2 = sm.resolve(1, 2, drop);
+    assert.equal(res2.kind, "reveal");
+    assert.equal(res2.char, "A");
+    assert.equal(res2.href, "/a");
 
-  const applied = sm.applyTip(1, 2, drop);
-  assert.equal(applied.kind, "reveal");
-  assert.equal(applied.char, "A");
-  assert.equal(sm.paintGlyph(1, 2).text, "A");
-  assert.equal(sm.paintGlyph(1, 2).href, "/a");
-  assert.equal(sm.isContentRevealed(1, 2), true);
+    const applied = sm.applyTip(1, 2, drop);
+    assert.equal(applied.kind, "reveal");
+    assert.equal(applied.char, "A");
+    assert.equal(sm.paintGlyph(1, 2).text, "A");
+    assert.equal(sm.paintGlyph(1, 2).href, "/a");
+    assert.equal(sm.isContentRevealed(1, 2), true);
 
-  // Rain tip must not invent logical content.
-  const rainOnly = sm.applyTip(9, 9, drop);
-  assert.equal(rainOnly.kind, "rain");
-  assert.equal(sm.getLogical(9, 9), null);
-  assert.equal(sm.paintGlyph(9, 9).revealed, false);
+    // Rain tip must not invent logical content.
+    const rainOnly = sm.applyTip(9, 9, drop);
+    assert.equal(rainOnly.kind, "rain");
+    assert.equal(sm.getLogical(9, 9), null);
+    assert.equal(sm.paintGlyph(9, 9).revealed, false);
 
-  // After scene settles (no active reveal/hide), rain tip keeps logical content.
-  revA.enterMode("revealed");
-  hide.enterMode("hidden");
-  const keep = sm.applyTip(1, 2, drop);
-  assert.equal(keep.kind, "content");
-  assert.equal(keep.char, "A");
-  assert.equal(sm.getLogical(1, 2)?.char, "A");
+    // After scene settles (no active reveal/hide), rain tip keeps logical content.
+    revA.enterMode("revealed");
+    hide.enterMode("hidden");
+    const keep = sm.applyTip(1, 2, drop);
+    assert.equal(keep.kind, "content");
+    assert.equal(keep.char, "A");
+    assert.equal(sm.getLogical(1, 2)?.char, "A");
 
-  // Hide only acts while a hide scene is active.
-  hide.enterMode("hiding");
-  hide.modeEnteredAt = 50;
-  const res3 = sm.resolve(1, 2, drop);
-  assert.equal(res3.kind, "hide");
+    // Hide only acts while a hide scene is active.
+    hide.enterMode("hiding");
+    hide.modeEnteredAt = 50;
+    const res3 = sm.resolve(1, 2, drop);
+    assert.equal(res3.kind, "hide");
 
-  const hidden = sm.applyTip(1, 2, drop);
-  assert.equal(hidden.kind, "hide");
-  assert.equal(sm.getLogical(1, 2), null);
-  assert.equal(sm.paintGlyph(1, 2).revealed, false);
+    const hidden = sm.applyTip(1, 2, drop);
+    assert.equal(hidden.kind, "hide");
+    assert.equal(sm.getLogical(1, 2), null);
+    assert.equal(sm.paintGlyph(1, 2).revealed, false);
 
-  // Pre-activation drop must not reveal or hide.
-  revA.enterMode("revealing");
-  revA.modeEnteredAt = 500;
-  hide.enterMode("hidden");
-  const preDrop = { spawnAt: 100 };
-  assert.equal(sm.resolve(1, 2, preDrop).kind, "rain");
-  assert.equal(sm.applyTip(1, 2, preDrop).kind, "rain");
-  assert.equal(sm.getLogical(1, 2), null);
-  const postDrop = { spawnAt: 600 };
-  assert.equal(sm.applyTip(1, 2, postDrop).kind, "reveal");
-  assert.equal(sm.getLogical(1, 2)?.char, "A");
+    // Pre-activation drop must not reveal or hide.
+    revA.enterMode("revealing");
+    revA.modeEnteredAt = 500;
+    hide.enterMode("hidden");
+    const preDrop = { spawnAt: 100 };
+    assert.equal(sm.resolve(1, 2, preDrop).kind, "rain");
+    assert.equal(sm.applyTip(1, 2, preDrop).kind, "rain");
+    assert.equal(sm.getLogical(1, 2), null);
+    const postDrop = { spawnAt: 600 };
+    assert.equal(sm.applyTip(1, 2, postDrop).kind, "reveal");
+    assert.equal(sm.getLogical(1, 2)?.char, "A");
 
-  // Force-clear scene cells (ScenePlayer abort).
-  const cleared = sm.clearLogicalForScene(revA);
-  assert.ok(cleared.includes("1,2"));
-  assert.equal(sm.isContentRevealed(1, 2), false);
+    // Force-clear scene cells (ScenePlayer abort).
+    const cleared = sm.clearLogicalForScene(revA);
+    assert.ok(cleared.includes("1,2"));
+    assert.equal(sm.isContentRevealed(1, 2), false);
 
-  // applyLogicalForScene: watchdog force-reveal path
-  const appliedKeys = sm.applyLogicalForScene(revA);
-  assert.ok(appliedKeys.includes("1,2"));
-  assert.equal(sm.getLogical(1, 2)?.char, "A");
-  assert.equal(sm.isContentRevealed(1, 2), true);
+    // applyLogicalForScene: watchdog force-reveal path
+    const appliedKeys = sm.applyLogicalForScene(revA);
+    assert.ok(appliedKeys.includes("1,2"));
+    assert.equal(sm.getLogical(1, 2)?.char, "A");
+    assert.equal(sm.isContentRevealed(1, 2), true);
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`SceneManager smoke tests passed! ${green("✓")}`);
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`SceneManager smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

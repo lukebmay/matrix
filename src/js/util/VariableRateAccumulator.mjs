@@ -252,134 +252,139 @@ export default VariableRateAccumulator;
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running VariableRateAccumulator tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  const rates = VariableRateAccumulator.rates;
+    console.log("Running VariableRateAccumulator tests...");
 
-  // === Finite mode tests (all rates) ===
-  const finiteTestCases = [
-    { name: "constant", fn: rates.constant(5), target: 200 },
-    { name: "linearRamp", fn: rates.linearRamp(2, 12), target: 200 },
-    { name: "sineTroughStart", fn: rates.sineTroughStart(4, 3.5), target: 200 },
-    { name: "easeInOutSine", fn: rates.easeInOutSine(10, 7.5), target: 200 },
-    { name: "pulse", fn: rates.pulse(3, 12), target: 200 },
-    { name: "quadratic", fn: rates.quadratic(8), target: 200 },
-  ];
+    const rates = VariableRateAccumulator.rates;
 
-  for (const tc of finiteTestCases) {
-    const acc = new VariableRateAccumulator(tc.target, 20, tc.fn);
-    let total = 0;
-    const steps = 200;
-    const delta = 20 / steps;
-    for (let i = 0; i < steps; i++) {
-      total += acc.advance(delta);
+    // === Finite mode tests (all rates) ===
+    const finiteTestCases = [
+      { name: "constant", fn: rates.constant(5), target: 200 },
+      { name: "linearRamp", fn: rates.linearRamp(2, 12), target: 200 },
+      { name: "sineTroughStart", fn: rates.sineTroughStart(4, 3.5), target: 200 },
+      { name: "easeInOutSine", fn: rates.easeInOutSine(10, 7.5), target: 200 },
+      { name: "pulse", fn: rates.pulse(3, 12), target: 200 },
+      { name: "quadratic", fn: rates.quadratic(8), target: 200 },
+    ];
+
+    for (const tc of finiteTestCases) {
+      const acc = new VariableRateAccumulator(tc.target, 20, tc.fn);
+      let total = 0;
+      const steps = 200;
+      const delta = 20 / steps;
+      for (let i = 0; i < steps; i++) {
+        total += acc.advance(delta);
+      }
+      assert.ok(
+        Math.abs(total - tc.target) <= 15,
+        `${tc.name} finite total ${total} close to ${tc.target}`,
+      );
+    }
+
+    // === Infinite mode tests (only rates with stable long-term average) ===
+    const infiniteTestCases = [
+      { name: "constant", fn: rates.constant(5), avgRate: 5 },
+      { name: "sineTroughStart", fn: rates.sineTroughStart(4, 3.5), avgRate: 4 },
+      { name: "easeInOutSine", fn: rates.easeInOutSine(10, 7.5), avgRate: 10 },
+      { name: "pulse", fn: rates.pulse(3, 12), avgRate: 6 },
+      { name: "quadratic", fn: rates.quadratic(8), avgRate: 12 },
+    ];
+
+    // Storm mild: 75% → max ease-in; no tail dip.
+    {
+      const fn = rates.stormMild(5, 0.75, 1);
+      assert.ok(Math.abs(fn(0) - 0.75) < 1e-9, `stormMild start ${fn(0)}`);
+      assert.ok(fn(2.5) > 0.75 && fn(2.5) < 1, `stormMild mid ${fn(2.5)}`);
+      assert.ok(Math.abs(fn(5) - 1) < 1e-9, `stormMild end ${fn(5)}`);
+      assert.ok(fn(4) > fn(1), "stormMild denser later");
+    }
+
+    // Storm cosine: trough startRate, mean units/T, peak start+2·amp.
+    {
+      const T = 6;
+      const units = 18;
+      const start = 2;
+      const mean = units / T; // 3
+      const fn = rates.stormCosine(T, start, mean);
+      assert.ok(Math.abs(fn(0) - start) < 1e-9, `stormCosine start ${fn(0)}`);
+      assert.ok(Math.abs(fn(T / 2) - (start + 2 * (mean - start))) < 1e-9, "stormCosine peak");
+      const acc = new VariableRateAccumulator(units, T, fn);
+      let total = 0;
+      for (let i = 0; i < 120; i++) total += acc.advance(T / 120);
+      assert.equal(total, units, `stormCosine finite total ${total}`);
+    }
+
+    // Finite flush: exact unit count even when remainder would strand the last drop.
+    {
+      const acc = new VariableRateAccumulator(7, 2, rates.stormMild(2));
+      let total = 0;
+      for (let i = 0; i < 40; i++) total += acc.advance(0.05);
+      assert.equal(total, 7, `finite storm flush total ${total}`);
+      assert.ok(acc.isComplete(), "finite complete after window");
+    }
+
+    // Refund: blocked spawns do not consume the finite budget permanently.
+    {
+      const acc = new VariableRateAccumulator(4, 1, rates.constant(1));
+      let got = 0;
+      for (let i = 0; i < 20; i++) {
+        const want = acc.advance(0.05);
+        // Simulate: only 1 free column while VRA wants more.
+        const spawn = Math.min(want, 1);
+        if (want > spawn) acc.refund(want - spawn);
+        got += spawn;
+      }
+      // After window, keep refunding until all 4 succeed across frames.
+      for (let i = 0; i < 10 && got < 4; i++) {
+        const want = acc.advance(0.05);
+        const spawn = Math.min(want, 1);
+        if (want > spawn) acc.refund(want - spawn);
+        got += spawn;
+      }
+      assert.equal(got, 4, `refund eventually covers all units got=${got}`);
+    }
+
+    for (const tc of infiniteTestCases) {
+      const acc = new VariableRateAccumulator(tc.avgRate, Infinity, tc.fn);
+      let total = 0;
+      for (let i = 0; i < 250; i++) {
+        // 10 seconds
+        total += acc.advance(0.04);
+      }
+      const expected = tc.avgRate * 10;
+      assert.ok(
+        Math.abs(total - expected) <= 18,
+        `${tc.name} infinite total ${total} close to ${expected}`,
+      );
+    }
+
+    // === Overlapping priority test (validates credit system) ===
+    // Both scenes target 50 units over 10 s. With 60% credit, sceneA should spawn noticeably fewer.
+    const sceneB = new VariableRateAccumulator(50, 10, rates.easeInOutSine(10, 7.5));
+    const sceneA = new VariableRateAccumulator(50, 10, rates.easeInOutSine(10, 7.5), 2000, 0);
+
+    let totalB = 0,
+      totalA = 0;
+    for (let i = 0; i < 100; i++) {
+      const numB = sceneB.advance(0.1);
+      totalB += numB;
+
+      const creditToA = Math.floor(numB * 0.6);
+      const numA = sceneA.advance(0.1, creditToA);
+      totalA += numA;
     }
     assert.ok(
-      Math.abs(total - tc.target) <= 15,
-      `${tc.name} finite total ${total} close to ${tc.target}`,
+      totalB > 45 && totalA <= totalB,
+      `Overlap test: B=${totalB}, A=${totalA} (A got credit for shared)`,
     );
-  }
 
-  // === Infinite mode tests (only rates with stable long-term average) ===
-  const infiniteTestCases = [
-    { name: "constant", fn: rates.constant(5), avgRate: 5 },
-    { name: "sineTroughStart", fn: rates.sineTroughStart(4, 3.5), avgRate: 4 },
-    { name: "easeInOutSine", fn: rates.easeInOutSine(10, 7.5), avgRate: 10 },
-    { name: "pulse", fn: rates.pulse(3, 12), avgRate: 6 },
-    { name: "quadratic", fn: rates.quadratic(8), avgRate: 12 },
-  ];
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
 
-  // Storm mild: 75% → max ease-in; no tail dip.
-  {
-    const fn = rates.stormMild(5, 0.75, 1);
-    assert.ok(Math.abs(fn(0) - 0.75) < 1e-9, `stormMild start ${fn(0)}`);
-    assert.ok(fn(2.5) > 0.75 && fn(2.5) < 1, `stormMild mid ${fn(2.5)}`);
-    assert.ok(Math.abs(fn(5) - 1) < 1e-9, `stormMild end ${fn(5)}`);
-    assert.ok(fn(4) > fn(1), "stormMild denser later");
-  }
-
-  // Storm cosine: trough startRate, mean units/T, peak start+2·amp.
-  {
-    const T = 6;
-    const units = 18;
-    const start = 2;
-    const mean = units / T; // 3
-    const fn = rates.stormCosine(T, start, mean);
-    assert.ok(Math.abs(fn(0) - start) < 1e-9, `stormCosine start ${fn(0)}`);
-    assert.ok(Math.abs(fn(T / 2) - (start + 2 * (mean - start))) < 1e-9, "stormCosine peak");
-    const acc = new VariableRateAccumulator(units, T, fn);
-    let total = 0;
-    for (let i = 0; i < 120; i++) total += acc.advance(T / 120);
-    assert.equal(total, units, `stormCosine finite total ${total}`);
-  }
-
-  // Finite flush: exact unit count even when remainder would strand the last drop.
-  {
-    const acc = new VariableRateAccumulator(7, 2, rates.stormMild(2));
-    let total = 0;
-    for (let i = 0; i < 40; i++) total += acc.advance(0.05);
-    assert.equal(total, 7, `finite storm flush total ${total}`);
-    assert.ok(acc.isComplete(), "finite complete after window");
-  }
-
-  // Refund: blocked spawns do not consume the finite budget permanently.
-  {
-    const acc = new VariableRateAccumulator(4, 1, rates.constant(1));
-    let got = 0;
-    for (let i = 0; i < 20; i++) {
-      const want = acc.advance(0.05);
-      // Simulate: only 1 free column while VRA wants more.
-      const spawn = Math.min(want, 1);
-      if (want > spawn) acc.refund(want - spawn);
-      got += spawn;
-    }
-    // After window, keep refunding until all 4 succeed across frames.
-    for (let i = 0; i < 10 && got < 4; i++) {
-      const want = acc.advance(0.05);
-      const spawn = Math.min(want, 1);
-      if (want > spawn) acc.refund(want - spawn);
-      got += spawn;
-    }
-    assert.equal(got, 4, `refund eventually covers all units got=${got}`);
-  }
-
-  for (const tc of infiniteTestCases) {
-    const acc = new VariableRateAccumulator(tc.avgRate, Infinity, tc.fn);
-    let total = 0;
-    for (let i = 0; i < 250; i++) {
-      // 10 seconds
-      total += acc.advance(0.04);
-    }
-    const expected = tc.avgRate * 10;
-    assert.ok(
-      Math.abs(total - expected) <= 18,
-      `${tc.name} infinite total ${total} close to ${expected}`,
-    );
-  }
-
-  // === Overlapping priority test (validates credit system) ===
-  // Both scenes target 50 units over 10 s. With 60% credit, sceneA should spawn noticeably fewer.
-  const sceneB = new VariableRateAccumulator(50, 10, rates.easeInOutSine(10, 7.5));
-  const sceneA = new VariableRateAccumulator(50, 10, rates.easeInOutSine(10, 7.5), 2000, 0);
-
-  let totalB = 0,
-    totalA = 0;
-  for (let i = 0; i < 100; i++) {
-    const numB = sceneB.advance(0.1);
-    totalB += numB;
-
-    const creditToA = Math.floor(numB * 0.6);
-    const numA = sceneA.advance(0.1, creditToA);
-    totalA += numA;
-  }
-  assert.ok(
-    totalB > 45 && totalA <= totalB,
-    `Overlap test: B=${totalB}, A=${totalA} (A got credit for shared)`,
-  );
-
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+  })();
 }

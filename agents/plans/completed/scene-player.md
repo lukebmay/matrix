@@ -3,7 +3,7 @@
 **Status:** Complete (archived 2026-07-20) — paint eyeball confirmed  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026`  
-**Next product work:** quote playlist / deploy polish (not this plan).
+**Next product work:** saying playlist / deploy polish (not this plan).
 
 ## Goal
 
@@ -72,10 +72,10 @@ Design: [completed/scene-player-play-plan.md](../scene-player/completed/scene-pl
 | Piece | Role |
 | --- | --- |
 | `Phase` / `loopPhases` | Fixed-duration sequences |
-| `cardRevealPhase` / `quotePhase` | Fixed-duration builders |
+| `cardRevealPhase` / `sayingPhase` | Fixed-duration builders |
 | `cardQuoteLoop` | Pre-play-context homepage factory (not used live) |
 
-### Quote layout
+### Saying layout
 
 Always **exactly 3 lines** (`wrapLinesAlways3`), centered.
 
@@ -121,6 +121,6 @@ No open residual for this plan.
 | `src/js/Configuration.mjs` | Layout + wire `homepagePlay` |
 
 **Next product**
-1. Quote playlist ([interactive-play](../interactive-play.md))  
+1. Saying playlist ([interactive-play](../interactive-play.md))  
 2. Deploy / job-search polish  
 3. Frame-dt / Style D only if a new task is filed  

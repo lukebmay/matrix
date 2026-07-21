@@ -29,34 +29,39 @@ export default { constrainToInterval };
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  // normal cases
-  assert.strictEqual(constrainToInterval(5, 0, 10), 5);
-  assert.strictEqual(constrainToInterval(-3, 0, 10), 0);
-  assert.strictEqual(constrainToInterval(15, 0, 10), 10);
+    console.log("Running tests...");
 
-  // min > max auto-swap
-  assert.strictEqual(constrainToInterval(5, 10, 0), 5);
-  assert.strictEqual(constrainToInterval(-3, 10, 0), 0);
-  assert.strictEqual(constrainToInterval(15, 10, 0), 10);
+    // normal cases
+    assert.strictEqual(constrainToInterval(5, 0, 10), 5);
+    assert.strictEqual(constrainToInterval(-3, 0, 10), 0);
+    assert.strictEqual(constrainToInterval(15, 0, 10), 10);
 
-  // edge cases
-  assert.strictEqual(constrainToInterval(0, 0, 10), 0);
-  assert.strictEqual(constrainToInterval(10, 0, 10), 10);
-  assert.strictEqual(constrainToInterval(7, 7, 7), 7);
+    // min > max auto-swap
+    assert.strictEqual(constrainToInterval(5, 10, 0), 5);
+    assert.strictEqual(constrainToInterval(-3, 10, 0), 0);
+    assert.strictEqual(constrainToInterval(15, 10, 0), 10);
 
-  // NaN propagates (original behavior)
-  assert.ok(Number.isNaN(constrainToInterval(NaN, 0, 10)));
+    // edge cases
+    assert.strictEqual(constrainToInterval(0, 0, 10), 0);
+    assert.strictEqual(constrainToInterval(10, 0, 10), 10);
+    assert.strictEqual(constrainToInterval(7, 7, 7), 7);
 
-  // error cases
-  assert.throws(() => constrainToInterval("5", 0, 10), /numeric arguments/);
-  assert.throws(() => constrainToInterval(5, "0", 10), /numeric arguments/);
-  assert.throws(() => constrainToInterval(5, 0, "10"), /numeric arguments/);
+    // NaN propagates (original behavior)
+    assert.ok(Number.isNaN(constrainToInterval(NaN, 0, 10)));
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+    // error cases
+    assert.throws(() => constrainToInterval("5", 0, 10), /numeric arguments/);
+    assert.throws(() => constrainToInterval(5, "0", 10), /numeric arguments/);
+    assert.throws(() => constrainToInterval(5, 0, "10"), /numeric arguments/);
+
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

@@ -34,33 +34,38 @@ export default { nanoid };
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  // default
-  const id1 = nanoid();
-  assert.strictEqual(id1.length, 21);
+    console.log("Running tests...");
 
-  // custom length
-  assert.strictEqual(nanoid(10).length, 10);
-  assert.strictEqual(nanoid(1).length, 1);
+    // default
+    const id1 = nanoid();
+    assert.strictEqual(id1.length, 21);
 
-  // custom alphabet
-  const custom = "abcdef123";
-  const id2 = nanoid(12, custom);
-  assert.strictEqual(id2.length, 12);
-  for (const char of id2) assert.ok(custom.includes(char));
+    // custom length
+    assert.strictEqual(nanoid(10).length, 10);
+    assert.strictEqual(nanoid(1).length, 1);
 
-  // uniqueness (probabilistic check)
-  const ids = new Set(Array.from({ length: 50 }, () => nanoid()));
-  assert.ok(ids.size > 45);
+    // custom alphabet
+    const custom = "abcdef123";
+    const id2 = nanoid(12, custom);
+    assert.strictEqual(id2.length, 12);
+    for (const char of id2) assert.ok(custom.includes(char));
 
-  // errors
-  assert.throws(() => nanoid(0), /positive integer/);
-  assert.throws(() => nanoid(10, ""), /non-empty string/);
+    // uniqueness (probabilistic check)
+    const ids = new Set(Array.from({ length: 50 }, () => nanoid()));
+    assert.ok(ids.size > 45);
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+    // errors
+    assert.throws(() => nanoid(0), /positive integer/);
+    assert.throws(() => nanoid(10, ""), /non-empty string/);
+
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

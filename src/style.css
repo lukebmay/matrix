@@ -124,7 +124,7 @@ body {
   font-size: calc(var(--char-size) * 0.95 * 1px);
   transform: none;
 }
-/* Settled card/quote: terminal mono (same family as Ghostty / nvim). */
+/* Settled card/saying: terminal mono (same family as Ghostty / nvim). */
 .m-char.m-revealed {
   font-family: "Ubuntu Sans Mono", "Courier Prime", "Courier", monospace;
   font-weight: 700;

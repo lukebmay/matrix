@@ -31,6 +31,11 @@ import Group from "./layout/Group.mjs";
 import { stackVertical } from "./layout/stack.mjs";
 import { Anchors } from "./layout/Anchor.mjs";
 import { solveLayout } from "./layout/attach.mjs";
+import {
+  createSayingPlaylist,
+  sayingParts,
+  SAYINGS,
+} from "./sayings.mjs";
 
 // Word-wrap to maxWidth. Long tokens are hard-split. Variable line count.
 function wrapWords(text, maxWidth) {
@@ -80,8 +85,8 @@ const ROLE_SPECS = [
 ];
 const EMAIL_H_TEXT = "lukebmay at gmail dot com";
 const EMAIL_V_TEXT = "LukeBMay at gmail";
-const QUOTE_TEXT =
-  "Most people are willing to sacrifice their own liberty, and yours, for the illusion of safety.";
+// Bootstrap only — live playlist draws from SAYINGS via createSayingPlaylist().
+const SAYING_BOOTSTRAP_TEXT = sayingParts(SAYINGS[0]).body;
 
 // Card geometry from copy. When cards change, update copy — grid tracks this.
 function cardContentMetrics({ emailVertical = true } = {}) {
@@ -93,15 +98,17 @@ function cardContentMetrics({ emailVertical = true } = {}) {
   return { rolesH, rolesW, emailH, emailW, emailVertical };
 }
 
-// Widest fixed line (roles + horizontal email). Quote wraps separately.
+// Widest fixed line (roles + horizontal email). Sayings wrap separately.
 const MAX_CONTENT_WIDTH = Math.max(EMAIL_H_TEXT.length, ...ROLE_SPECS.map((s) => s.text.length));
 
 // Narrow viewports: fewer cells (performance); content-driven COLS.
 const MOBILE_MAX_WIDTH = 768;
 // Extra columns beyond longest line (breathing room + side pads).
 const MOBILE_COLS_MARGIN = 5;
-// Large displays: cap quote column window (≈ prior 3-way split line length).
-const QUOTE_WRAP_MAX_DESKTOP = 40;
+// Wide grids: fixed saying column window (chars). COLS ≤ this+2 uses COLS−2.
+const SAYING_WRAP_MAX = 50;
+// At or below this COLS, saying uses 1-col side pads (width = COLS − 2).
+const SAYING_NARROW_COLS = SAYING_WRAP_MAX + 2;
 
 // Ambient rain cosine period (seconds). Area under one period = COLS.
 // Trough (t=0) is RAIN_START_RATE; amplitude set so mean = COLS/T.
@@ -138,8 +145,16 @@ function Configuration(...args) {
 
   const self = this;
 
-  const viewWidth = document.documentElement.clientWidth;
-  const viewHeight = document.documentElement.clientHeight;
+  // Prefer layout size; fall back to visual viewport (some mobile WebViews report
+  // 0×0 on documentElement during early script). Never allow 0 — avoids NaN grid.
+  const viewWidth = Math.max(
+    1,
+    document.documentElement.clientWidth || window.innerWidth || 1,
+  );
+  const viewHeight = Math.max(
+    1,
+    document.documentElement.clientHeight || window.innerHeight || 1,
+  );
 
   const minCharCount = 24;
   const defaultCharSize = 32;
@@ -226,11 +241,13 @@ function Configuration(...args) {
   self.CENTER = Math.floor(self.COLS / 2);
   self.RIGHT = self.COLS - 1;
 
-  // Quote window: mobile 1-col side pads; desktop capped near prior line width.
-  const quoteSidePad = Math.max(self.EMAIL_PAD_LEFT, self.ROLES_PAD_RIGHT);
-  self.QUOTE_MAX_WIDTH = self.IS_MOBILE
-    ? Math.max(1, self.COLS - 2 * quoteSidePad)
-    : Math.max(12, Math.min(QUOTE_WRAP_MAX_DESKTOP, self.COLS - 2 * quoteSidePad));
+  // Saying window (fixed box for center/right alignment of components):
+  //   COLS ≤ 52 → 1-col pad each side → width COLS − 2
+  //   COLS > 52 → cap at 50 chars (window centered on the grid)
+  self.SAYING_MAX_WIDTH =
+    self.COLS <= SAYING_NARROW_COLS
+      ? Math.max(1, self.COLS - 2)
+      : SAYING_WRAP_MAX;
 
   // --- Performance level (high / medium / low) ---
   // All drop speed, length, storm, rain-pause, and glow thrift settings are
@@ -263,7 +280,7 @@ function Configuration(...args) {
   // Optional full page reload for multi-day wall runs; 0 = off.
   self.SOFT_RELOAD_MS = 0;
 
-  // Palette via ThemeDirector (3× green then one of each color; blend on quote hide).
+  // Palette via ThemeDirector (3× green then one of each color; blend on saying hide).
   const green = THEMES.green;
   self.LOW_COLOR = green.low;
   self.MED_COLOR = green.med;
@@ -351,21 +368,81 @@ function Configuration(...args) {
       that: [Anchors.bottom(grid).minus(emailPadBottom), Anchors.left(grid).plus(emailPadLeft)],
     });
 
-    // wrapWords: mobile COLS−2; desktop min(40, COLS−2×pad).
-    const quoteLineStrs = wrapWords(QUOTE_TEXT, self.QUOTE_MAX_WIDTH);
-    const quoteLines = quoteLineStrs.map((text, i) =>
+    // Fixed saying window (SAYING_MAX_WIDTH): content centered; footers right.
+    //   content lines…
+    //                     - Author
+    //          (optional context)
+    // Playlist swaps cells each cycle (bootstrap group is scaffolding only).
+    const materializeSayingCells = (entry) => {
+      const windowW = self.SAYING_MAX_WIDTH;
+      const { body, attributionLine, contextLine } = sayingParts(entry);
+      const bodyStrs = wrapWords(body || " ", windowW);
+      const bodyLines = bodyStrs.map((lineText, i) =>
+        TextLine({
+          text: lineText,
+          lineId: i,
+          name: `saying-${i}`,
+        }),
+      );
+      // Center body lines within the fixed window (not shrink-wrap to longest).
+      const group = stackVertical(bodyLines, {
+        align: "center",
+        name: "saying",
+      });
+      group.width = windowW;
+
+      const allLines = [...bodyLines];
+      let lineId = bodyLines.length;
+      let below = bodyLines[bodyLines.length - 1];
+
+      // Attribution then context: wrap to window, each line right-justified.
+      const appendFooter = (text, nameBase) => {
+        if (!text) return;
+        const strs = wrapWords(text, windowW);
+        for (let i = 0; i < strs.length; i++) {
+          const footer = TextLine({
+            text: strs[i],
+            lineId: lineId++,
+            name: strs.length === 1 ? nameBase : `${nameBase}-${i}`,
+          });
+          group.height = (group.height || 0) + 1;
+          group.add(footer);
+          footer.attach({
+            this: [Anchors.top(footer), Anchors.right(footer)],
+            that: [Anchors.bottom(below).plus(1), Anchors.right(group)],
+          });
+          allLines.push(footer);
+          below = footer;
+        }
+      };
+      appendFooter(attributionLine, "saying-attr");
+      appendFooter(contextLine, "saying-context");
+
+      // Whole window centered on the grid (horiz + vert).
+      group.attach({
+        this: Anchors.middleCenter(group),
+        that: Anchors.middleCenter(grid),
+      });
+      solveLayout([grid, group, ...allLines]);
+      return group.cells();
+    };
+
+    const sayingLineStrs = wrapWords(SAYING_BOOTSTRAP_TEXT, self.SAYING_MAX_WIDTH);
+    const sayingLines = sayingLineStrs.map((text, i) =>
       TextLine({
         text,
         lineId: i,
-        name: `quote-${i}`,
+        name: `saying-${i}`,
       }),
     );
-    const quoteGroup = stackVertical(quoteLines, {
+    const sayingGroup = stackVertical(sayingLines, {
       align: "center",
-      name: "quote",
+      name: "saying",
     });
-    quoteGroup.attach({
-      this: Anchors.middleCenter(quoteGroup),
+    // Match live playlist window so bootstrap geometry is representative.
+    sayingGroup.width = self.SAYING_MAX_WIDTH;
+    sayingGroup.attach({
+      this: Anchors.middleCenter(sayingGroup),
       that: Anchors.middleCenter(grid),
     });
 
@@ -376,8 +453,8 @@ function Configuration(...args) {
       emailGroup,
       emailH,
       ...(emailV ? [emailV] : []),
-      quoteGroup,
-      ...quoteLines,
+      sayingGroup,
+      ...sayingLines,
     ]);
 
     // Rain: ambient forever. Cosine trough-start period T:
@@ -439,31 +516,58 @@ function Configuration(...args) {
     });
     cardHide.stormAccumulator = revealStorm(cardHide.columns.size);
 
-    const quoteReveal = DropScene.from(quoteGroup, {
-      name: "quote-reveal",
+    const sayingReveal = DropScene.from(sayingGroup, {
+      name: "saying-reveal",
       mode: "hidden",
       priority: 10,
     });
-    quoteReveal.stormAccumulator = revealStorm(quoteReveal.columns.size);
+    sayingReveal.stormAccumulator = revealStorm(sayingReveal.columns.size);
 
-    const quote = DisplayText({ cells: quoteReveal.points });
+    const saying = DisplayText({ cells: sayingReveal.points });
 
-    const quoteHide = DropScene({
-      name: "quote-hide",
-      points: quoteReveal.points,
+    const sayingHide = DropScene({
+      name: "saying-hide",
+      points: sayingReveal.points,
       mode: "hidden",
       priority: 20,
     });
-    quoteHide.stormAccumulator = revealStorm(quoteHide.columns.size);
+    sayingHide.stormAccumulator = revealStorm(sayingHide.columns.size);
 
-    const contentLayers = [roles, email, quote];
-    const dropScenes = [rolesReveal, emailReveal, cardHide, quoteReveal, quoteHide];
+    // Shuffled pool: draw without replacement; refill + reshuffle when empty.
+    // Each deck: SAYINGS[0] (liberty / LBM) first, then shuffle of the rest.
+    const sayingPlaylist = createSayingPlaylist(SAYINGS);
+    const loadNextSaying = () => {
+      const entry = sayingPlaylist.next();
+      const cells = materializeSayingCells(entry);
+      // Shared points array (reveal + hide); mutate in place then resync maps.
+      sayingReveal.setPoints(cells);
+      sayingHide.resyncGeometry();
+      saying.setCells(sayingReveal.points);
+      // Seed storm size for new column footprint (play-chain rebuilds on storm()).
+      sayingReveal.stormAccumulator = revealStorm(sayingReveal.columns.size);
+      sayingHide.stormAccumulator = revealStorm(sayingHide.columns.size);
+      // Hover hit-map was built from the previous saying's cells — rebind so
+      // hasten / hold-extend land on the new footprint.
+      state.scenePlayer?.attachHover?.();
+      return entry;
+    };
+    // First cycle: pin-first entry (not bootstrap layout alone).
+    loadNextSaying();
+
+    const contentLayers = [roles, email, saying];
+    const dropScenes = [
+      rolesReveal,
+      emailReveal,
+      cardHide,
+      sayingReveal,
+      sayingHide,
+    ];
 
     const sceneManager = SceneManager({ scenes: dropScenes });
 
     const scenePlayer = ScenePlayer();
     // Hold / gap timings (all perf levels): 3s rain open; reveal rain lead then
-    // storm; 6s full text after last reveal; 3s empty after last hide; 3s color
+    // storm; 6s full text after last reveal; 2s empty after last hide; 2s color
     // residual fade (see homepagePlay).
     const stormSec = stormDurationSeconds(self.PERF_LEVEL, HIGH_STORM_DURATION_SEC);
     homepagePlay(
@@ -472,8 +576,8 @@ function Configuration(...args) {
         rolesReveal,
         emailReveal,
         cardHide,
-        quoteReveal,
-        quoteHide,
+        sayingReveal,
+        sayingHide,
       },
       {
         rolesAtMs: 3_000,
@@ -481,14 +585,15 @@ function Configuration(...args) {
         rolesStormSec: stormSec,
         emailStormSec: stormSec,
         cardHideStormSec: stormSec,
-        quoteStormSec: stormSec,
-        quoteHideStormSec: stormSec,
+        sayingStormSec: stormSec,
+        sayingHideStormSec: stormSec,
         cardHoldAfterEmailMs: 6_000,
-        quoteHoldMs: 6_000,
-        afterCardGoneMs: 3_000,
+        sayingHoldMs: 6_000,
+        afterCardGoneMs: 2_000,
         restartGapMs: 0,
-        themeBlendSec: 3,
+        themeBlendSec: 2,
         completionWatchdogMs: self.COMPLETION_WATCHDOG_MS,
+        loadNextSaying,
       },
     );
 
@@ -498,7 +603,9 @@ function Configuration(...args) {
       dropScenes,
       sceneManager,
       scenePlayer,
-      layout: { grid, rolesGroup, emailGroup, quoteGroup },
+      layout: { grid, rolesGroup, emailGroup, sayingGroup },
+      sayingPlaylist,
+      loadNextSaying,
     };
   };
 

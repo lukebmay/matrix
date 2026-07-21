@@ -202,10 +202,14 @@ function DomManager(...args) {
 
     if (g.revealed && g.text) {
       setGlyph(el, g.text, null);
-      el.classList.add("m-revealed");
-      // Link chrome follows *logical* href. Shared cells (e.g. mobile quote
+      // m-static owns settled body/link glow (see style.css). Must be applied on
+      // every reveal paint — not only initializeContent — so playlist saying
+      // swaps (new r,c) get neon body color instead of residual rain low.
+      el.classList.add("m-revealed", "m-static");
+      el.setAttribute("data-static-char", g.text);
+      // Link chrome follows *logical* href. Shared cells (e.g. mobile saying
       // col 1 vs email vertical) may still carry m-link from another layer's
-      // init stamp — that made settled quote glyphs stick at link brightness.
+      // init stamp — that made settled saying glyphs stick at link brightness.
       if (g.href) {
         el.classList.add("m-link");
       } else {
@@ -216,7 +220,8 @@ function DomManager(...args) {
 
     // Capture before remove: hide must replace intentional glyph, not keep it as "rain".
     const wasContent = el.classList.contains("m-revealed");
-    el.classList.remove("m-revealed", "m-link-hover");
+    el.classList.remove("m-revealed", "m-link-hover", "m-static");
+    el.removeAttribute("data-static-char");
     if (rainIfEmpty) {
       // Fresh noise on blank or after hide; keep existing rain glyph otherwise.
       const cur = getGlyph(el);
@@ -268,7 +273,7 @@ function DomManager(...args) {
       for (let r = 0; r < cfg.ROWS; r++) {
         const el = grid.get(r, c);
         if (!el) continue;
-        // Settled card/quote text uses body/link colors — skip those.
+        // Settled card/saying text uses body/link colors — skip those.
         if (el.classList.contains("m-revealed")) continue;
         const stamped = el.style.getPropertyValue("--res-low")?.trim();
         const from = stamped || ambient;

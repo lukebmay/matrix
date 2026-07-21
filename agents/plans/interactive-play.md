@@ -1,6 +1,6 @@
 # Plan — Interactive play authoring
 
-**Status:** Active — runtime + hover shipped; **quote playlist next**  
+**Status:** Active — runtime + hover shipped; **saying playlist next**  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026` (or current product branch)  
 **Related:** [scene-player.md](completed/scene-player.md) (shipped cue chains),
@@ -15,8 +15,8 @@ modes** *and* **user interaction** that can interrupt, hasten, re-reveal, and
 
 Homepage evolution targets:
 
-1. Card (roles + email) ↔ interleaved **quote playlist**
-2. Occasional **ASCII portrait** slot instead of a quote
+1. Card (roles + email) ↔ interleaved **saying playlist**
+2. Occasional **ASCII portrait** slot instead of a saying
 3. Hover that is useful for reading/clicking (not just CSS polish)
 
 ## What we already have
@@ -26,7 +26,7 @@ Homepage evolution targets:
 | DropScene modes | `hidden` / `revealing` / `revealed` / `hiding` |
 | ScenePlayer context | `delay \| on/wait \| activate \| hide \| storm \| clear \| call \| label \| loop \| loopFrom` |
 | Homepage Style C | One linear chain in `src/js/play/homepage.mjs` |
-| Layout groups | `rolesGroup`, `emailGroup`, `quoteGroup` → DropScene points |
+| Layout groups | `rolesGroup`, `emailGroup`, `sayingGroup` → DropScene points |
 | Hover (partial) | DomManager link `mouseover` force-applies tip on incomplete **line** only |
 | Hover | [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) — hasten / extend / re-reveal — **done** |
 
@@ -41,8 +41,8 @@ Homepage evolution targets:
    Hover lives in DomManager; play lives in homepage.mjs. No shared notion of
    “this group is interactive while in these modes.”
 
-3. **Content is hard-coded one quote.**  
-   Playlist (N quotes + occasional portrait) needs a **content slot** and a
+3. **Content is hard-coded one saying.**  
+   Playlist (N sayings + occasional portrait) needs a **content slot** and a
    **unit that can be swapped** without rewriting the whole chain.
 
 4. **Jump vs wrap is undecided.**  
@@ -342,7 +342,7 @@ Extend chain labels into **named beats**. Interaction handlers call
 | --- | --- |
 | Minimal new concepts; labels already exist | Cleanup policy per seek is easy to get wrong |
 | One timeline to read | Local restart still fights global `forceStableHidden` |
-| Good for “skip to quote” | Playlist content change mid-seek is awkward |
+| Good for “skip to saying” | Playlist content change mid-seek is awkward |
 
 **Policies (sketch):**
 
@@ -359,7 +359,7 @@ Compose the show from **named units** that can start/stop/restart:
 ```text
 show = loop(
   unit("card", cardScript),
-  unit("interlude", pickQuoteOrPortrait),
+  unit("interlude", pickSayingOrPortrait),
 )
 ```
 
@@ -369,7 +369,7 @@ Each unit owns: scenes it may touch, entry cleanup, hover policy, exit.
 | --- | --- |
 | Hover “reset hide timer” = `unit.restartBeat("holdHide")` | More API surface |
 | Playlist = unit factory with content | Nesting can get cute |
-| Matches mental model card vs quote vs face | Style A multi-chain + units need rules |
+| Matches mental model card vs saying vs face | Style A multi-chain + units need rules |
 
 ### Option C — Hybrid (recommended direction to debate)
 
@@ -380,7 +380,7 @@ Each unit owns: scenes it may touch, entry cleanup, hover policy, exit.
 
 ```text
 homepage script (readable)
-  → segments { cardReveal, cardHoldHide, quoteReveal, quoteHoldHide }
+  → segments { cardReveal, cardHoldHide, sayingReveal, sayingHoldHide }
   → bind hover on rolesGroup/emailGroup → interrupt(card*, …)
   → content slot for interlude playlist
 ```
@@ -393,7 +393,7 @@ This keeps authoring friendly while making jump/restart well-defined.
 
 | Target | Meaning |
 | --- | --- |
-| **Group** (roles, email, quote, future portrait) | Default: whole card face / whole quote |
+| **Group** (roles, email, saying, future portrait) | Default: whole card face / whole saying |
 | **Member** (one TextLine / role line) | Optional finer hasten / highlight only that line |
 | **Abstract alignment group** | Same as Group — attach policy on layout object used to build DropScene |
 
@@ -408,7 +408,7 @@ Prefer **group-level default** + optional per-line override. Card hide uses
 | **Revealing** / incomplete | **Hasten** reveal (group or line) | Finish logical + settle mode if all points done |
 | **Revealed** (stable hold) | Style only (links) | Optional: extend hold timer |
 | **Hiding** | **Re-reveal full scope** + **reset hold/hide timeline** + re-storm hide | Never hasten hide |
-| **Hidden** / other unit active | No-op or hit-test ignore | Don’t resurrect card while quote owns the slot |
+| **Hidden** / other unit active | No-op or hit-test ignore | Don’t resurrect card while saying owns the slot |
 
 ### Who owns the handler?
 
@@ -432,7 +432,7 @@ email completed), and we must:
 2. Settle reveal scenes to `revealed` (or re-enter revealing and hasten)
 3. Cancel pending chain waits for *this segment only*
 4. Restart: hold delay → hide + storm again
-5. **Not** jump to quote or full homepage loop
+5. **Not** jump to saying or full homepage loop
 
 That implies at least **segment-scoped cancel**, not only global
 `player.cancel()` / full `loopFrom`.
@@ -442,9 +442,9 @@ That implies at least **segment-scoped cancel**, not only global
 | Capability | Why |
 | --- | --- |
 | Named segment bounds | Know what “card hold+hide” is |
-| Cancel pending steps in segment | Stop old hide completion from advancing to quote |
+| Cancel pending steps in segment | Stop old hide completion from advancing to saying |
 | Re-enter segment entry | Restart hold timer |
-| Scoped scene reset | Re-reveal card points; don’t force-hide quote if not involved |
+| Scoped scene reset | Re-reveal card points; don’t force-hide saying if not involved |
 
 Full-show `loop()` stays global.
 
@@ -458,15 +458,15 @@ card → interlude[i] → card → interlude[i+1] → …
 
 | Interlude kind | Content | Layout |
 | --- | --- | --- |
-| Quote | string → wrapLinesAlways3 | existing quoteGroup pattern |
+| Saying | string → wrapLinesAlways3 | existing sayingGroup pattern |
 | Portrait | ASCII lines / TextLines | same center slot, different cells |
 
 Authoring sketch (not API lock):
 
 ```js
 const interludes = [
-  { type: "quote", text: "…" },
-  { type: "quote", text: "…" },
+  { type: "saying", text: "…" },
+  { type: "saying", text: "…" },
   { type: "portrait", lines: faceAscii }, // sometimes
 ];
 
@@ -475,10 +475,10 @@ const interludes = [
 
 Design constraints to bake in early:
 
-- **One center slot** (shared region) so quote and portrait don’t both paint
+- **One center slot** (shared region) so saying and portrait don’t both paint
 - Rebuild or pool DropScenes when content changes (points/columns change)
 - Unit/segment boundary after card hide is the natural swap point
-- Hover policies on interlude same family as quote (hasten / re-reveal hide)
+- Hover policies on interlude same family as saying (hasten / re-reveal hide)
 
 ## Authoring DX goals
 
@@ -539,14 +539,14 @@ Open: whether `segment` is a real object or just labeled ranges on one chain.
 | [interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md) | **Done** — Unit/Thread runtime + homepage migrate |
 | [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) | **Done** — unit hover policies |
 | scene-player plan | Foundation; this plan extends authoring + interaction |
-| Quotes playlist / portrait | Later interlude content tasks |
+| Sayings playlist / portrait | Later interlude content tasks |
 
 ### Sequencing (locked)
 
 1. ~~Design lock~~ → [completed/interactive-play_design.md](interactive-play/completed/interactive-play_design.md)  
 2. ~~Unit/Thread runtime~~ + homepage migrate → [completed/interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md)  
 3. ~~Hover~~ (hasten / extend hold / re-reveal+restart) → [completed/hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md)  
-4. Quote playlist interlude  
+4. Saying playlist interlude  
 5. ASCII portrait interlude kind  
 
 No DomManager policy shortcut.
@@ -574,7 +574,7 @@ No DomManager policy shortcut.
 | [interactive-play_design.md](interactive-play/completed/interactive-play_design.md) | **Done** — design locked 2026-07-17 |
 | [interactive-play_runtime.md](interactive-play/completed/interactive-play_runtime.md) | **Done** — runtime + homepage 2026-07-17 |
 | [hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) | **Done** — unit hover policies 2026-07-17 |
-| quote playlist | Later |
+| saying playlist | Later |
 | ascii portrait interlude | Later |
 
 ## Session note
@@ -590,11 +590,11 @@ lines; CSS link hover only.
 | Dispatch | `unit.handleHover()` / `hasten()` / `rearm` / hide callback |
 | Abort hide | `softLeaveActive(scene)` — no `completed` |
 | Re-show | `forceStableRevealed` → logical + paint |
-| Homepage | hasten roles/email/quote; card/quote hide re-reveal+restart; hold extend |
+| Homepage | hasten roles/email/saying; card/saying hide re-reveal+restart; hold extend |
 | Smokes | runtime hasten / hide restart / hold extend / softLeave |
 
 **Next agent bullets**
-1. **Quote playlist interlude** (content slot after card hide; N quotes,
+1. **Saying playlist interlude** (content slot after card hide; N sayings,
    swap points without rewriting the whole chain).  
 2. Deploy + job-search polish (live surface for recruiters).  
 3. Later: ASCII portrait interlude kind.  

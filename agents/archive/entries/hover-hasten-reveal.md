@@ -5,7 +5,7 @@
 
 ## What
 
-Pointer over card/quote cells hastens incomplete reveal, extends hold
+Pointer over card/saying cells hastens incomplete reveal, extends hold
 timers, and mid-hide **re-reveals** full text then restarts hide + storm —
 without advancing the parent thread early.
 

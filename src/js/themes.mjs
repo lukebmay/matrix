@@ -197,9 +197,9 @@ export function themeAt(index, order = THEME_ORDER) {
  * Cycle: 3 greens, then one of each non-green color in THEME_ORDER, repeat.
  *
  * Color change timeline (homepage):
- *  1) quote hide **activates** → beginSpawnBlend (new color drops may spawn;
+ *  1) saying hide **activates** → beginSpawnBlend (new color drops may spawn;
  *     old still allowed; coverage pool refilled for next; no drain storm)
- *  2) quote hide **completes** → startVisualTransition (~3s): residual tracks
+ *  2) saying hide **completes** → startVisualTransition (~3s): residual tracks
  *     + debug HUD + ambient low lerp with the empty window
  *  3) visual ends → commit: only new color; old stops; settled roles snap
  *
@@ -324,7 +324,7 @@ export function ThemeDirector(opts = {}) {
     },
 
     /**
-     * Quote-hide activation: allow next-theme drops alongside old.
+     * Saying-hide activation: allow next-theme drops alongside old.
      * Does not start residual/debug fade (that is startVisualTransition).
      */
     beginSpawnBlend(toName) {
@@ -430,7 +430,7 @@ export function ThemeDirector(opts = {}) {
 
     /**
      * Theme for a new drop. Dual-color while blending; only next after commit.
-     * New color is eligible from spawn-blend start (quote hide activation).
+     * New color is eligible from spawn-blend start (saying hide activation).
      */
     pickSpawnTheme() {
       if (phase === "steady" || !nextName) return activeName;

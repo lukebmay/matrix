@@ -7,7 +7,7 @@
 ## What
 
 Multi-palette Matrix rain (green → blue → purple → red → orange → yellow →
-green, then random). Themes change during **quote hide** as weather: new-color
+green, then random). Themes change during **saying hide** as weather: new-color
 drops mix in, then dominate; settled CSS commits for the next card.
 
 ## Why

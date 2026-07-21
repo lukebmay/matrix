@@ -178,61 +178,64 @@ export { Rain };
 export default Rain;
 
 // ===========================================================
-// Smoke tests: node src/js/Rain.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href === import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
+    const assert = (await import("node:assert/strict")).default;
 
-  console.log("Running Rain smoke tests...");
+    console.log("Running Rain smoke tests...");
 
-  const rain = Rain({ cols: 5, coverageTheme: "green" });
-  assert.equal(rain.firstPass.size, 5);
+    const rain = Rain({ cols: 5, coverageTheme: "green" });
+    assert.equal(rain.firstPass.size, 5);
 
-  const free = [0, 1, 2, 3, 4];
-  const first = rain.pickColumns(2, free);
-  assert.equal(first.length, 2);
-  for (const c of first) assert.ok(rain.firstPass.has(c)); // not drained until spawn
+    const free = [0, 1, 2, 3, 4];
+    const first = rain.pickColumns(2, free);
+    assert.equal(first.length, 2);
+    for (const c of first) assert.ok(rain.firstPass.has(c)); // not drained until spawn
 
-  for (const c of first) rain.onColumnSpawned(c, { theme: "green" });
-  assert.equal(rain.firstPass.size, 3);
+    for (const c of first) rain.onColumnSpawned(c, { theme: "green" });
+    assert.equal(rain.firstPass.size, 3);
 
-  // Wrong theme does not drain.
-  rain.onColumnSpawned(0, { theme: "red" });
-  assert.equal(rain.firstPass.size, 3);
+    // Wrong theme does not drain.
+    rain.onColumnSpawned(0, { theme: "red" });
+    assert.equal(rain.firstPass.size, 3);
 
-  // First-pass still pending but only non-firstPass cols free → wait.
-  const remaining = [...rain.firstPass];
-  assert.ok(remaining.length > 0);
-  const freeNotInFirst = free.filter((c) => !rain.firstPass.has(c));
-  assert.ok(freeNotInFirst.length > 0);
-  const waited = rain.pickColumns(2, freeNotInFirst);
-  assert.equal(waited.length, 0);
+    // First-pass still pending but only non-firstPass cols free → wait.
+    const remaining = [...rain.firstPass];
+    assert.ok(remaining.length > 0);
+    const freeNotInFirst = free.filter((c) => !rain.firstPass.has(c));
+    assert.ok(freeNotInFirst.length > 0);
+    const waited = rain.pickColumns(2, freeNotInFirst);
+    assert.equal(waited.length, 0);
 
-  // Drain first-pass
-  for (const c of [0, 1, 2, 3, 4]) rain.onColumnSpawned(c, { theme: "green" });
-  assert.equal(rain.firstPass.size, 0);
+    // Drain first-pass
+    for (const c of [0, 1, 2, 3, 4]) rain.onColumnSpawned(c, { theme: "green" });
+    assert.equal(rain.firstPass.size, 0);
 
-  // Free random still picks from free
-  const freePick = rain.pickColumns(3, [1, 3, 4]);
-  assert.equal(freePick.length, 3);
+    // Free random still picks from free
+    const freePick = rain.pickColumns(3, [1, 3, 4]);
+    assert.equal(freePick.length, 3);
 
-  // Reset + drain storm
-  rain.resetCoverage({ cols: 5, theme: "blue" });
-  assert.equal(rain.firstPass.size, 5);
-  assert.equal(rain.coverageTheme, "blue");
-  rain.startDrainStorm(1);
-  assert.equal(rain.stormEnabled, true);
-  assert.ok(rain.stormAccumulator);
-  const stormPick = rain.pickColumns(2, free, []);
-  assert.equal(stormPick.length, 2);
-  rain.stopDrainStorm();
-  assert.equal(rain.stormEnabled, false);
+    // Reset + drain storm
+    rain.resetCoverage({ cols: 5, theme: "blue" });
+    assert.equal(rain.firstPass.size, 5);
+    assert.equal(rain.coverageTheme, "blue");
+    rain.startDrainStorm(1);
+    assert.equal(rain.stormEnabled, true);
+    assert.ok(rain.stormAccumulator);
+    const stormPick = rain.pickColumns(2, free, []);
+    assert.equal(stormPick.length, 2);
+    rain.stopDrainStorm();
+    assert.equal(rain.stormEnabled, false);
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`Rain smoke tests passed! ${green("✓")}`);
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`Rain smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

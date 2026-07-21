@@ -38,7 +38,7 @@ Read [plans/interactive-play.md](../../interactive-play.md) — especially
    wired only if cheap; full hover product is next task).
 4. Thread sugar: `run`, `delay`, `loop`, `start` / `stop` / `restart`.
 5. Migrate `src/js/play/homepage.mjs` to the new API with **equivalent**
-   card → quote → loop behavior (storm/delays preserved).
+   card → saying → loop behavior (storm/delays preserved).
 6. Keep pause/cancel/watchdog working with new waiters.
 7. Smokes for: chain advance, restart without double-complete, stop disposes
    waits, loop gen, delay pause if feasible.
@@ -59,7 +59,7 @@ Read [plans/interactive-play.md](../../interactive-play.md) — especially
 ## Out of scope
 
 - Product hover (hasten / re-reveal / extend) — next task
-- Quote playlist / ASCII portrait
+- Saying playlist / ASCII portrait
 - Visual timeline; frame-dt clock
 - DomManager tip-force “hover” improvements beyond what migration needs
 

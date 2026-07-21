@@ -289,66 +289,69 @@ export default {
 };
 
 // ===========================================================
-// Smoke tests: node src/js/performance.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href === import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
+    const assert = (await import("node:assert/strict")).default;
 
-  console.log("Running performance smoke tests...");
+    console.log("Running performance smoke tests...");
 
-  assert.equal(detectInitialPerfLevel({}), PERF_HIGH);
-  assert.equal(detectInitialPerfLevel({ isMobile: true }), PERF_MEDIUM);
-  assert.equal(detectInitialPerfLevel({ isLowPower: true }), PERF_MEDIUM);
-  assert.equal(nextPerfLevel(PERF_HIGH), PERF_MEDIUM);
-  assert.equal(nextPerfLevel(PERF_MEDIUM), PERF_LOW);
-  assert.equal(nextPerfLevel(PERF_LOW), null);
+    assert.equal(detectInitialPerfLevel({}), PERF_HIGH);
+    assert.equal(detectInitialPerfLevel({ isMobile: true }), PERF_MEDIUM);
+    assert.equal(detectInitialPerfLevel({ isLowPower: true }), PERF_MEDIUM);
+    assert.equal(nextPerfLevel(PERF_HIGH), PERF_MEDIUM);
+    assert.equal(nextPerfLevel(PERF_MEDIUM), PERF_LOW);
+    assert.equal(nextPerfLevel(PERF_LOW), null);
 
-  const hiRain = rainSpeedBand(PERF_HIGH);
-  const medRain = rainSpeedBand(PERF_MEDIUM);
-  const lowRain = rainSpeedBand(PERF_LOW);
-  assert.equal(hiRain.min, HIGH_RAIN_SPEED_MIN);
-  assert.equal(hiRain.max, HIGH_RAIN_SPEED_MAX);
-  assert.ok(medRain.min > hiRain.min, "med raises rain floor");
-  assert.ok(lowRain.min > medRain.min, "low raises rain floor further");
-  assert.equal(medRain.max, hiRain.max);
-  assert.equal(lowRain.max, hiRain.max);
+    const hiRain = rainSpeedBand(PERF_HIGH);
+    const medRain = rainSpeedBand(PERF_MEDIUM);
+    const lowRain = rainSpeedBand(PERF_LOW);
+    assert.equal(hiRain.min, HIGH_RAIN_SPEED_MIN);
+    assert.equal(hiRain.max, HIGH_RAIN_SPEED_MAX);
+    assert.ok(medRain.min > hiRain.min, "med raises rain floor");
+    assert.ok(lowRain.min > medRain.min, "low raises rain floor further");
+    assert.equal(medRain.max, hiRain.max);
+    assert.equal(lowRain.max, hiRain.max);
 
-  const hiStorm = stormSpeedBand(PERF_HIGH);
-  const lowStorm = stormSpeedBand(PERF_LOW);
-  assert.ok(hiStorm.min < lowStorm.min, "low storms start faster");
-  assert.equal(hiStorm.max, lowStorm.max);
+    const hiStorm = stormSpeedBand(PERF_HIGH);
+    const lowStorm = stormSpeedBand(PERF_LOW);
+    assert.ok(hiStorm.min < lowStorm.min, "low storms start faster");
+    assert.equal(hiStorm.max, lowStorm.max);
 
-  const hiLen = dropLengthBand(40, 20, PERF_HIGH);
-  const medLen = dropLengthBand(40, 20, PERF_MEDIUM);
-  const lowLen = dropLengthBand(40, 20, PERF_LOW);
-  assert.equal(hiLen.max, 24); // 0.6 * 40
-  assert.equal(medLen.max, 20); // 0.5 * 40
-  assert.equal(lowLen.max, 16); // 0.4 * 40
-  assert.equal(medLen.min, 5);
-  assert.equal(lowLen.min, 4);
+    const hiLen = dropLengthBand(40, 20, PERF_HIGH);
+    const medLen = dropLengthBand(40, 20, PERF_MEDIUM);
+    const lowLen = dropLengthBand(40, 20, PERF_LOW);
+    assert.equal(hiLen.max, 24); // 0.6 * 40
+    assert.equal(medLen.max, 20); // 0.5 * 40
+    assert.equal(lowLen.max, 16); // 0.4 * 40
+    assert.equal(medLen.min, 5);
+    assert.equal(lowLen.min, 4);
 
-  assert.equal(stormDurationSeconds(PERF_HIGH, 3), 3);
-  assert.equal(stormDurationSeconds(PERF_MEDIUM, 3), 4.5);
-  assert.equal(stormDurationSeconds(PERF_LOW, 3), 7.5);
+    assert.equal(stormDurationSeconds(PERF_HIGH, 3), 3);
+    assert.equal(stormDurationSeconds(PERF_MEDIUM, 3), 4.5);
+    assert.equal(stormDurationSeconds(PERF_LOW, 3), 7.5);
 
-  const cfg = { ROWS: 30, COLS: 40 };
-  applyPerfToConfig(cfg, PERF_MEDIUM);
-  assert.equal(cfg.PERF_LEVEL, PERF_MEDIUM);
-  assert.equal(cfg.PAUSE_RAIN_DURING_STORM, true);
-  assert.equal(cfg.RAIN_RESUME, "preserve");
-  assert.equal(cfg.ALLOW_STORM_STACK, false);
-  assert.equal(cfg.FRAME_AVG_CLAMP_MS, 150);
+    const cfg = { ROWS: 30, COLS: 40 };
+    applyPerfToConfig(cfg, PERF_MEDIUM);
+    assert.equal(cfg.PERF_LEVEL, PERF_MEDIUM);
+    assert.equal(cfg.PAUSE_RAIN_DURING_STORM, true);
+    assert.equal(cfg.RAIN_RESUME, "preserve");
+    assert.equal(cfg.ALLOW_STORM_STACK, false);
+    assert.equal(cfg.FRAME_AVG_CLAMP_MS, 150);
 
-  applyPerfToConfig(cfg, PERF_HIGH);
-  assert.equal(cfg.PAUSE_RAIN_DURING_STORM, false);
-  assert.equal(cfg.ALLOW_STORM_STACK, true);
-  assert.equal(cfg.FRAME_AVG_CLAMP_MS, 200);
+    applyPerfToConfig(cfg, PERF_HIGH);
+    assert.equal(cfg.PAUSE_RAIN_DURING_STORM, false);
+    assert.equal(cfg.ALLOW_STORM_STACK, true);
+    assert.equal(cfg.FRAME_AVG_CLAMP_MS, 200);
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`performance smoke tests passed! ${green("✓")}`);
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`performance smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

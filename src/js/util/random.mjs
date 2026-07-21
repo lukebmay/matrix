@@ -118,41 +118,46 @@ export default {
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  // randomInterval tests
-  for (let i = 0; i < 50; i++) {
-    const val = randomInterval(10, 20);
-    assert.ok(val >= 10 && val < 20);
-  }
-  assert.throws(() => randomInterval(5, 5), /upper bound must be greater/);
+    console.log("Running tests...");
 
-  // randomChar tests
-  const sample = "xyz123";
-  for (let i = 0; i < 30; i++) {
-    const ch = randomChar(sample);
-    assert.strictEqual(ch.length, 1);
-    assert.ok(sample.includes(ch));
-  }
-  assert.throws(() => randomChar(""), /non-empty string/);
+    // randomInterval tests
+    for (let i = 0; i < 50; i++) {
+      const val = randomInterval(10, 20);
+      assert.ok(val >= 10 && val < 20);
+    }
+    assert.throws(() => randomInterval(5, 5), /upper bound must be greater/);
 
-  // randomChoice tests
-  const colors = ["red", "green", "blue"];
-  for (let i = 0; i < 30; i++) {
-    assert.ok(colors.includes(randomChoice(colors)));
-  }
-  assert.throws(() => randomChoice([]), /empty collection/);
+    // randomChar tests
+    const sample = "xyz123";
+    for (let i = 0; i < 30; i++) {
+      const ch = randomChar(sample);
+      assert.strictEqual(ch.length, 1);
+      assert.ok(sample.includes(ch));
+    }
+    assert.throws(() => randomChar(""), /non-empty string/);
 
-  // shuffle tests
-  const nums = [1, 2, 3, 4, 5];
-  const copy = [...nums];
-  const shuffled = shuffle(copy);
-  assert.strictEqual(shuffled.length, nums.length);
-  assert.deepStrictEqual(new Set(shuffled), new Set(nums));
+    // randomChoice tests
+    const colors = ["red", "green", "blue"];
+    for (let i = 0; i < 30; i++) {
+      assert.ok(colors.includes(randomChoice(colors)));
+    }
+    assert.throws(() => randomChoice([]), /empty collection/);
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+    // shuffle tests
+    const nums = [1, 2, 3, 4, 5];
+    const copy = [...nums];
+    const shuffled = shuffle(copy);
+    assert.strictEqual(shuffled.length, nums.length);
+    assert.deepStrictEqual(new Set(shuffled), new Set(nums));
+
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

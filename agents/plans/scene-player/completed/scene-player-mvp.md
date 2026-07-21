@@ -44,6 +44,6 @@ Homepage uses Style C play in `src/js/play/homepage.mjs`. MVP
 | `SceneManager` | `resolve`, `applyTip`, `paintGlyph`, logical map |
 | `DropScene` | `cellMap`, `events.started` / `events.completed` |
 
-### Quote
+### Saying
 
 Always 3 lines via `wrapLinesAlways3`.

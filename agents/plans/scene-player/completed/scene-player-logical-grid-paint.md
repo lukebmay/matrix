@@ -130,12 +130,12 @@ Rain from t=0 (slow→heavy ~3s). Roles/email start **hidden**.
 | 3s | Roles reveal |
 | 5s | Email reveal |
 | 6s / 10s | Roles / email storms |
-| 20s | Card hide + quote reveal |
-| 23s | Storms on hide + quote |
-| quote+10s | Quote hide |
+| 20s | Card hide + saying reveal |
+| 23s | Storms on hide + saying |
+| saying+10s | Saying hide |
 | **+20s gap** | Then loop roles/email again |
 
-Quote: **always exactly 3 lines**, centered. Reusable `Phase` list +
+Saying: **always exactly 3 lines**, centered. Reusable `Phase` list +
 `loopPhases` (in `ScenePlayer.mjs`).
 
 ### Pause
@@ -146,7 +146,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 
 ## Failure modes to kill (current browser)
 
-1. Garbled quote mid-screen mixed with rain while roles still shown.
+1. Garbled saying mid-screen mixed with rain while roles still shown.
 2. Rain noise **inside** words (spaces not owned — decide: blank static cells
    for spaces when line revealed, or document rain-in-gaps).
 3. Hide-before-reveal or dual writers (`data-static-char` + logical + DisplayText).
@@ -163,7 +163,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 3. DomManager: tip-enter → resolve once → logical write → DOM paint; trail =
    styles + paint-from-logical only.
 4. Enforce resolve order (newest reveal → hide → rain).
-5. Eyeball full card → quote → 20s gap → card loop.
+5. Eyeball full card → saying → 20s gap → card loop.
 6. Smokes + `npm run build`.
 7. Update plan + this task session note.
 
@@ -172,7 +172,7 @@ Freeze frame loop **and** ScenePlayer cues; remaining delays survive unpause.
 - [x] Logical grid = only intentional chars; hide+drop clears them
 - [x] DOM = logical char or random rain when logical empty
 - [x] Tip-once; reveal beats hide; newest reveal wins
-- [x] No garbled dual paint in browser (roles, email, quote) — eyeball OK
+- [x] No garbled dual paint in browser (roles, email, saying) — eyeball OK
 - [x] ScenePlayer phase timings still match table
 - [x] Session note + plan updated
 
@@ -216,5 +216,5 @@ shipped (`src/js/play/homepage.mjs`); homepage no longer uses
 
 **2026-07-20 — Eyeball confirmed; task complete**
 
-Human confirmed scene-player paint looks good (card → quote → loop).
+Human confirmed scene-player paint looks good (card → saying → loop).
 Task archived under `plans/scene-player/completed/`.

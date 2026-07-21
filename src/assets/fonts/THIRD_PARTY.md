@@ -19,7 +19,7 @@ Used for digital-rain noise glyphs (classic film code set).
 - **License:** Ubuntu Font Licence 1.0 (see `UbuntuSansMono-UFL.txt`)
 - **Copyright:** Canonical Ltd
 
-English monospaced face for settled card/quote text. Bold weight so stem
+English monospaced face for settled card/saying text. Bold weight so stem
 thickness sits closer to Matrix Code rain glyphs; terminal/computer feel.
 
 ## Courier Prime

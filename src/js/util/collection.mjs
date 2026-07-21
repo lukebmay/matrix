@@ -41,64 +41,69 @@ export default { objMap, objFilter };
 // ===========================================================
 // Tests
 // ===========================================================
+// Smoke: async IIFE only (no top-level await — Safari/WebKit / DDG iOS).
 if (import.meta.main) {
-  const assert = (await import("node:assert/strict")).default;
+  void (async () => {
 
-  console.log("Running tests...");
+    const assert = (await import("node:assert/strict")).default;
 
-  // ------------
-  // objMap tests
-  // ------------
-  // Basic mapping (keys + values)
-  const result1 = objMap({ a: 1, b: 2, c: 3 }, (key, val) => [key.toUpperCase(), val * 10]);
-  assert.deepStrictEqual(result1, { A: 10, B: 20, C: 30 });
+    console.log("Running tests...");
 
-  // Values only (keys unchanged)
-  const result2 = objMap({ x: 5, y: 10 }, (key, val) => [key, val + 1]);
-  assert.deepStrictEqual(result2, { x: 6, y: 11 });
+    // ------------
+    // objMap tests
+    // ------------
+    // Basic mapping (keys + values)
+    const result1 = objMap({ a: 1, b: 2, c: 3 }, (key, val) => [key.toUpperCase(), val * 10]);
+    assert.deepStrictEqual(result1, { A: 10, B: 20, C: 30 });
 
-  // Keys only (values unchanged)
-  const result3 = objMap({ first: "John", last: "Doe" }, (key, val) => [`_${key}`, val]);
-  assert.deepStrictEqual(result3, { _first: "John", _last: "Doe" });
+    // Values only (keys unchanged)
+    const result2 = objMap({ x: 5, y: 10 }, (key, val) => [key, val + 1]);
+    assert.deepStrictEqual(result2, { x: 6, y: 11 });
 
-  // Empty object
-  assert.deepStrictEqual(
-    objMap({}, (k, v) => [k, v]),
-    {},
-  );
+    // Keys only (values unchanged)
+    const result3 = objMap({ first: "John", last: "Doe" }, (key, val) => [`_${key}`, val]);
+    assert.deepStrictEqual(result3, { _first: "John", _last: "Doe" });
 
-  // Error cases
-  assert.throws(() => objMap({ a: 1 }, "not a function"), /must be a function/);
-  assert.throws(() => objMap(null, (k, v) => [k, v]), /must be a plain object/);
-  assert.throws(() => objMap(undefined, (k, v) => [k, v]), /must be a plain object/);
+    // Empty object
+    assert.deepStrictEqual(
+      objMap({}, (k, v) => [k, v]),
+      {},
+    );
 
-  // ---------------
-  // objFilter tests
-  // ---------------
-  const filter1 = objFilter({ a: 1, b: 2, c: 3, d: 4 }, (k, v) => v % 2 === 0);
-  assert.deepStrictEqual(filter1, { b: 2, d: 4 });
+    // Error cases
+    assert.throws(() => objMap({ a: 1 }, "not a function"), /must be a function/);
+    assert.throws(() => objMap(null, (k, v) => [k, v]), /must be a plain object/);
+    assert.throws(() => objMap(undefined, (k, v) => [k, v]), /must be a plain object/);
 
-  const filter2 = objFilter({ name: "John", age: 30, city: "St. Louis" }, (k) => k !== "age");
-  assert.deepStrictEqual(filter2, { name: "John", city: "St. Louis" });
+    // ---------------
+    // objFilter tests
+    // ---------------
+    const filter1 = objFilter({ a: 1, b: 2, c: 3, d: 4 }, (k, v) => v % 2 === 0);
+    assert.deepStrictEqual(filter1, { b: 2, d: 4 });
 
-  const data = { a: 5, b: 10, c: 15 };
-  const filter3 = objFilter(data, (k, v, o) => v > o.a);
-  assert.deepStrictEqual(filter3, { b: 10, c: 15 });
+    const filter2 = objFilter({ name: "John", age: 30, city: "St. Louis" }, (k) => k !== "age");
+    assert.deepStrictEqual(filter2, { name: "John", city: "St. Louis" });
 
-  assert.deepStrictEqual(
-    objFilter({}, (k, v) => true),
-    {},
-  );
-  assert.deepStrictEqual(
-    objFilter({ x: 1, y: 2 }, () => false),
-    {},
-  );
+    const data = { a: 5, b: 10, c: 15 };
+    const filter3 = objFilter(data, (k, v, o) => v > o.a);
+    assert.deepStrictEqual(filter3, { b: 10, c: 15 });
 
-  // Error cases for objFilter
-  assert.throws(() => objFilter({ a: 1 }, "not a function"), /must be a function/);
-  assert.throws(() => objFilter(null, (k, v) => true), /must be a plain object/);
-  assert.throws(() => objFilter(undefined, (k, v) => true), /must be a plain object/);
+    assert.deepStrictEqual(
+      objFilter({}, (k, v) => true),
+      {},
+    );
+    assert.deepStrictEqual(
+      objFilter({ x: 1, y: 2 }, () => false),
+      {},
+    );
 
-  const green = (text) => `\x1b[32m${text}\x1b[0m`;
-  console.log(`All tests passed! ${green("✓")}`);
+    // Error cases for objFilter
+    assert.throws(() => objFilter({ a: 1 }, "not a function"), /must be a function/);
+    assert.throws(() => objFilter(null, (k, v) => true), /must be a plain object/);
+    assert.throws(() => objFilter(undefined, (k, v) => true), /must be a plain object/);
+
+    const green = (text) => `\x1b[32m${text}\x1b[0m`;
+    console.log(`All tests passed! ${green("✓")}`);
+
+  })();
 }

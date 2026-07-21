@@ -123,7 +123,7 @@ function ScenePlayer(...args) {
 const DEFAULT_COMPLETION_WATCHDOG_MS = 60_000;
 
 // Abort active reveal/hide or settle revealed → hidden; clear logical + blank DOM.
-// Without this, phase transitions leave stale glyphs (garbled quote/card).
+// Without this, phase transitions leave stale glyphs (garbled saying/card).
 // Does not emit completed — use forceSettleActive to unblock play waits.
 const forceStableHidden = (scene) => {
   if (!scene) return;
@@ -619,255 +619,258 @@ export {
 export default ScenePlayer;
 
 // ===========================================================
-// Smoke tests: node src/js/ScenePlayer.mjs
+// Smoke tests (async IIFE — no top-level await).
+// Safari/WebKit TLA module-graph bugs break DDG iOS (WebKit).
 // ===========================================================
-const isMain =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  (await import("node:url")).pathToFileURL(process.argv[1]).href === import.meta.url;
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  void (async () => {
+    const { pathToFileURL } = await import("node:url");
+    if (pathToFileURL(process.argv[1]).href !== import.meta.url) return;
 
-if (isMain) {
-  const assert = (await import("node:assert/strict")).default;
-  const { DropScene } = await import("./DropScene.mjs");
+    const assert = (await import("node:assert/strict")).default;
+    const { DropScene } = await import("./DropScene.mjs");
 
-  console.log("Running ScenePlayer smoke tests...");
+    console.log("Running ScenePlayer smoke tests...");
 
-  const player = ScenePlayer();
-  let n = 0;
-  player.at(30, () => {
-    n += 1;
-  });
-  player.pause();
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(n, 0, "paused: cue must not fire");
-  player.unpause();
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(n, 1, "unpause: remaining delay fires");
+    const player = ScenePlayer();
+    let n = 0;
+    player.at(30, () => {
+      n += 1;
+    });
+    player.pause();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(n, 0, "paused: cue must not fire");
+    player.unpause();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(n, 1, "unpause: remaining delay fires");
 
-  const player2 = ScenePlayer();
-  let m = 0;
-  player2.at(20, () => {
-    m += 1;
-  });
-  player2.cancel();
-  await new Promise((r) => setTimeout(r, 40));
-  assert.equal(m, 0, "cancel: no fire");
+    const player2 = ScenePlayer();
+    let m = 0;
+    player2.at(20, () => {
+      m += 1;
+    });
+    player2.cancel();
+    await new Promise((r) => setTimeout(r, 40));
+    assert.equal(m, 0, "cancel: no fire");
 
-  const player3 = ScenePlayer();
-  let hits = 0;
-  const phase = Phase("t", () => ({
-    durationMs: 20,
-    schedule: (t) => {
-      t(5, () => {
-        hits += 1;
+    const player3 = ScenePlayer();
+    let hits = 0;
+    const phase = Phase("t", () => ({
+      durationMs: 20,
+      schedule: (t) => {
+        t(5, () => {
+          hits += 1;
+        });
+      },
+    }));
+    loopPhases(player3, [phase], { gapMs: 1000 });
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(hits >= 1, "phase scheduled");
+    player3.cancel();
+
+    // --- Play context: register + Style C linear arm/delay/activate ---
+    const mkScene = (name, cols = [0, 1]) =>
+      DropScene({
+        name,
+        points: cols.map((c) => ({ r: 0, c, char: "X", revealed: false })),
       });
-    },
-  }));
-  loopPhases(player3, [phase], { gapMs: 1000 });
-  await new Promise((r) => setTimeout(r, 40));
-  assert.ok(hits >= 1, "phase scheduled");
-  player3.cancel();
 
-  // --- Play context: register + Style C linear arm/delay/activate ---
-  const mkScene = (name, cols = [0, 1]) =>
-    DropScene({
-      name,
-      points: cols.map((c) => ({ r: 0, c, char: "X", revealed: false })),
+    const roles = mkScene("roles");
+    const email = mkScene("email");
+    const pCtx = ScenePlayer();
+    const ctx = pCtx.context({ scenes: { roles, email } });
+    assert.equal(ctx.scenes.roles, roles, "context registers scenes");
+
+    let activated = [];
+    ctx
+      .on("appStart")
+      .delay(20)
+      .activate(roles)
+      .storm(2)
+      .call(() => activated.push("roles"))
+      .on(roles.events.completed)
+      .delay(10)
+      .activate(email)
+      .call(() => activated.push("email"));
+
+    ctx.start(); // kickoff = emit("appStart")
+    await new Promise((r) => setTimeout(r, 15));
+    assert.equal(roles.mode, "hidden", "delay not yet elapsed");
+    await new Promise((r) => setTimeout(r, 25));
+    assert.equal(roles.mode, "revealing", "activate after delay");
+    assert.equal(roles.stormEnabled, true, "storm starts");
+    assert.ok(roles.stormAccumulator, "storm VRA rebuilt");
+    assert.deepEqual(activated, ["roles"]);
+
+    // Finish roles so mid-chain wait proceeds.
+    roles.onColumnSpawned(0);
+    roles.onColumnSpawned(1);
+    roles.notifyPointRevealed(0, 0);
+    roles.notifyPointRevealed(0, 1);
+    assert.equal(roles.mode, "revealed");
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(email.mode, "revealing", "mid-chain completed → activate email");
+    assert.deepEqual(activated, ["roles", "email"]);
+    pCtx.cancel();
+
+    // --- Style A multi-chain ---
+    const a = mkScene("a");
+    const b = mkScene("b");
+    const pA = ScenePlayer();
+    const ctxA = pA.context({ scenes: { a, b } });
+    const order = [];
+    ctxA.on("appStart").delay(10).activate(a).call(() => order.push("a"));
+    ctxA
+      .on(a.events.completed)
+      .delay(10)
+      .activate(b)
+      .call(() => order.push("b"));
+    ctxA.start();
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(a.mode, "revealing");
+    a.onColumnSpawned(0);
+    a.onColumnSpawned(1);
+    a.notifyPointRevealed(0, 0);
+    a.notifyPointRevealed(0, 1);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(b.mode, "revealing", "Style A second chain");
+    assert.deepEqual(order, ["a", "b"]);
+    pA.cancel();
+
+    // --- storm(seconds) coverage VRA ---
+    const st = mkScene("storm", [0, 1, 2, 3]);
+    st.enterMode("revealing");
+    configureStormCoverage(st, 3);
+    assert.equal(st.stormEnabled, true);
+    assert.ok(st.stormAccumulator);
+    // Finite accumulator: units ≈ pool size, duration = 3
+    let total = 0;
+    for (let i = 0; i < 60; i++) total += st.stormAccumulator.advance(0.05);
+    assert.ok(total >= 3 && total <= 5, `storm units ~4 got ${total}`);
+
+    // Empty selection: storm is skipped (nothing left to cover).
+    const stEmpty = mkScene("storm-empty", [0, 1]);
+    stEmpty.enterMode("revealing");
+    stEmpty.columnsSelected = new Set();
+    assert.equal(configureStormCoverage(stEmpty, 3), false, "skip empty storm");
+    assert.equal(stEmpty.stormEnabled, false, "no storm when no columns");
+
+    // storm on chain with explicit scene
+    const st2 = mkScene("st2", [0, 1]);
+    const pS = ScenePlayer();
+    const ctxS = pS.context({ scenes: { st2 } });
+    ctxS.on("appStart").activate(st2).storm(st2, 1);
+    ctxS.start();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(st2.stormEnabled, true);
+    pS.cancel();
+
+    // --- pause / cancel safety on chains ---
+    const pc = mkScene("pc");
+    const pPause = ScenePlayer();
+    const ctxP = pPause.context({ scenes: { pc } });
+    let fired = false;
+    ctxP.on("appStart").delay(40).activate(pc).call(() => {
+      fired = true;
     });
+    ctxP.start();
+    pPause.pause();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(fired, false, "paused chain delay");
+    assert.equal(pc.mode, "hidden");
+    pPause.unpause();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(fired, true, "unpause chain continues");
+    assert.equal(pc.mode, "revealing");
+    pPause.cancel();
 
-  const roles = mkScene("roles");
-  const email = mkScene("email");
-  const pCtx = ScenePlayer();
-  const ctx = pCtx.context({ scenes: { roles, email } });
-  assert.equal(ctx.scenes.roles, roles, "context registers scenes");
-
-  let activated = [];
-  ctx
-    .on("appStart")
-    .delay(20)
-    .activate(roles)
-    .storm(2)
-    .call(() => activated.push("roles"))
-    .on(roles.events.completed)
-    .delay(10)
-    .activate(email)
-    .call(() => activated.push("email"));
-
-  ctx.start(); // kickoff = emit("appStart")
-  await new Promise((r) => setTimeout(r, 15));
-  assert.equal(roles.mode, "hidden", "delay not yet elapsed");
-  await new Promise((r) => setTimeout(r, 25));
-  assert.equal(roles.mode, "revealing", "activate after delay");
-  assert.equal(roles.stormEnabled, true, "storm starts");
-  assert.ok(roles.stormAccumulator, "storm VRA rebuilt");
-  assert.deepEqual(activated, ["roles"]);
-
-  // Finish roles so mid-chain wait proceeds.
-  roles.onColumnSpawned(0);
-  roles.onColumnSpawned(1);
-  roles.notifyPointRevealed(0, 0);
-  roles.notifyPointRevealed(0, 1);
-  assert.equal(roles.mode, "revealed");
-  await new Promise((r) => setTimeout(r, 30));
-  assert.equal(email.mode, "revealing", "mid-chain completed → activate email");
-  assert.deepEqual(activated, ["roles", "email"]);
-  pCtx.cancel();
-
-  // --- Style A multi-chain ---
-  const a = mkScene("a");
-  const b = mkScene("b");
-  const pA = ScenePlayer();
-  const ctxA = pA.context({ scenes: { a, b } });
-  const order = [];
-  ctxA.on("appStart").delay(10).activate(a).call(() => order.push("a"));
-  ctxA
-    .on(a.events.completed)
-    .delay(10)
-    .activate(b)
-    .call(() => order.push("b"));
-  ctxA.start();
-  await new Promise((r) => setTimeout(r, 30));
-  assert.equal(a.mode, "revealing");
-  a.onColumnSpawned(0);
-  a.onColumnSpawned(1);
-  a.notifyPointRevealed(0, 0);
-  a.notifyPointRevealed(0, 1);
-  await new Promise((r) => setTimeout(r, 30));
-  assert.equal(b.mode, "revealing", "Style A second chain");
-  assert.deepEqual(order, ["a", "b"]);
-  pA.cancel();
-
-  // --- storm(seconds) coverage VRA ---
-  const st = mkScene("storm", [0, 1, 2, 3]);
-  st.enterMode("revealing");
-  configureStormCoverage(st, 3);
-  assert.equal(st.stormEnabled, true);
-  assert.ok(st.stormAccumulator);
-  // Finite accumulator: units ≈ pool size, duration = 3
-  let total = 0;
-  for (let i = 0; i < 60; i++) total += st.stormAccumulator.advance(0.05);
-  assert.ok(total >= 3 && total <= 5, `storm units ~4 got ${total}`);
-
-  // Empty selection: storm is skipped (nothing left to cover).
-  const stEmpty = mkScene("storm-empty", [0, 1]);
-  stEmpty.enterMode("revealing");
-  stEmpty.columnsSelected = new Set();
-  assert.equal(configureStormCoverage(stEmpty, 3), false, "skip empty storm");
-  assert.equal(stEmpty.stormEnabled, false, "no storm when no columns");
-
-  // storm on chain with explicit scene
-  const st2 = mkScene("st2", [0, 1]);
-  const pS = ScenePlayer();
-  const ctxS = pS.context({ scenes: { st2 } });
-  ctxS.on("appStart").activate(st2).storm(st2, 1);
-  ctxS.start();
-  await new Promise((r) => setTimeout(r, 10));
-  assert.equal(st2.stormEnabled, true);
-  pS.cancel();
-
-  // --- pause / cancel safety on chains ---
-  const pc = mkScene("pc");
-  const pPause = ScenePlayer();
-  const ctxP = pPause.context({ scenes: { pc } });
-  let fired = false;
-  ctxP.on("appStart").delay(40).activate(pc).call(() => {
-    fired = true;
-  });
-  ctxP.start();
-  pPause.pause();
-  await new Promise((r) => setTimeout(r, 60));
-  assert.equal(fired, false, "paused chain delay");
-  assert.equal(pc.mode, "hidden");
-  pPause.unpause();
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(fired, true, "unpause chain continues");
-  assert.equal(pc.mode, "revealing");
-  pPause.cancel();
-
-  const pCan = ScenePlayer();
-  const cCan = mkScene("can");
-  const ctxC = pCan.context({ scenes: { cCan } });
-  let bad = false;
-  ctxC.on("appStart").delay(30).activate(cCan).call(() => {
-    bad = true;
-  });
-  ctxC.start();
-  pCan.cancel();
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(bad, false, "cancel: chain must not continue");
-  assert.equal(cCan.mode, "hidden");
-
-  // wait ≡ on
-  const w = mkScene("w");
-  const pW = ScenePlayer();
-  const ctxW = pW.context({ scenes: { w } });
-  ctxW.wait("go").activate(w);
-  ctxW.emit("go");
-  await new Promise((r) => setTimeout(r, 5));
-  assert.equal(w.mode, "revealing", "wait ≡ on");
-  pW.cancel();
-
-  // --- completion watchdog: stuck reveal unblocks chain ---
-  const hung = mkScene("hung", [0, 1]);
-  const next = mkScene("next", [0]);
-  const pWd = ScenePlayer();
-  const ctxWd = pWd.context({
-    scenes: { hung, next },
-    completionWatchdogMs: 40,
-  });
-  let afterHang = false;
-  ctxWd
-    .on("appStart")
-    .activate(hung)
-    .on(hung.events.completed)
-    .activate(next)
-    .call(() => {
-      afterHang = true;
+    const pCan = ScenePlayer();
+    const cCan = mkScene("can");
+    const ctxC = pCan.context({ scenes: { cCan } });
+    let bad = false;
+    ctxC.on("appStart").delay(30).activate(cCan).call(() => {
+      bad = true;
     });
-  ctxWd.start();
-  await new Promise((r) => setTimeout(r, 15));
-  assert.equal(hung.mode, "revealing");
-  assert.equal(next.mode, "hidden");
-  // Do not cover columns / points — wait for watchdog.
-  await new Promise((r) => setTimeout(r, 60));
-  assert.equal(hung.mode, "revealed", "watchdog force-settled hung reveal");
-  assert.equal(next.mode, "revealing", "chain advanced after watchdog");
-  assert.equal(afterHang, true);
-  pWd.cancel();
+    ctxC.start();
+    pCan.cancel();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(bad, false, "cancel: chain must not continue");
+    assert.equal(cCan.mode, "hidden");
 
-  // Watchdog disabled (0): chain stays stuck
-  const hung2 = mkScene("hung2", [0]);
-  const pOff = ScenePlayer();
-  const ctxOff = pOff.context({
-    scenes: { hung2 },
-    completionWatchdogMs: 0,
-  });
-  let never = false;
-  ctxOff
-    .on("appStart")
-    .activate(hung2)
-    .on(hung2.events.completed)
-    .call(() => {
-      never = true;
+    // wait ≡ on
+    const w = mkScene("w");
+    const pW = ScenePlayer();
+    const ctxW = pW.context({ scenes: { w } });
+    ctxW.wait("go").activate(w);
+    ctxW.emit("go");
+    await new Promise((r) => setTimeout(r, 5));
+    assert.equal(w.mode, "revealing", "wait ≡ on");
+    pW.cancel();
+
+    // --- completion watchdog: stuck reveal unblocks chain ---
+    const hung = mkScene("hung", [0, 1]);
+    const next = mkScene("next", [0]);
+    const pWd = ScenePlayer();
+    const ctxWd = pWd.context({
+      scenes: { hung, next },
+      completionWatchdogMs: 40,
     });
-  ctxOff.start();
-  await new Promise((r) => setTimeout(r, 50));
-  assert.equal(hung2.mode, "revealing");
-  assert.equal(never, false, "watchdog 0: no force settle");
-  pOff.cancel();
+    let afterHang = false;
+    ctxWd
+      .on("appStart")
+      .activate(hung)
+      .on(hung.events.completed)
+      .activate(next)
+      .call(() => {
+        afterHang = true;
+      });
+    ctxWd.start();
+    await new Promise((r) => setTimeout(r, 15));
+    assert.equal(hung.mode, "revealing");
+    assert.equal(next.mode, "hidden");
+    // Do not cover columns / points — wait for watchdog.
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(hung.mode, "revealed", "watchdog force-settled hung reveal");
+    assert.equal(next.mode, "revealing", "chain advanced after watchdog");
+    assert.equal(afterHang, true);
+    pWd.cancel();
 
-  // forceSettleActive hides with completed
-  const hideSc = mkScene("hideSc", [0, 1]);
-  hideSc.enterMode("hiding");
-  for (const p of hideSc.points) p.revealed = true;
-  let hideDone = false;
-  hideSc.on("completed", () => {
-    hideDone = true;
-  });
-  assert.equal(forceSettleActive(hideSc), true);
-  assert.equal(hideSc.mode, "hidden");
-  assert.equal(hideDone, true);
+    // Watchdog disabled (0): chain stays stuck
+    const hung2 = mkScene("hung2", [0]);
+    const pOff = ScenePlayer();
+    const ctxOff = pOff.context({
+      scenes: { hung2 },
+      completionWatchdogMs: 0,
+    });
+    let never = false;
+    ctxOff
+      .on("appStart")
+      .activate(hung2)
+      .on(hung2.events.completed)
+      .call(() => {
+        never = true;
+      });
+    ctxOff.start();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(hung2.mode, "revealing");
+    assert.equal(never, false, "watchdog 0: no force settle");
+    pOff.cancel();
 
-  const green = (t) => `\x1b[32m${t}\x1b[0m`;
-  console.log(`ScenePlayer smoke tests passed! ${green("✓")}`);
+    // forceSettleActive hides with completed
+    const hideSc = mkScene("hideSc", [0, 1]);
+    hideSc.enterMode("hiding");
+    for (const p of hideSc.points) p.revealed = true;
+    let hideDone = false;
+    hideSc.on("completed", () => {
+      hideDone = true;
+    });
+    assert.equal(forceSettleActive(hideSc), true);
+    assert.equal(hideSc.mode, "hidden");
+    assert.equal(hideDone, true);
+
+    const green = (t) => `\x1b[32m${t}\x1b[0m`;
+    console.log(`ScenePlayer smoke tests passed! ${green("✓")}`);
+
+  })();
 }
+

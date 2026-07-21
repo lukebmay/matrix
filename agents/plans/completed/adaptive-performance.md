@@ -35,7 +35,7 @@ separate short-side / orientation policy — not the same as “slow.”
 
 | # | Slice | Status | Est. gain | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | **Fewer glyphs (content grid)** | **Done** | High | Narrow viewport COLS/ROWS; portrait/landscape; quote wrap; link paint |
+| 1 | **Fewer glyphs (content grid)** | **Done** | High | Narrow viewport COLS/ROWS; portrait/landscape; saying wrap; link paint |
 | 2 | **Cheap glow CSS (adaptive)** | **Done** | Highest remaining | Cap/remove multi-blur; no `color-mix`; static + runtime ratchet (DOM class; no frozen-cfg mutate) |
 | 3 | **Dirty DomManager paint** | **Done** | High | Only restyle tip enter / trail leave / role flip; cache theme vars |
 | 4 | **Hot-path allocations** | **Done** | Medium | Reuse maps; `forEachColumnDrops`; pre-split rain glyph pools; thrift random |
@@ -50,8 +50,8 @@ separate short-side / orientation policy — not the same as “slow.”
 - Narrow / “mobile” layout = short side ≤ 768 (orientation-invariant).
 - **Portrait / square:** COLS from roles+email (+ margin, pad 1); ROWS from mono cell aspect, floored to content stack (email L-shape).
 - **Landscape:** ROWS = pad1 + roles + gap1 + emailH(1) + pad1; COLS from aspect (min content width); **horizontal email only**.
-- Quote: `wrapWords` to COLS−2 (narrow) or max 40 (wide).
-- Shared cells: logical `href` drives `m-link` (quote vs email col 1).
+- Saying: `wrapWords` to COLS−2 (narrow) or max 40 (wide).
+- Shared cells: logical `href` drives `m-link` (saying vs email col 1).
 
 Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop density unchanged.
 
@@ -116,7 +116,7 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 
 ## Out of scope (this plan)
 
-- Quote playlist / interactive-play content (separate plan).
+- Saying playlist / interactive-play content (separate plan).
 - Deploy / job-search copy polish.
 - Theme cull (orange/yellow) unless tied to a paint pass.
 
@@ -130,14 +130,14 @@ Rough cell counts: phone portrait ~780–900; landscape ~380–460; wide desktop
 - [x] Frame scheduler (slice 6) — rAF + adaptive interval + dt clamp
 - [x] Slow devices: cheaper path via density / glow / weather / fewer frames
 - [x] Capable devices keep full neon without the quality class (until ratchet)
-- [x] Build green; no layout OOB for card/quote on phone portrait/landscape
+- [x] Build green; no layout OOB for card/saying on phone portrait/landscape
 
 ## Session note (2026-07-20)
 
 - Slice 6: `Matrix.mjs` rAF throttle + adaptive `targetInterval`; config
   `FRAME_DELAY_MAX` / `FRAME_DT_MAX_MS`; DESIGN + project next-queue update.
 - Plan archived complete: slices 1–6 done. Optional remaining: canvas rain
-  (slice 7). Product next: quote playlist interlude / deploy polish.
+  (slice 7). Product next: saying playlist interlude / deploy polish.
 
 **2026-07-20 — Flat glow second tier + settled neon policy**
 

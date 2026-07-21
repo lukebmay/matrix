@@ -49,17 +49,31 @@ function Application(...args) {
   };
 
   self.run = () => {
-    state.config = Configuration();
-    self.matrix = Matrix();
-    self.matrix.start();
-    window.addEventListener("click", self.onClick);
-    window.addEventListener("resize", self.onResize, true);
-    // Optional multi-day insurance; off when SOFT_RELOAD_MS is 0 / unset.
-    const reloadMs = state.config.SOFT_RELOAD_MS;
-    if (reloadMs > 0) {
-      window.setTimeout(() => {
-        location.reload();
-      }, reloadMs);
+    try {
+      state.config = Configuration();
+      self.matrix = Matrix();
+      self.matrix.start();
+      window.addEventListener("click", self.onClick);
+      window.addEventListener("resize", self.onResize, true);
+      // Optional multi-day insurance; off when SOFT_RELOAD_MS is 0 / unset.
+      const reloadMs = state.config.SOFT_RELOAD_MS;
+      if (reloadMs > 0) {
+        window.setTimeout(() => {
+          location.reload();
+        }, reloadMs);
+      }
+    } catch (err) {
+      // Surface boot failures (otherwise black body with no rain).
+      console.error("[matrix] failed to start", err);
+      try {
+        const msg = document.createElement("pre");
+        msg.style.cssText =
+          "color:#0f0;padding:1rem;white-space:pre-wrap;font:14px monospace";
+        msg.textContent = `Matrix failed to start:\n${err?.stack || err}`;
+        document.body?.appendChild(msg);
+      } catch {
+        /* ignore */
+      }
     }
   };
 

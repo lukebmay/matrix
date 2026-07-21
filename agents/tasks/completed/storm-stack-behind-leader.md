@@ -20,7 +20,7 @@ Rain keeps the one-live-drop-per-column rule.
 Pre-activation (or other non-covering) drops block a column without
 satisfying `dropAffects` / selection coverage. Storm + refund keep budget
 honest, but wall-clock wait on the squatter still causes intermittent
-~1s last-column delays (esp. quote / email).
+~1s last-column delays (esp. saying / email).
 
 Occupation must not equal coverage when the live drop does not count for
 the active scene.
@@ -102,7 +102,7 @@ no-overtake math always wins, and the tail still goes **as fast as safe**.
 - [x] Last-3 **occupied** → max **safe** speed (overrides blind max)
 - [x] Non-tail occupied → random stormMin..maxSafe
 - [x] Refund / mild storm curve still behave
-- [x] Build / smokes green; browser eyeball quote/email last cols
+- [x] Build / smokes green; browser eyeball saying/email last cols
 
 ## Out of scope
 
@@ -138,4 +138,4 @@ Storm polish already shipped or in-flight before this task:
 `MAX_DROPS_PER_COL = 2`. Re-activation while a prior stack pair was still
 falling was adding a 3rd tip/col by cycle ~3 (multi-tip constellation).
 
-**Next agent:** hover-hasten-reveal; optional paint eyeball quote/email.
+**Next agent:** hover-hasten-reveal; optional paint eyeball saying/email.
