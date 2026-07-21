@@ -10,31 +10,32 @@
 @font-face {
   font-family: "Courier Prime";
   src: url("./assets/fonts/CourierPrime-Regular.ttf") format("truetype");
-  font-display: block;
+  /* swap: never leave glyphs invisible if a WebView hangs on font fetch */
+  font-display: swap;
 }
 /* Rain noise: Rezmason Matrix Code (MIT) — see assets/fonts/THIRD_PARTY.md */
 @font-face {
   font-family: "Matrix Code";
   src: url("./assets/fonts/Matrix-Code.ttf") format("truetype");
-  font-display: block;
+  font-display: swap;
 }
 /* Settled English: Ubuntu Sans Mono Bold (UFL) — Ghostty/nvim family */
 @font-face {
   font-family: "Ubuntu Sans Mono";
   src: url("./assets/fonts/UbuntuSansMono-Bold.ttf") format("truetype");
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
 }
 
 html {
   margin: 0;
   overflow: hidden;
-  /* set in JS */
-  --col-low: #000000;
-  --col-med: #000000;
-  --col-body: #000000;
-  --col-hi: #000000;
-  --col-link: #000000;
+  /* Green defaults before JS applyTheme (avoids pure-black FOUC on slow mobile). */
+  --col-low: #000e00;
+  --col-med: #0d731a;
+  --col-body: #149428;
+  --col-hi: #c0ffd0;
+  --col-link: #d8ffe4;
   /* Debug HUD accents (theme-tied; ThemeDirector fades with --col-low). */
   --debug-hi: #c0ffd0;
   --debug-med: #0d731a;

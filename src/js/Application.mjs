@@ -55,6 +55,14 @@ function Application(...args) {
       self.matrix.start();
       window.addEventListener("click", self.onClick);
       window.addEventListener("resize", self.onResize, true);
+      // Boot OK flag for HTML watchdog (DDG / WebKit silent module failures).
+      try {
+        window.__MATRIX_OK__ = true;
+        const stale = document.getElementById("matrix-boot-timeout");
+        if (stale?.parentNode) stale.parentNode.removeChild(stale);
+      } catch {
+        /* ignore */
+      }
       // Optional multi-day insurance; off when SOFT_RELOAD_MS is 0 / unset.
       const reloadMs = state.config.SOFT_RELOAD_MS;
       if (reloadMs > 0) {
@@ -67,8 +75,9 @@ function Application(...args) {
       console.error("[matrix] failed to start", err);
       try {
         const msg = document.createElement("pre");
+        msg.id = "matrix-boot-error";
         msg.style.cssText =
-          "color:#0f0;padding:1rem;white-space:pre-wrap;font:14px monospace";
+          "color:#0f0;padding:1rem;white-space:pre-wrap;font:14px monospace;position:relative;z-index:9999";
         msg.textContent = `Matrix failed to start:\n${err?.stack || err}`;
         document.body?.appendChild(msg);
       } catch {
