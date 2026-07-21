@@ -536,8 +536,10 @@ function Configuration(...args) {
     // Shuffled pool: draw without replacement; refill + reshuffle when empty.
     // Each deck: SAYINGS[0] (liberty / LBM) first, then shuffle of the rest.
     const sayingPlaylist = createSayingPlaylist(SAYINGS);
+    let currentSaying = null;
     const loadNextSaying = () => {
       const entry = sayingPlaylist.next();
+      currentSaying = entry;
       const cells = materializeSayingCells(entry);
       // Shared points array (reveal + hide); mutate in place then resync maps.
       sayingReveal.setPoints(cells);
@@ -551,6 +553,7 @@ function Configuration(...args) {
       state.scenePlayer?.attachHover?.();
       return entry;
     };
+    const getCurrentSaying = () => currentSaying;
     // First cycle: pin-first entry (not bootstrap layout alone).
     loadNextSaying();
 
@@ -566,9 +569,9 @@ function Configuration(...args) {
     const sceneManager = SceneManager({ scenes: dropScenes });
 
     const scenePlayer = ScenePlayer();
-    // Hold / gap timings (all perf levels): 3s rain open; reveal rain lead then
-    // storm; 6s full text after last reveal; 2s empty after last hide; 2s color
-    // residual fade (see homepagePlay).
+    // Hold / gap timings (all perf levels): 3s rain open (first cycle only);
+    // reveal rain lead then storm; 6s full text (+1.5s if long saying);
+    // 2s empty after card hide and after saying hide (see homepagePlay).
     const stormSec = stormDurationSeconds(self.PERF_LEVEL, HIGH_STORM_DURATION_SEC);
     homepagePlay(
       scenePlayer,
@@ -589,11 +592,12 @@ function Configuration(...args) {
         sayingHideStormSec: stormSec,
         cardHoldAfterEmailMs: 6_000,
         sayingHoldMs: 6_000,
+        sayingHoldLongExtraMs: 1_500,
         afterCardGoneMs: 2_000,
-        restartGapMs: 0,
-        themeBlendSec: 2,
+        afterSayingGoneMs: 2_000,
         completionWatchdogMs: self.COMPLETION_WATCHDOG_MS,
         loadNextSaying,
+        getCurrentSaying,
       },
     );
 
@@ -606,6 +610,7 @@ function Configuration(...args) {
       layout: { grid, rolesGroup, emailGroup, sayingGroup },
       sayingPlaylist,
       loadNextSaying,
+      getCurrentSaying,
     };
   };
 

@@ -19,6 +19,10 @@ import {
 } from "./runtime.mjs";
 import { bindHover } from "./hover.mjs";
 import state from "../State.mjs";
+import {
+  sayingCombinedLength,
+  LONG_SAYING_MIN_CHARS,
+} from "../sayings.mjs";
 
 export function homepagePlay(player, scenes, opts = {}) {
   const ctx = player.context({
@@ -28,7 +32,7 @@ export function homepagePlay(player, scenes, opts = {}) {
   });
   const s = ctx.scenes;
 
-  // Opening: ambient rain only, then first roles reveal.
+  // Opening: ambient rain only, then first roles reveal (subsequent loops skip).
   const rolesAtMs = opts.rolesAtMs ?? 3_000;
   const emailAfterRolesMs = opts.emailAfterRolesMs ?? 2_000;
   // Reveal scenes: rain covers columns for this long before storm finishes.
@@ -38,33 +42,71 @@ export function homepagePlay(player, scenes, opts = {}) {
   // After last reveal of a series (email / saying): hold full text before hide.
   const cardHoldAfterEmailMs = opts.cardHoldAfterEmailMs ?? 6_000;
   const sayingHoldMs = opts.sayingHoldMs ?? 6_000;
+  // Long sayings (content+attribution+context chars): extra read time.
+  const sayingHoldLongExtraMs = opts.sayingHoldLongExtraMs ?? 1_500;
+  const longSayingMinChars = opts.longSayingMinChars ?? LONG_SAYING_MIN_CHARS;
   // After last hide of a series: empty screen before next text activates.
   const afterCardGoneMs =
     opts.afterCardGoneMs ?? opts.afterEmailGoneMs ?? 2_000;
+  // After saying hide completes: blank before roles re-activate (theme visual).
+  const afterSayingGoneMs = opts.afterSayingGoneMs ?? 2_000;
   const cardHideStormSec = opts.cardHideStormSec ?? 3;
   const sayingStormSec = opts.sayingStormSec ?? 3;
   const sayingHideStormSec = opts.sayingHideStormSec ?? 3;
-  // After saying hide + theme visual idle: optional extra gap.
-  const restartGapMs = opts.restartGapMs ?? 0;
   // After hide-hover re-reveal, hold full text this long before hide restarts.
   const hideLookHoldMs = opts.hideLookHoldMs ?? 6_000;
-  // Color visual fade (~2s residual + debug) during post-saying-hide empty.
-  const themeBlendSec = opts.themeBlendSec ?? 2;
   // One-time coverage drain after the *first* email reveal storm only.
   const coverageDrainRate = opts.coverageDrainRate ?? 10;
   // Playlist: draw next saying before each reveal (pool primed in createScene).
   const loadNextSaying = opts.loadNextSaying;
+  const getCurrentSaying = opts.getCurrentSaying;
 
-  // Thread wait target: completes now if idle, else on next theme commit.
-  const themeIdleGate = {
+  const holdMsForSaying = (entry) => {
+    if (entry == null) return sayingHoldMs;
+    const n = sayingCombinedLength(entry);
+    return n >= longSayingMinChars
+      ? sayingHoldMs + sayingHoldLongExtraMs
+      : sayingHoldMs;
+  };
+
+  // Opening rain delay: first cycle only; later loops use post-saying blank.
+  let openCycle = 0;
+  const openDelayGate = {
     on(event, fn) {
       if (event !== "completed") return () => {};
-      const dir = state.themeDirector;
-      if (!dir) {
-        fn();
-        return () => {};
+      const ms = openCycle === 0 ? rolesAtMs : 0;
+      openCycle += 1;
+      if (ms <= 0) {
+        let cancelled = false;
+        queueMicrotask(() => {
+          if (!cancelled) fn();
+        });
+        return () => {
+          cancelled = true;
+        };
       }
-      return dir.whenIdle(fn);
+      const id = player.at(ms, fn);
+      return () => {
+        if (id != null) player.clear(id);
+      };
+    },
+  };
+
+  // Post-saying blank: theme residual fade for afterSayingGoneMs, then complete.
+  // Falls back to a plain delay when ThemeDirector is absent.
+  const afterSayingGoneGate = {
+    on(event, fn) {
+      if (event !== "completed") return () => {};
+      const blendSec = Math.max(0.2, afterSayingGoneMs / 1000);
+      const dir = state.themeDirector;
+      if (dir?.startVisualTransition) {
+        dir.startVisualTransition({ blendSec });
+        return dir.whenIdle(fn);
+      }
+      const id = player.at(afterSayingGoneMs, fn);
+      return () => {
+        if (id != null) player.clear(id);
+      };
     },
   };
 
@@ -254,11 +296,12 @@ export function homepagePlay(player, scenes, opts = {}) {
   // before reveal (without replacement until the pool is empty).
   let sayingCycle = 0;
 
-  // 3s rain → roles (3s rain lead + storm) → email → hold 6s → hide → 2s empty
-  // → saying → hold 6s → hide (new color from activation) → 2s visual fade → loop.
+  // First open: 3s rain → roles → email → hold 6s → hide → 2s empty
+  // → saying → hold 6s (+1.5s if long) → hide → 2s blank (theme fade) → loop
+  // (no second opening delay; blank alone gates roles reactivation).
   const show = thread(ctx, { name: "show" })
     .clearView()
-    .delay(rolesAtMs)
+    .wait(openDelayGate)
     .spawn(roles)
     .delay(emailAfterRolesMs)
     .run(email)
@@ -283,20 +326,16 @@ export function homepagePlay(player, scenes, opts = {}) {
       // Cycle 0 already has loadNextSaying() from createScene.
       if (sayingCycle > 0) loadNextSaying?.();
       sayingCycle += 1;
+      const entry = getCurrentSaying?.() ?? null;
+      sayingHold.setHoldMs(holdMsForSaying(entry));
     })
     .run(sayingReveal)
     .run(sayingHold)
     .call(() => s.sayingReveal.stopStorm?.())
     .clear(s.cardHide)
     .run(sayingHide)
-    // Hide complete → 2s empty: residual tracks + debug fade; then old stops.
-    .call(() => {
-      state.themeDirector?.startVisualTransition?.({
-        blendSec: themeBlendSec,
-      });
-    })
-    .wait(themeIdleGate)
-    .delay(restartGapMs)
+    // Hide complete → 2s blank (theme residual + next roles activation).
+    .wait(afterSayingGoneGate)
     .loop();
 
   const baseCancel = ctx.cancel.bind(ctx);

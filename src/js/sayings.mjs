@@ -228,6 +228,22 @@ export function sayingParts(entry) {
 }
 
 /**
+ * Combined character length of content + attribution + context (raw fields).
+ * Used for reading-hold timing (long sayings get extra hold).
+ */
+export function sayingCombinedLength(entry) {
+  const { content, attribution, context } = sayingParts(entry);
+  return (
+    (content?.length ?? 0) +
+    (attribution?.length ?? 0) +
+    (context?.length ?? 0)
+  );
+}
+
+/** Default: sayings at/above this combined length get extra hold time. */
+export const LONG_SAYING_MIN_CHARS = 140;
+
+/**
  * Multi-line string for tests/logs. Prefer sayingParts() for layout.
  */
 export function formatSaying(entry) {
@@ -320,6 +336,8 @@ export default {
   formatAttribution,
   formatContext,
   sayingParts,
+  sayingCombinedLength,
+  LONG_SAYING_MIN_CHARS,
   formatSaying,
   createShuffledPool,
   createSayingPlaylist,
@@ -389,6 +407,15 @@ if (typeof process !== "undefined" && process.argv?.[1]) {
     assert.strictEqual(parts.body, "Liberty");
     assert.strictEqual(parts.attributionLine, "- Hayek");
     assert.strictEqual(parts.contextLine, "(note)");
+    assert.strictEqual(
+      sayingCombinedLength({
+        content: "Hello",
+        attribution: "Bob",
+        context: "x",
+      }),
+      5 + 3 + 1,
+    );
+    assert.ok(LONG_SAYING_MIN_CHARS >= 1);
     assert.strictEqual(SAYINGS[0].attribution, "Luke Benjamin May");
     assert.ok(SAYINGS[0].content);
     assert.strictEqual(SAYINGS[0].text, undefined);

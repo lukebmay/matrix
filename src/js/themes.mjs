@@ -199,8 +199,8 @@ export function themeAt(index, order = THEME_ORDER) {
  * Color change timeline (homepage):
  *  1) saying hide **activates** → beginSpawnBlend (new color drops may spawn;
  *     old still allowed; coverage pool refilled for next; no drain storm)
- *  2) saying hide **completes** → startVisualTransition (~3s): residual tracks
- *     + debug HUD + ambient low lerp with the empty window
+ *  2) saying hide **completes** → startVisualTransition (~2s blank): residual
+ *     tracks + debug HUD + ambient low lerp with the empty window
  *  3) visual ends → commit: only new color; old stops; settled roles snap
  *
  * Column ownership: once a next-theme drop spawns on a column, old-theme

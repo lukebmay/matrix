@@ -223,7 +223,8 @@ function createUnit(ctx, opts = {}) {
 
   const kind = opts.kind ?? "custom";
   const scene = opts.scene ?? null;
-  const holdMs = Math.max(0, Number(opts.ms) || 0);
+  // Mutable so playlist holds can lengthen (e.g. long sayings) before start/rearm.
+  let holdMs = Math.max(0, Number(opts.ms) || 0);
 
   const complete = (g) => {
     if (gen !== g) return;
@@ -338,6 +339,12 @@ function createUnit(ctx, opts = {}) {
     // Abort without completed, then start a new gen.
     restart() {
       return self.start();
+    },
+
+    // Update default hold duration (next start / hover rearm; does not restart).
+    setHoldMs(ms) {
+      holdMs = Math.max(0, Number(ms) || 0);
+      return self;
     },
 
     // Hold re-arm (extend-on-hover).
@@ -875,6 +882,25 @@ if (typeof process !== "undefined" && process.argv?.[1]) {
       assert.equal(done, false);
       await sleep(30);
       assert.equal(done, true, "hold completes");
+      player.cancel();
+    }
+
+    // --- hold setHoldMs before start ---
+    {
+      const player = ScenePlayer();
+      const ctx = player.context({ scenes: {}, completionWatchdogMs: 0 });
+
+      let done = false;
+      const h = holdUnit(ctx, { name: "long", ms: 20 });
+      h.on("completed", () => {
+        done = true;
+      });
+      h.setHoldMs(50);
+      h.start();
+      await sleep(30);
+      assert.equal(done, false, "setHoldMs lengthens hold");
+      await sleep(40);
+      assert.equal(done, true, "long hold completes");
       player.cancel();
     }
 
