@@ -21,7 +21,7 @@ Full rules, Python package layout, and planned multi-language markers: **`agents
 
 - Hashbang always (including sourced files).
 - Support `--help` and `--version`; list dependencies in help.
-- Check deps before run; offer install if missing.
+- Check deps before run; on TTY **ask to auto-install** when a known installer exists (see below).
 - Fail gracefully; solid error handling, logging, exit codes.
 - ANSI colors: `agents/ansi-colors.md`.
 - Comments: `agents/comments.md`.
@@ -38,22 +38,48 @@ Scripts and non-trivial functions **must fail early and clearly** when a require
 | --- | --- |
 | **When** | Before first use of an external binary, package, or service the tool cannot run without |
 | **How** | `command -v tool` (shell) / `shutil.which` (Python) / equivalent — check each hard dependency |
-| **Message** | Name the missing tool; say what the script was trying to do; prefer **install instructions** when known |
+| **Message** | Name the missing tool; say what the script was trying to do; prefer **install path** (below) over a bare “not found” |
 | **Exit code** | **127** when the failure is “command not found” / missing binary; **1** (or domain code) for other precondition failures; never exit 0 on a hard missing dep |
-| **Optional deps** | Soft features may degrade (warn once, continue) — document in `--help` as optional |
+| **Optional deps** | Soft features may degrade (warn once, continue) — document in `--help` as optional; still offer install on TTY when the user is about to use that feature |
 | **Help text** | List hard + optional dependencies in `--help` / `--version` area so humans see them without failing first |
 
-### Install instructions (prefer concrete)
+### Resolve install path (prefer shellrc installers)
 
-When the platform is likely Ubuntu/Debian (this project’s default), include a copy-pasteable install line:
+When telling the user (or auto-running) how to get a missing tool, pick the **first** match:
+
+1. **shellrc custom installer** — if `bin/install-<tool>`, `bin/user-install-<tool>`, or a documented sibling exists on PATH (or under `$shellrc/bin/`), use that. Prefer the **user-default** entry (`install-<tool>` after merges; else `user-install-<tool>`) so no sudo is required when possible. Mention `--system` only when the user needs a system install.
+2. **Distro package** — Ubuntu/Debian default: `sudo apt install <pkg>` (real package name only).
+3. **Upstream** — official install URL or documented one-liner; **do not invent** package or binary names.
+
+Examples of shellrc-first tools: `install-yazi`, `install-fzf`, `install-rg`, `install-nvim`, `install-delta`, …
+
+### Auto-install on missing deps (ask first)
+
+| Mode | Behavior |
+| --- | --- |
+| **Interactive TTY** | Print what is missing and the **preferred** install command. **Ask** to run it now (default **yes** when the installer is non-destructive / user-scoped; default **no** if it needs sudo/root or is clearly system-wide). On yes: run installer, re-check `command -v`, continue if the dep is present. On no / failure: print the command again and exit **127** for hard deps. |
+| **Non-interactive / CI / pipe** | **Never** auto-install. Print the preferred install command and exit **127** (hard) or degrade (optional). |
+| **`--force` / install flags** | Do not combine silent auto-install of unrelated tools with destructive ops; keep missing-dep install a separate, explicit prompt or refuse. |
+
+Pseudo-flow (hard dep):
+
+```text
+missing `fzf` (needed for interactive path pick)
+Preferred: install-fzf
+# or: sudo apt install fzf   (only if no shellrc installer)
+
+Install now? [Y/n]
+```
+
+After a successful auto-install, re-resolve PATH if the installer wrote under `~/.local/bin` (ensure that dir is on PATH for the rest of the run when practical).
+
+### Install message shape
 
 ```text
 error: `fzf` not found (needed for interactive path pick)
-Install: sudo apt install fzf
-# or: user-install-… / install-… when shellrc has a dedicated installer
+Install: install-fzf
+# fallback: sudo apt install fzf
 ```
-
-When a shellrc installer exists, point at it first (`install-yazi`, `user-install-yazi`, `install-rg`, …). When the tool is third-party only, give the distro package name and/or upstream URL — do not invent package names.
 
 ### Consistency
 
@@ -61,7 +87,8 @@ When a shellrc installer exists, point at it first (`install-yazi`, `user-instal
 | --- | --- |
 | Prefix | `scriptname: ` on stderr for errors (match existing tools) |
 | Colors | Red/error for fatal; yellow for warn; see `ansi-colors.md` |
-| Non-interactive | No prompts to “install now?” unless TTY + safe; always print the install command |
+| Interactive | Ask to auto-install via preferred shellrc installer when available |
+| Non-interactive | No install prompts; always print the install command |
 | Source modules | Optional tools: guard and `return 0` quietly (or debug note); installers remain the place for hard errors |
 
 ## Interactive vs script mode (non-trivial tools)
@@ -87,7 +114,8 @@ Example (`gdisplays`; shellrc also aliases `displays=gdisplays`):
 - `gdisplays delete name` → interactive `yes`; non-interactive needs `--force`
 - `gdisplays delete-host oldpc` → same
 - `gdisplays copy a b` when `b` exists → confirm / `--force`
-- `gdisplays load otherhost/name` on connector mismatch → `--force`
+- `gdisplays load` never uses `--force` (stale connectors unsafe); foreign host → TTY confirm or `copy` then load; renames auto-remap
+- `gdisplays --user-to-login` (and other GDM ops) re-exec via `sudo` after explaining why; no manual `sudo` prefix required on TTY
 - `gdisplays save name` without `-d` → prompt only on TTY; scripts keep existing description
 
 ## Args
