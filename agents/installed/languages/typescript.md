@@ -1,3 +1,9 @@
+---
+title: TypeScript
+read_when: Writing or reviewing TypeScript
+order: 200
+---
+
 # TypeScript
 
 **Precedence:** `tsconfig.json` / `tsconfig.*.json`, ESLint typescript-eslint, Prettier, and package scripts override this file.
@@ -8,7 +14,14 @@ shellrc inspiration: ESLint TS parser/plugin; unused-vars via `@typescript-eslin
 
 ## When
 
-Default for app code when the repo is already TS. Prefer `.ts` / `.tsx` over plain JS for new modules in a TS tree.
+Default for app code when the repo is already TS. Prefer `.ts` / `.tsx` over plain JS for new modules in a TS tree. Prefer TypeScript for new full-stack apps unless the project explicitly standardizes on another language.
+
+## Monorepo sharing (GUIDELINE)
+
+- Put **isomorphic** types, validators, and pure logic in `packages/shared` (or similar)
+- App packages (`apps/web`, `apps/api`) depend on shared — not on each other for domain types
+- Do not import React/DOM code from the server, or `node:fs` from the browser bundle
+- See `languages/rest-api.md` for API schema sharing
 
 ## Style
 

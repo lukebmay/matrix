@@ -1,37 +1,36 @@
+---
+title: Documentation
+read_when: Writing design docs, DECISIONS, user docs, or choosing where “why” lives
+order: 60
+---
+
 # Documentation
 
-## Design decisions → `docs/DESIGN.md`
-
-Record **interesting design decisions** in project-root
-`docs/DESIGN.md` (create the file if missing).
-
-| Put it in DESIGN.md when… | Keep it out when… |
-| --- | --- |
-| A future reader would ask *why* we did it this way | Pure task checklist / session scratch |
-| Tradeoffs, rejected alternatives, funny constraints | Volatile “next commit” TODOs |
-| Architecture metaphors that unlock the codebase | API laundry lists better as code |
-| Lessons from production bugs | Secrets, deploy hosts, private URLs |
-
-Tone: **interesting and entertaining for developers** — clear, opinionated,
-light wit OK. Not a marketing page; not a changelog dump.
-
-### What goes where
+## Where “why” lives
 
 | Doc | Role |
 | --- | --- |
-| **`docs/DESIGN.md`** | Durable “why” for humans (and agents onboarding) |
-| **`agents/plans/`** | Execution plans, task tables, session handoffs |
-| **`agents/tasks/`** | Session-sized work; acceptance; short notes |
-| **`agents/archive/`** | Searchable summaries after ship (when the project uses it) |
-| **Source comments** | Minimal *why* only — see `comments.md` |
+| `docs/DESIGN.md` | Architecture narrative |
+| `docs/DECISIONS.md` | Compact decision log (retro source) |
+| `agents/HANDOFF.md` / plan·task notes | Cold-continue (complete + succinct) |
+| `agents/plans/` · `agents/tasks/` | Execution |
+| Source comments | Minimal *why* only — `comments.md` |
 
-When a task ships a non-obvious choice, **update DESIGN.md in the same
-change** (or the wrap-up commit). Do not leave the only explanation in chat
-or a completed task file.
+Put in DESIGN/DECISIONS when a future reader would ask *why*. Keep volatile checklists out.
 
-### Hygiene
+## DECISIONS.md shape
 
-- Prefer short titled sections over one giant essay.
-- Link to tasks/archive when useful; do not duplicate full task checklists.
-- Update or delete stale claims when code changes.
-- No secrets; no real credentials (see `security.md`).
+| ID | Date | Topic | Imp | Status | Decision | Why |
+| --- | --- | --- | --- | --- | --- | --- |
+| D001 | YYYY-MM-DD | deploy | P0 | active | … | one line |
+
+Imp: P0 architecture/security · P1 product default · P2 implementation · P3 note.  
+Status: active | superseded | rejected.
+
+When shipping a non-obvious choice, add/update a DECISIONS row (and DESIGN if narrative changed).
+
+## Hygiene
+
+- Short titled sections in DESIGN
+- Update or delete stale claims when code changes
+- No secrets or real credentials
