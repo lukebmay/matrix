@@ -1,6 +1,6 @@
 ---
 title: Testing
-read_when: Adding tests, changing test strategy, or enabling optional features for verification
+read_when: Adding tests, changing test strategy, enabling optional features, or checking if Grok is in durable --leader mode
 order: 70
 ---
 
@@ -46,3 +46,48 @@ Prefer observable outputs, stable fixtures, injected time/random, temp dirs. Avo
 ## CI (GUIDELINE)
 
 Unit green on every change when CI exists. Critical integration should not be “never run.”
+
+## Grok leader mode (FIRM for safety choices)
+
+Agent tool subprocesses may run under a durable Grok **leader** (`grok --leader` /
+shellrc `bin/grok` wrapper). Mid-flight work then survives TTY/window death; closing
+the terminal is **not** a reliable “kill the agent” signal.
+
+### Detect leader mode
+
+Probe in order; first yes wins:
+
+```bash
+# 1) Preferred — Grok exports this for tools under a leader client
+[[ -n "${GROK_LEADER_SOCKET:-}" ]]
+
+# 2) Socket actually present (stronger than env alone)
+[[ -n "${GROK_LEADER_SOCKET:-}" && -S "${GROK_LEADER_SOCKET}" ]]
+
+# 3) Parent is the leader process (tools are often reparented under it)
+ps -o args= -p "$PPID" 2>/dev/null | grep -q 'agent leader'
+```
+
+Optional status (human/debug, not required each turn):
+
+```bash
+grok --status   # shellrc wrapper: leader reachable + pid + socket
+```
+
+| Signal | Meaning |
+| --- | --- |
+| `GROK_LEADER_SOCKET` set | Running with a leader socket (durable path) |
+| `GROK_AGENT=1` | Tool is inside a Grok agent turn — **not** leader-specific |
+| Parent `agent leader` | Tool process is under the durable leader |
+
+### Safe vs unsafe when leader is on
+
+| Safe / preferred | Avoid or gate carefully |
+| --- | --- |
+| Long builds, tests, `sleep`, network I/O | Assuming “close the window kills this turn” |
+| Writing markers/logs for later reattach | Destructive desk ops without user intent (`forge layout clean`) |
+| `grok --list` / `--status` for recovery | Stopping the shared leader mid-session (`grok --stop`) unless asked |
+| User-facing launches via `user-env` (see `scripting.md`) | Leaving monochrome agent env on GUI/layout commands |
+
+When **not** in leader mode, treat the agent process as TTY-scoped: window death can
+abort mid-work; prefer shorter critical sections and explicit checkpoints.
