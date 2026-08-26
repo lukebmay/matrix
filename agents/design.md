@@ -533,3 +533,8 @@ completion** (watchdog), not unbounded arrays.
 2. `agents/project.md` (status + priorities)
 3. Active task under `agents/tasks/`
 4. `src/js/play/homepage.mjs` then DropScene → DropManager → DomManager
+
+
+## Overview
+
+Short compass for agents — inlined into `AGENTS.md` by `agents build`. Keep this section small.

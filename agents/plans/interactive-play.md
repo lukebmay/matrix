@@ -3,8 +3,8 @@
 **Status:** Active — runtime + hover shipped; **saying playlist next**  
 **Project:** `projects/matrix`  
 **Branch:** `refactor_07-2026` (or current product branch)  
-**Related:** [scene-player.md](completed/scene-player.md) (shipped cue chains),
-[hover-hasten-reveal.md](interactive-play/completed/hover-hasten-reveal.md) (done)
+**Related:** [scene-player.md](archived/completed/scene-player.md) (shipped cue chains),
+[hover-hasten-reveal.md](archived/completed/interactive-play/hover-hasten-reveal.md) (done)
 
 ## Goal
 
