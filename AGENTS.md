@@ -79,7 +79,7 @@ Load plan files **on demand** for the current work only. `agents/tasks/` is lega
 | `agents/installed/git.md` | Git | Before any commit, push, branch, merge, rebase, or release-ladder work |
 | `agents/installed/scripting.md` | Scripting | Writing or changing shell/Python scripts, installers, CLI tools, bin entries, or launching user-visible apps from a Grok agent |
 | `agents/installed/comments.md` | Comments | Adding or editing source comments |
-| `agents/installed/documentation.md` | Documentation | Writing design docs, design CHANGELOG, user docs, or choosing where “why” lives |
+| `agents/installed/documentation.md` | Documentation | Writing design docs, design CHANGELOG, user docs, human-facing checklists/blockers, or choosing where “why” lives |
 | `agents/installed/testing.md` | Testing | Adding tests, changing test strategy, enabling optional features, checking Grok durable --leader mode, or reattaching headless Grok for the human |
 | `agents/installed/ansi-colors.md` | ANSI colors | Adding terminal colors, formatting CLI output, or launching user-visible CLIs from a Grok agent |
 | `agents/installed/markdown.md` | Markdown | Writing or editing markdown docs, plans, tasks, or README prose |
