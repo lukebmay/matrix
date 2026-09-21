@@ -5,17 +5,23 @@
 
 # Agent routing index
 
-This file is a **map**, not the full rulebook. It is **transpiled** by `agents build` from `agents/project.md` (session pointers) + `agents/installed/` (catalog guidelines) + optional user **extensions** / rare **overrides**. **When a row's trigger matches, open that path and follow it** before acting.
+This file is a **map**, not the full rulebook. It is **transpiled** by `agents build` from the `agents/` handbook (session start) + `agents/installed/` (catalog guidelines) + optional user **extensions** / rare **overrides**. **When a row's trigger matches, open that path and follow it** before acting.
 
-## Ownership (FIRM)
+## Ownership
 
 | Path | Edit how |
 | --- | --- |
 | `AGENTS.md` (this file) | **Never** by hand — only `agents build` |
-| `agents/project.md` | **User** conventions/stack — only required hand-fill |
-| CAPS under `agents/` (`HANDOFF.md`, `PRIORITY.md`, `CHANGELOG.md`, …) | **Agent-managed** (user may edit; not the intended workflow) |
-| `agents/design.md` | Guiding-light design (agent-primary; optional until first design meeting) |
-| `agents/plans/`, `ideas/`, `blockers/`, `design/` | Plans / parking / human stops / changelog dir |
+| `README.md` (product) | **Human** — agents read; write only with explicit permission |
+| `agents/README.md`, `project.md`, `architecture.md`, `acceptance.md` | **Human** — propose edits; apply only with permission |
+| `agents/general.md`, `documentation.md`, `testing.md` (when present) | **Human** — propose edits; apply only with permission |
+| `agents/user.md` | **Human** — who the human is and how to collaborate. Not product law |
+| `agents/glossary.md` | **Agent** — words |
+| `agents/priority.md` | **Agent** — ordered list of plans |
+| `agents/conflicts.md` | **Agent** — active rule conflicts, and leftovers that lag a settled rule |
+| `agents/conflicts-resolved.md` | **Agent** — append a retired row only. Rows are **not rules** (decisions at a moment, while architecture and the rest of the handbook were taking shape). Do not delete this file or the section that says the rows are not rules. Removing that section does not make the rows into rules. Order: `agents/general.md` Conflicts, or catalog `general.md` Conflicts when the project has no handbook copy |
+| `agents/plans/` | **Shared** — one plan per piece of work |
+| `agents/ideas/` | Parked ideas |
 | `agents/installed/*` | **Only** `agents install` / `agents update` — never hand-edit |
 | `agents/<same-as-installed>` | **Extension** (default) — amends installed; wins on conflict |
 | `agents/<stem>.extend.md` | Explicit extension (same rules; do not mix with same-name) |
@@ -32,16 +38,13 @@ in the index when the trigger matches.
 | --- | --- |
 | **Follow the index** | When a trigger matches, **open and follow** that file before acting in that domain. Do not rely on memory of old sessions. |
 | **No secrets outbound** | Never put real secrets in chat, commits, logs, or prompts. |
-| **No SSH without explicit** | Remote SSH only if the **current** user message contains a form of **explicit**. |
+| **No SSH or root without explicit** | Remote SSH or root execution only if the **current** user message (or task) contains a form of the word **explicit**. When granted, permission is still limited to only the hosts/tasks the user describes. Permission never lasts longer than one session, and can only be delegated to subagents if they are provided these similarly tight constraints. |
+| **Never circumvent security systems** | Assume the security is there to protect everyone. Just because you can circumvent security to achieve a goal, doing so could cause harm. So instead, ask for permission if needed. Civilizations are built on trust and cooperation. |
 | **No silent live-data destroy** | Important live data: backup or dry-run first — see `security.md`. |
 | **No root-owned `$HOME`** | Never leave root-owned files under a user’s home; repair only this tool’s dests — `security.md`. |
 | **Git: no force-push published** | No force-push/amend of published history unless the user clearly asks — `git.md`. |
 | **Git: no auto test/prod** | Never auto-promote `test` or `prod` — `git.md`. |
-| **Handoffs** | Agent↔agent notes: functionally detailed, unambiguous, succinct — not padded, not incomplete. |
-
-## Design compass
-
-Short compass for agents — inlined into `AGENTS.md` by `agents build`. Keep this section small.
+| **Handoffs** | Agent↔agent notes: functionally detailed, unambiguous, succinct — not padded, not incomplete. Handoffs belong in the plan or task being worked on, not a separate file. |
 
 ## Session start
 
@@ -49,40 +52,40 @@ Read these when beginning or resuming work on this project:
 
 | Path | Read when |
 | --- | --- |
-| `agents/HANDOFF.md` | Starting/resuming — agent-managed cold-continue |
-| `agents/PRIORITY.md` | Execution queue — next plan / slice (agent-managed) |
-| `agents/project.md` | Project-specific conventions and stack (user) |
-| `agents/design.md` | Guiding-light design when present (Overview may be above) |
+| `agents/user.md` | Who the human is and how to work together. Not product law |
+| `agents/project.md` | What this project is |
+| The active plan named in `agents/priority.md` | Goal, acceptance, session |
 
 ## Queue paths (not auto-loaded)
 
 | Path | Role |
 | --- | --- |
-| `agents/PRIORITY.md` / `HANDOFF.md` | Agent-managed execution queue (points at plans) |
-| `agents/plans/` | Active plans (+ optional `plans/<id>/` weight) |
-| `agents/plans/archived/{completed,abandoned}/` | Finished / dropped plans |
+| `agents/priority.md` | Ordered list of plans |
+| `agents/plans/` | Active plans |
+| `agents/plans/archived/` | Finished or dropped plans |
 | `agents/ideas/` | Parked ideas |
-| `agents/blockers/` | Human blockers |
-| `agents/design.md` | Guiding-light design (not a full decision novel) |
-| `agents/design/CHANGELOG.md` | Design history / supersessions (agent-managed) |
-| `agents/archive/` | Other ship summaries (when used) |
+| `agents/conflicts-resolved.md` | Retired conflict decisions. Not rules. Not a session-start read. Do not delete the file or the section that says the rows are not rules |
 
-Load plan files **on demand** for the current work only. `agents/tasks/` is legacy if present — prefer plans + PRIORITY. **CAPS filenames** under `agents/` are agent-managed.
+Load plan files **on demand** for the current work only. The target architecture is `agents/architecture.md`. Human waits live on the plan, labeled in `agents/priority.md`. `agents/conflicts-resolved.md` is a trail of old decisions. It is not architecture. Open it only to see whether a leftover was already retired.
 
 ## Guidelines (open when trigger matches)
 
 | Path | Title | Read when |
 | --- | --- | --- |
-| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, blockers, handoffs, taskforces, orchestrator, subagents, architecture vs patches, canonical APIs |
+| `agents/user.md` | User | Session start. Who the human is and how to work together. Not product law. |
+| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, handoffs, taskforces, orchestrator, subagents, architecture vs patches, canonical APIs |
+| `agents/conflicts-resolved.md` | Conflicts resolved | A leftover name looks new and you need the trail of a retired contradiction. Rows in this file are not rules. Do not open it to learn how the product works, and do not delete this file or the section that says the rows are not rules. |
 | `agents/installed/security.md` | Security | Before SSH, secrets, sudo/root, credentials, or any important live-data mutation |
 | `agents/installed/secrets.md` | Secrets store notes | When handling project secret locations or agents/secrets.md finds |
 | `agents/installed/git.md` | Git | Before any commit, push, branch, merge, rebase, or release-ladder work |
 | `agents/installed/scripting.md` | Scripting | Writing or changing shell/Python scripts, installers, CLI tools, bin entries, or launching user-visible apps from a Grok agent |
 | `agents/installed/comments.md` | Comments | Adding or editing source comments |
-| `agents/installed/documentation.md` | Documentation | Writing design docs, design CHANGELOG, user docs, human-facing checklists/blockers, or choosing where “why” lives |
+| `agents/installed/documentation.md` | Documentation | Writing architecture, user docs, human-facing checklists, or choosing where “why” lives |
 | `agents/installed/testing.md` | Testing | Adding tests, changing test strategy, enabling optional features, checking Grok durable --leader mode, or reattaching headless Grok for the human |
 | `agents/installed/ansi-colors.md` | ANSI colors | Adding terminal colors, formatting CLI output, or launching user-visible CLIs from a Grok agent |
 | `agents/installed/markdown.md` | Markdown | Writing or editing markdown docs, plans, tasks, or README prose |
+| `agents/HANDOFF.md` | Handoff | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/design.md` | Design | When relevant to the task — open this file (add read_when frontmatter) |
 | `agents/installed/languages/bash.md` | Bash | Writing or reviewing Bash scripts |
 | `agents/installed/languages/css.md` | CSS | Writing or reviewing CSS |
 | `agents/installed/languages/html.md` | HTML | Writing or reviewing HTML |
@@ -97,4 +100,4 @@ Load plan files **on demand** for the current work only. `agents/tasks/` is lega
 3. Prefer catalog → `agents update` for portable rules. **Extensions** (`agents/<same-as-installed>` or `*.extend.md`) amend the matching `agents/installed/…` file and **take precedence on conflict**. **Overrides** (`*.override.md`) replace installed for that id — rare; prefer extension or a catalog fix. Do not mix the three forms for one id (`agents update` errors if you do).
 4. Do not paste entire guideline files into chat; follow them in place.
 5. Rebuild after install/update: `agents build` or `python3 agents.py build`.
-6. Full ownership table: `agents/installed/general.md` § Agents layout ownership.
+6. Full ownership and working rules: `agents/general.md` (or catalog `general.md` if this project has no handbook copy). On conflict with `agents/installed/`, the handbook files win.
