@@ -1,8 +1,10 @@
-# Matrix — Design notes
+# Architecture
+
+**Owner:** human. Agents may propose edits; apply only with explicit permission.
 
 Hand-coded Matrix rain that moonlights as a business card. This file is the
-**why** file: decisions that look weird until you know the war story. For
-how to run it, see the README. For agent task machinery, see `agents/`.
+target: decisions that look weird until you know the war story. For how to
+run it, see the README. What to do next is [`priority.md`](priority.md).
 
 ---
 

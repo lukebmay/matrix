@@ -38,7 +38,7 @@ in the index when the trigger matches.
 | --- | --- |
 | **Follow the index** | When a trigger matches, **open and follow** that file before acting in that domain. Do not rely on memory of old sessions. |
 | **No secrets outbound** | Never put real secrets in chat, commits, logs, or prompts. |
-| **No SSH or root without explicit** | Remote SSH or root execution only if the **current** user message (or task) contains a form of the word **explicit**. When granted, permission is still limited to only the hosts/tasks the user describes. Permission never lasts longer than one session, and can only be delegated to subagents if they are provided these similarly tight constraints. |
+| **No SSH or root without explicit** | Do not run `ssh`, `scp`, `sftp`, or a remote login, and do not use another program as a back door onto a machine, unless the **current** user message contains a form of **explicit** and names that connection. `git push`, `git fetch`, and `git pull` that the user asked for are ordinary git use, even when the remote URL is SSH. Full rule: `security.md`. When granted, permission is limited to the hosts and tasks named, lasts one session, and may be delegated only with those same limits. |
 | **Never circumvent security systems** | Assume the security is there to protect everyone. Just because you can circumvent security to achieve a goal, doing so could cause harm. So instead, ask for permission if needed. Civilizations are built on trust and cooperation. |
 | **No silent live-data destroy** | Important live data: backup or dry-run first — see `security.md`. |
 | **No root-owned `$HOME`** | Never leave root-owned files under a user’s home; repair only this tool’s dests — `security.md`. |
@@ -52,8 +52,13 @@ Read these when beginning or resuming work on this project:
 
 | Path | Read when |
 | --- | --- |
-| `agents/user.md` | Who the human is and how to work together. Not product law |
+| `agents/README.md` | How this handbook is run |
 | `agents/project.md` | What this project is |
+| `agents/architecture.md` | How it is built and how it runs |
+| `agents/glossary.md` | Words |
+| `agents/conflicts.md` | Active rule conflicts, then leftovers. Retired decisions are `conflicts-resolved.md` and are not rules |
+| `agents/acceptance.md` | When work is complete |
+| `agents/priority.md` | What to do next |
 | The active plan named in `agents/priority.md` | Goal, acceptance, session |
 
 ## Queue paths (not auto-loaded)
@@ -72,20 +77,25 @@ Load plan files **on demand** for the current work only. The target architecture
 
 | Path | Title | Read when |
 | --- | --- | --- |
-| `agents/user.md` | User | Session start. Who the human is and how to work together. Not product law. |
-| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, handoffs, taskforces, orchestrator, subagents, architecture vs patches, canonical APIs |
+| `agents/human.md` | User | Session start. Who the human is and how to work together. Not product law. |
+| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, handoffs, taskforces, orchestrator, subagents, architecture vs patches, canonical APIs — and when the prompt is Continue |
+| `agents/conflicts.md` | Conflicts | Session start; two living rules disagree; a leftover name is still taught as law; before adding identifiers |
 | `agents/conflicts-resolved.md` | Conflicts resolved | A leftover name looks new and you need the trail of a retired contradiction. Rows in this file are not rules. Do not open it to learn how the product works, and do not delete this file or the section that says the rows are not rules. |
 | `agents/installed/security.md` | Security | Before SSH, secrets, sudo/root, credentials, or any important live-data mutation |
 | `agents/installed/secrets.md` | Secrets store notes | When handling project secret locations or agents/secrets.md finds |
 | `agents/installed/git.md` | Git | Before any commit, push, branch, merge, rebase, or release-ladder work |
 | `agents/installed/scripting.md` | Scripting | Writing or changing shell/Python scripts, installers, CLI tools, bin entries, or launching user-visible apps from a Grok agent |
+| `agents/issues.md` | Issues | Filing a bug, reading a known miss, or about to put a bug story into architecture |
 | `agents/installed/comments.md` | Comments | Adding or editing source comments |
 | `agents/installed/documentation.md` | Documentation | Writing architecture, user docs, human-facing checklists, or choosing where “why” lives |
 | `agents/installed/testing.md` | Testing | Adding tests, changing test strategy, enabling optional features, checking Grok durable --leader mode, or reattaching headless Grok for the human |
 | `agents/installed/ansi-colors.md` | ANSI colors | Adding terminal colors, formatting CLI output, or launching user-visible CLIs from a Grok agent |
 | `agents/installed/markdown.md` | Markdown | Writing or editing markdown docs, plans, tasks, or README prose |
-| `agents/HANDOFF.md` | Handoff | When relevant to the task — open this file (add read_when frontmatter) |
-| `agents/design.md` | Design | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/README.md` | Readme | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/acceptance.md` | Acceptance | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/architecture.md` | Architecture | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/glossary.md` | Glossary | When relevant to the task — open this file (add read_when frontmatter) |
+| `agents/priority.md` | Priority | When relevant to the task — open this file (add read_when frontmatter) |
 | `agents/installed/languages/bash.md` | Bash | Writing or reviewing Bash scripts |
 | `agents/installed/languages/css.md` | CSS | Writing or reviewing CSS |
 | `agents/installed/languages/html.md` | HTML | Writing or reviewing HTML |
