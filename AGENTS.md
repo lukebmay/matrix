@@ -44,7 +44,7 @@ in the index when the trigger matches.
 | **No root-owned `$HOME`** | Never leave root-owned files under a user’s home; repair only this tool’s dests — `security.md`. |
 | **Git: no force-push published** | No force-push/amend of published history unless the user clearly asks — `git.md`. |
 | **Git: no auto test/prod** | Never auto-promote `test` or `prod` — `git.md`. |
-| **Handoffs** | Agent↔agent notes: functionally detailed, unambiguous, succinct — not padded, not incomplete. Handoffs belong in the plan or task being worked on, not a separate file. |
+| **Handoffs** | The speaking agent summarizes the state so the next agent can continue. The note lives on that one plan. A handoff that covers more than one plan is its own plan, placed ahead of those plans, and it corrects them before they continue. Full rule: `general.md`. |
 
 ## Session start
 
@@ -78,7 +78,7 @@ Load plan files **on demand** for the current work only. The target architecture
 | Path | Title | Read when |
 | --- | --- | --- |
 | `agents/human.md` | User | Session start. Who the human is and how to work together. Not product law. |
-| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, handoffs, taskforces, orchestrator, subagents, architecture vs patches, canonical APIs — and when the prompt is Continue |
+| `agents/installed/general.md` | General process | Always for multi-step work — plans, slices, handoffs, review pairs, orchestrator, subagents, architecture vs patches, canonical APIs — and when the prompt is Continue |
 | `agents/conflicts.md` | Conflicts | Session start; two living rules disagree; a leftover name is still taught as law; before adding identifiers |
 | `agents/conflicts-resolved.md` | Conflicts resolved | A leftover name looks new and you need the trail of a retired contradiction. Rows in this file are not rules. Do not open it to learn how the product works, and do not delete this file or the section that says the rows are not rules. |
 | `agents/installed/security.md` | Security | Before SSH, secrets, sudo/root, credentials, or any important live-data mutation |

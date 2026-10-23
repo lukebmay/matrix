@@ -29,17 +29,26 @@ is when to spend the run, not a license to skip tests after a real edit.
 
 ## Optional features in dev (FIRM)
 
-When implementing/debugging an optional feature: **turn it on** in local/dev for that work. Record the enable command in the plan Session. Prefer tests that force the optional path explicitly.
+When implementing/debugging an optional feature: **turn it on** in local/dev for that work. Record the enable command in the plan handoff. Prefer tests that force the optional path explicitly.
 
 ## Pyramid (GUIDELINE)
 
 | Layer | When | Cost |
 | --- | --- | --- |
-| Unit | Pure logic, parsers, validators | Cheap — be thorough once contract is clear |
+| Unit | Pure logic, parsers, validators | Cheap — one test per check once the contract is clear |
 | Integration | Critical paths + known gotchas | Few, high value |
 | E2E / manual | Full UI when ROI is clear | Rarest |
 
 Do not chase coverage numbers. Prefer one test that would have caught a real bug.
+
+A test covers one check. Name the check. Write it when inverting
+that result would still pass the tests that already exist. Another
+direction, another fixture, or another pixel is the same test when
+the result is the same kind. The slice has enough tests when each
+of its checks has one such test. When you cannot name a result
+that would pass the existing tests and still break a check, stop.
+Report any unnamed check in one line. Do not add a sibling test
+to raise confidence.
 
 ## Lifecycle
 
