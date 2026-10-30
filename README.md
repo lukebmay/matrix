@@ -48,16 +48,22 @@ Human WIP snapshot: `refactor_incomplete-mid-refactor`.
 
 ```bash
 npm install
-npm run dev      # serve src/
-npm test         # placeholder
+npm run dev      # serve src/ on port 3000
+npm test         # no tests; exits 0
 npm run build    # copy src/ → dist/
+npm run deploy   # build, then rsync dist/
 ```
 
-Monorepo deploy (from repo root):
+From the lukemay.com repo root:
 
 ```bash
-python3 scripts/deploy.py matrix
+npm run matrix test
+npm run matrix dev
+npm run matrix deploy
 ```
+
+`deploy plan` prints the rsync and does not run it. A dashed flag needs
+`--` (`npm run matrix -- dev --port 9000`). Positional locations do not.
 
 ## Layout
 

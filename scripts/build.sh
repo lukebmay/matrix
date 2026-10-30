@@ -11,6 +11,25 @@ RESET='\e[0m'
 GREEN='\e[32m'
 BLUE='\e[34m'
 MAGENTA='\e[35m'
+VERSION="0.1.0"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<'EOF'
+Usage: scripts/build.sh
+
+Copy src/ into dist/ and stamp a build id on module URLs.
+deploy.sh calls this unless the location is plan or --skip-build is set.
+EOF
+  exit 0
+fi
+if [[ "${1:-}" == "--version" || "${1:-}" == "-V" ]]; then
+  echo "matrix build ${VERSION}"
+  exit 0
+fi
+if [[ $# -gt 0 ]]; then
+  echo "unknown argument: $1" >&2
+  exit 2
+fi
 
 echo -e "${BLUE}=== Building ${MAGENTA}${APP_NAME}${BLUE} ===${RESET}"
 
