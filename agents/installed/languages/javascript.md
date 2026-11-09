@@ -1,14 +1,13 @@
 ---
 title: JavaScript
-read_when: Writing or reviewing JavaScript
 order: 200
 ---
 
 # JavaScript
 
-**Precedence:** `eslint.config.*`, Prettier, and package scripts override this file.
+When to use: Writing or reviewing JavaScript.
 
-shellrc inspiration (`configs/eslint.config.js`, `prettierrc.conf`): 2-space indent; printWidth/max-len **100**; semicolons; double quotes; trailing commas `es5` / always-multiline in ESLint; `eqeqeq`; Unix linebreaks; arrow parens always.
+**Precedence:** `eslint.config.*`, Prettier, and package scripts override this file.
 
 ## When
 
@@ -28,4 +27,4 @@ Typed JS → `agents/languages/typescript.md`. React/JSX → `agents/languages/r
 ## Tools
 
 - Format: Prettier
-- Lint: ESLint (flat config in shellrc templates)
+- Lint: ESLint

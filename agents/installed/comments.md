@@ -1,20 +1,20 @@
 ---
 title: Comments
-read_when: Adding or editing source comments
 order: 50
-version: 2.3.1
+version: 2.3.3
 ---
 
 # Comments
 
+When to use: Adding or editing source comments.
+
 ## Style (strict)
 
-Keep comments **short and non-specific**.
+Keep comments short and specific. Say the constraint the next reader would not see, including the invariant of a specialized algorithm. Do not narrate the steps.
 
 - Prefer one short line or end-of-line
-- Explain *why* only when non-obvious
-- **Never** restate *what* the next lines clearly do
-- **Never** embed volatile detail (history, review chat, long purpose essays)
+- Do not restate what the next lines already make obvious
+- Do not embed a history, a review chat, or a long purpose essay
 
 Good: `# Grok` · `# Update check (quiet on no-op)`  
 Bad: long banners, “expensive: …” essays

@@ -1,14 +1,13 @@
 ---
 title: HTML
-read_when: Writing or reviewing HTML
 order: 200
 ---
 
 # HTML
 
-**Precedence:** `.htmlhintrc`, Prettier, ESLint HTML plugin, and project templates override this file.
+When to use: Writing or reviewing HTML.
 
-shellrc inspiration (`configs/htmlhintrc.conf`): lowercase tags/attrs; double-quoted attrs; HTML5 doctype first; paired tags; unique ids; dash `id`/`class`; no empty `src`; self-close void style as configured; escape specials; require `<title>`.
+**Precedence:** `.htmlhintrc`, Prettier, ESLint HTML plugin, and project templates override this file.
 
 ## Style
 

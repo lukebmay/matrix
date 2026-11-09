@@ -1,14 +1,13 @@
 ---
 title: CSS
-read_when: Writing or reviewing CSS
 order: 200
 ---
 
 # CSS
 
-**Precedence:** Stylelint, Prettier, Tailwind/PostCSS configs override this file.
+When to use: Writing or reviewing CSS.
 
-shellrc inspiration (`configs/stylelintrc.json`): `stylelint-config-recommended` + Tailwind; allow `@tailwind` / `@apply` / `@screen` / etc.
+**Precedence:** Stylelint, Prettier, Tailwind/PostCSS configs override this file.
 
 ## Style
 
