@@ -1,17 +1,19 @@
 ---
 title: Conflicts
-read_when: Session start; two living rules disagree; a leftover name is still taught as law; before adding identifiers
 order: 12
 ---
 
 # Conflicts
 
+When to use: Two living rules disagree, or a leftover name is still
+taught as law.
+
 **Owner:** agent. Agents read and write this file.
 
 Two lists. This is not a second architecture, glossary, or plan.
 Target words: [`glossary.md`](./glossary.md). Target system:
-[`architecture.md`](./architecture.md). How to run: catalog
-`general.md` Conflicts.
+[`architecture.md`](./architecture.md). The rules for these two
+lists are in this file.
 
 **Active** is a fight between living rules. Do not implement either
 side while the row is open.
@@ -22,7 +24,7 @@ itself in dispute.
 Retired rows live in
 [`conflicts-resolved.md`](./conflicts-resolved.md). Those rows are
 not rules. Do not delete that file or the section “These rows are
-not rules.” The order is catalog `general.md` Conflicts.
+not rules.”
 
 Status: **open** (no side picked, or the fix is unknown) ·
 **resolving** (a plan owns it). When a row is retired, move it to

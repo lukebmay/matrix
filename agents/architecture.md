@@ -1,12 +1,108 @@
 # Architecture
 
+When to use: Which product part. Open this index, then the one
+part the task names.
+
 **Owner:** human. Agents may propose edits; apply only with explicit permission.
 
-Hand-coded Matrix rain that moonlights as a business card. This file is the
-target: decisions that look weird until you know the war story. For how to
-run it, see the README. What to do next is [`priority.md`](priority.md).
+This file is the index of the guide: how the product is supposed
+to work, including the vision that the code has not reached yet.
+It records what has worked and warns about what has failed. It
+is not a snapshot of today's tree, not a log of bugs, and not a
+ban on a better design. Bugs live in [`issues.md`](./issues.md).
 
----
+Each part of the guide lives in one file under
+[`architecture/`](./architecture/). This file says how those
+parts fit and which file to open. It does not restate a part.
+When `architecture/` does not exist yet, this file is the whole
+guide until the parts are split out.
+
+The orchestrator reads this index and every part file. That rule
+is [`roles/orchestrator.md`](roles/orchestrator.md). Another agent
+opens this index and the one part the task names.
+
+Words: [`glossary.md`](./glossary.md). When work is complete:
+[`acceptance.md`](./acceptance.md). How work is run is
+[`handbook.md`](handbook.md). Stone is the stone row in
+[`glossary.md`](./glossary.md).
+
+Gaps between this guide and the running code are closed with a plan.
+Do not rewrite the guide to describe leftovers.
+
+## This file can be wrong
+
+This file is what we **currently believe**. It is not a proof. It
+will change. An old sentence is not kept because it is old. The
+same rule covers every file under `architecture/`.
+
+A better design is welcome. Bring it to the orchestrator with the
+argument. If a sentence in this guide is **directionally wrong** (the
+structure or the product intent, not a leftover in the code),
+**stop work on that issue**. Do not paper over it with a second
+path. Do not silently edit the guide. Do not silently change the
+code to match a sentence you suspect is stale. We meet. Write the
+new sentence in the part it belongs to only when the human says to:
+what is true, who does it, and what it does not cover. One sentence
+of why when the choice is easy to undo the wrong way. Do not write
+what was rejected, and do not record the incident.
+
+**Why this paragraph exists:** agents treated this file as
+unchangeable, then hid misses behind fallbacks.
+
+Code that merely lags this guide is a plan, not a meeting. A meeting
+is for when the guide itself looks like the mistake.
+
+## What is being built
+
+Hand-coded Matrix rain that moonlights as a business card for
+lukemay.com. Rain is the climate. A storm is local weather on one
+content scene. A DropScene holds text points, column sets, and a
+mode. ScenePlayer and the Unit/Thread play drive those modes.
+Layout turns positionables into scene points. SceneManager owns
+the logical grid. DomManager paints. There is no video path.
+
+## How the parts fit
+
+```text
+play/homepage.mjs (Unit/Thread sugar)
+  → play/runtime.mjs (reveal/hide/hold units, thread.run|spawn|delay|loop)
+  → ScenePlayer (pause-aware timers + clear)
+  → DropScenes (mode, columnsSelected, events)
+  → Rain / Storm picks + bidirectional sets
+  → Drops
+layout Positionables.cells() → scene points
+SceneManager (logical grid) + DomManager (paint)
+```
+
+| Piece | Owns | Must not own |
+| --- | --- | --- |
+| Drop | Motion and tip | Paint policy, play composition |
+| Rain | Ambient forever-weather on the grid | Content text |
+| Storm | Burst coverage of one content scene | Ambient climate |
+| DropScene | Points, columns, mode, events | The show's composition |
+| ScenePlayer | Pause-aware clock and cues | Glyph paint |
+| Unit / Thread | Play lifecycle and linear waits | Weather physics |
+| SceneManager | Logical content grid | Rain noise |
+| DomManager | Paint | Hover business policy |
+| layout | Anchors, groups, text lines, cells | A UI framework |
+
+The sections below are the rules. This index does not repeat them.
+
+## Which file
+
+There is no `architecture/` directory. The old guide was one file,
+and this file is the whole guide. Open the section the task names.
+
+| When the task is about | Read |
+| --- | --- |
+| Weather, modes, coverage, storms, stacking | Weather through Stack behind the leader |
+| Paint, logical grid, frame order | Occupation (paint before kill) and Logical grid vs DOM rain |
+| Play and hover | ScenePlayer |
+| Layout | Layout without a layout engine |
+| Glow, performance, color, type | Glow, Color themes, Two faces |
+| Rates and stack | Rates without a soundtrack, and Stack and runtime |
+| Kiosk and long runs | Long-running safety + kiosk mode |
+| Refused approaches | What we refused |
 
 ## Weather, not particles
 
@@ -242,8 +338,7 @@ smokes and escape hatches. The live homepage uses the Unit/Thread runtime.
 ### Interactive play (Unit / Thread runtime)
 
 The show is not a pure timeline: hover must hasten reveal, extend hold, and
-re-reveal mid-hide without advancing the wrong beat. Design:
-`agents/plans/interactive-play.md`. Runtime: `src/js/play/runtime.mjs`.
+re-reveal mid-hide without advancing the wrong beat. Runtime: `src/js/play/runtime.mjs`.
 
 | Idea | Choice |
 | --- | --- |
@@ -323,7 +418,6 @@ high inter-render gap. Escalate updates `state.perfLevel` + HTML class —
 
 Ambient rain still **pulses** (cosine trough-start) so the rate breathes above
 a floor of 1. Rain mean stays `COLS / period` on all levels.
-Plan: [adaptive-performance](../agents/plans/completed/adaptive-performance.md).
 
 ## Color themes
 
@@ -529,14 +623,3 @@ completion** (watchdog), not unbounded arrays.
 
 ---
 
-## Reading order for new agents
-
-1. This file (you are here)
-2. `agents/project.md` (status + priorities)
-3. Active task under `agents/tasks/`
-4. `src/js/play/homepage.mjs` then DropScene → DropManager → DomManager
-
-
-## Overview
-
-Short compass for agents — inlined into `AGENTS.md` by `agents build`. Keep this section small.

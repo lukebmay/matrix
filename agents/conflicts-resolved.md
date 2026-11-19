@@ -1,10 +1,12 @@
 ---
 title: Conflicts resolved
-read_when: A leftover name looks new and you need the trail of a retired contradiction. Rows in this file are not rules. Do not open it to learn how the product works, and do not delete this file or the section that says the rows are not rules.
 order: 13
 ---
 
 # Conflicts resolved
+
+When to use: Retiring an Active row or a Leftover. Not for ordinary
+work.
 
 **Owner:** agent. The allowed edit is appending a retired row.
 
@@ -28,7 +30,6 @@ this section.** It stays when it is inconvenient. Removing it
 does not turn these rows into rules, and it does not erase the
 decisions. If this section is missing or weaker than the
 paragraph above, restore it before any other edit to this file.
-The order is catalog `general.md` Conflicts.
 
 Do not delete a row. Do not rewrite a decision so that it reads
 as the current rule. When architecture changes later, leave the

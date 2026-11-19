@@ -1,31 +1,46 @@
 # Priority
 
-**Owner:** agent. This file is the ordered list of work. Session notes live on the plan.
+When to use: The orchestrator is choosing the next plan.
 
-Work on `master`. Push and commit when asked. A prompt of Continue
-works this list from the top. How that turn runs is catalog
-`general.md`.
+**Owner:** agent. This file is the ordered list of plans.
 
-Open rows in [`conflicts.md`](./conflicts.md) that have no resolving
-plan must get a plan on this list.
+Work on `master`. The next plan is chosen as
+[`plans/README.md`](plans/README.md) Rank says. How that turn
+runs is [`roles/orchestrator.md`](roles/orchestrator.md). An
+agent with no role does not open this file.
 
-## Next session
+A waiting plan stays under its rank. The notes say why. Skip it.
 
-1. [complete-v0.1.4-v0.7.0-migration](./plans/complete-v0.1.4-v0.7.0-migration.md).
-   Rank 5. Do this before every other plan. Move this
-   repo onto agent-handbook, translate the plans, then
-   triage the queue.
+The queue is empty. `interactive-play` is rank 1 (optional
+portrait) and stays off this list. The migration plan is done
+and is not listed.
 
-(first plan to open)
-
-## Active
+## 5 top
 
 | Plan | Notes |
 | --- | --- |
 | *(none yet)* | |
 
-## Waiting (human)
+## 4 high
 
-| Plan | Why |
+| Plan | Notes |
 | --- | --- |
-| *(none)* | |
+| *(none yet)* | |
+
+## 3 medium
+
+| Plan | Notes |
+| --- | --- |
+| *(none yet)* | |
+
+## 2 low
+
+| Plan | Notes |
+| --- | --- |
+| *(none yet)* | |
+
+## 1 optional
+
+| Plan | Notes |
+| --- | --- |
+| *(none yet)* | |
