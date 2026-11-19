@@ -24,7 +24,23 @@ before or with the plan.
 
 ## Required minimum
 
-- (Fill in the user-visible gestures that must still hold after any change.)
+- On the portfolio page, rain keeps falling and the card reveals
+  the roles, the email, and the saying. Settled text can be a link.
+- A window click toggles pause. The page also pauses on its own
+  after about 10 minutes, and it stops while the tab is hidden.
+- `/matrix/kiosk/`, `?kiosk=1`, and `#kiosk` do not autopause, ignore
+  that window click, and keep running when the tab is hidden. Links
+  still navigate. When this app is the homepage, `/kiosk/` is the
+  same mode.
+- A click on the top-left character cell shows the debug overlay.
+  A second click hides it and does not toggle pause.
+- While a line is revealing, hover finishes that reveal. While it
+  is hiding, hover does not finish the hide. It shows the text again.
+- `npm test` says that no tests are defined and exits 0.
+- `npm run dev -- --help` exits 0 and does not start a server.
+- `npm run deploy plan` prints `rsync -avz --delete` of `dist/` to
+  `luke@lukemay.com:/home/luke/www/matrix` and exits 0. It does not
+  build and it does not rsync.
 - Tests confirm these gestures; they are not a substitute for them.
 - A regression is a test that fails without the fix and passes with it. Do not keep a second ledger of failure classes.
 

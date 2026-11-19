@@ -88,6 +88,34 @@ SceneManager (logical grid) + DomManager (paint)
 
 The sections below are the rules. This index does not repeat them.
 
+## Scripts
+
+`scripts/dev.sh` serves `src/` with `npx serve` on port 3000. It
+stays in the foreground until Ctrl+C. `--port N` and `--port=N`
+override the port. Extra arguments after the known flags go to
+`serve`. `--help` and `--version` exit 0 and do not start the
+server.
+
+`scripts/test.sh` says that no tests are defined and exits 0.
+`scripts/build.sh` copies `src/` into `dist/`. `deploy.sh` calls
+`build.sh` unless the location is `plan` or `--skip-build` is set.
+
+`test.sh` and `dev.sh` do not source the monorepo's
+`scripts/common.sh`, so they still run in a matrix checkout that is
+not inside the lukemay.com repo.
+
+`scripts/deploy.sh` needs that monorepo. It exits 1 when it cannot
+find `scripts/common.sh` above this tree. When the file is present,
+deploy builds `dist/`, then runs `rsync -avz --delete` of `dist/`
+to `luke@lukemay.com:/home/luke/www/matrix`. `--delete` applies only
+to that remote directory. `plan` prints that rsync and exits 0. It
+does not build and does not rsync. `dry-run` is the same rsync plus
+`--dry-run`, and it still contacts the host. `live` is the default.
+`--skip-build` rsyncs the existing `dist/` and does not rebuild.
+
+Why `deploy.sh` needs the monorepo: the rsync line lives in
+`scripts/common.sh` there. `test.sh` and `dev.sh` do not use it.
+
 ## Which file
 
 There is no `architecture/` directory. The old guide was one file,
@@ -103,6 +131,7 @@ and this file is the whole guide. Open the section the task names.
 | Rates and stack | Rates without a soundtrack, and Stack and runtime |
 | Kiosk and long runs | Long-running safety + kiosk mode |
 | Refused approaches | What we refused |
+| Scripts, the dev port, or the deploy destination | Scripts |
 
 ## Weather, not particles
 
