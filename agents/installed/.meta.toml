@@ -1,8 +1,8 @@
 schema = 1
 tool_version = "0.7.1"
-catalog_version = "0.9.6"
+catalog_version = "0.9.12"
 installed_at = "2026-11-06T22:30:21+00:00"
-updated_at = "2026-11-18T17:10:18+00:00"
+updated_at = "2026-11-20T22:54:07+00:00"
 
 [[files]]
 id = "ansi-colors"
@@ -55,32 +55,32 @@ read_when = "Writing or reviewing Bash scripts."
 [[files]]
 id = "css"
 path = "languages/css.md"
-version = "1.1.1"
-sha256 = "2bd76708cd9e0e878162a278084709ad32d05eff922e4e96e512b8f4114b03ea"
+version = "1.1.2"
+sha256 = "cf3413f4883a0c8129c9df9581406232cd8fa3532fd7ff158d131b123b869194"
 title = "CSS"
 read_when = "Writing or reviewing CSS."
 
 [[files]]
 id = "html"
 path = "languages/html.md"
-version = "1.1.1"
-sha256 = "53eb2bd51f29f761437aa70e833c216af6cfd342403e5a2316c4f3fed8a47c44"
+version = "1.1.2"
+sha256 = "b8f16e5e9699b0c2c414efd43d249ddf3b18888051673011be552bc8a09886b3"
 title = "HTML"
 read_when = "Writing or reviewing HTML."
 
 [[files]]
 id = "javascript"
 path = "languages/javascript.md"
-version = "1.1.1"
-sha256 = "38231c5bfbb082399e10bcbe710fccbc7919d6ed6691c0b6072ab6792cb62e50"
+version = "1.1.2"
+sha256 = "5d8b9d7a3b7dd169c72619764e94a102d5f5d66860c69f6074d15c3499cc6178"
 title = "JavaScript"
 read_when = "Writing or reviewing JavaScript."
 
 [[files]]
 id = "web-frontend"
 path = "languages/web-frontend.md"
-version = "1.1.1"
-sha256 = "2b2575ef4cc7fcb9c0037a15b87303c3b3196d2a66b6cbcc7c21f5b92e3d6940"
+version = "1.1.2"
+sha256 = "5e59ee8c4f4ba9a18da7986470b58931069e9badc0c2f5402ca2b249c9017f78"
 title = "Web frontend"
 read_when = "Client-side web app architecture."
 
@@ -95,8 +95,8 @@ read_when = "Writing or editing markdown docs, plans, tasks, or README prose."
 [[files]]
 id = "scripting"
 path = "scripting.md"
-version = "2.6.0"
-sha256 = "b669c0ae2646f263890becd6c11d06d85e4e451f46ab34d5febe7ef0d2ed0d41"
+version = "2.7.0"
+sha256 = "09661f063bf35d55769ff653bbe13784b06b0ea18b0e6fa0a5d57c1429168ace"
 title = "Scripting"
 read_when = "Writing or changing shell/Python scripts, installers, CLI tools, bin entries, or launching user-visible apps from a Grok agent."
 
@@ -111,10 +111,10 @@ read_when = "When handling project secret locations or agents/secrets.md finds."
 [[files]]
 id = "security"
 path = "security.md"
-version = "2.3.3"
-sha256 = "9bd3775477795270337f058ede8b0a69f48f2595bb535c31f183db9750134302"
+version = "2.4.0"
+sha256 = "43599f00fa854ab6cb328e6781be97a04280b85cbd5399a12879564e6a57f771"
 title = "Security"
-read_when = "Before SSH, secrets, sudo/root, credentials, or any important live-data mutation."
+read_when = "Before a checkout on another machine, open this file. Also before SSH, secrets, sudo/root, credentials, or any important live-data mutation."
 
 [[files]]
 id = "testing"

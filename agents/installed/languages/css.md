@@ -9,6 +9,8 @@ When to use: Writing or reviewing CSS.
 
 **Precedence:** Stylelint, Prettier, Tailwind/PostCSS configs override this file.
 
+Platform behavior: `agents/languages/modern-web.md`.
+
 ## Style
 
 - Indent 2 spaces

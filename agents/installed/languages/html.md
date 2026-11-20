@@ -9,6 +9,8 @@ When to use: Writing or reviewing HTML.
 
 **Precedence:** `.htmlhintrc`, Prettier, ESLint HTML plugin, and project templates override this file.
 
+Platform behavior: `agents/languages/modern-web.md`.
+
 ## Style
 
 - Semantic elements over div soup

@@ -13,7 +13,7 @@ When to use: Writing or reviewing JavaScript.
 
 Use node/bun/deno when the project is already JS-based or you need its ecosystem. Otherwise prefer Python/zsh for general scripting.
 
-Typed JS → `agents/languages/typescript.md`. React/JSX → `agents/languages/react.md`.
+Typed JS → `agents/languages/typescript.md`. React/JSX → `agents/languages/react.md`. Browser UI behavior → `agents/languages/modern-web.md`.
 
 ## Style
 

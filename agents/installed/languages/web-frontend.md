@@ -9,7 +9,9 @@ When to use: Client-side web app architecture.
 
 **Precedence:** project design system, a11y policy, bundler/framework docs, and in-repo lint/format configs override this file.
 
-Related: `html.md`, `css.md`, `javascript.md`, `typescript.md`, `react.md`.
+Related: `html.md`, `css.md`, `javascript.md`, `typescript.md`, `react.md`, `modern-web.md`.
+
+Look up a browser UI behavior in `modern-web.md` before inventing a widget.
 
 ## Principles
 
