@@ -44,11 +44,13 @@ No plan was rewritten. No plan was dropped.
 ## Corrections
 
 - [`handbook-file-size`](../handbook-file-size/plan.md).
-  `src/js/DropManager.mjs` is 1358 lines in a multi-file
-  module. Nothing else under `src/` or `scripts/` is
-  over 1200 lines. No one-file program or whole-program
-  script is over 5000, and none under that was queued
-  for a split.
+  `src/js/DropManager.mjs` was 1358 lines in a multi-file
+  module. The smoke is now `src/js/DropManager.smoke.mjs`.
+  The manager is 591 lines and still owns live drops.
+  Nothing else under `src/` or `scripts/` is over 1200
+  lines. No one-file program or whole-program script is
+  over 5000, and none under that was queued for a split.
+  This correction is done.
 
 0.9.15 does not lag. This is a static page, not an
 installable app, and no product file reads

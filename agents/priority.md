@@ -13,7 +13,7 @@ A waiting plan stays under its rank. The notes say why. Skip it.
 
 The queue is empty. `interactive-play` is rank 1 (optional
 portrait) and stays off this list. The migration plan is done
-and is not listed.
+and is not listed. Handbook file size is done and archived.
 
 ## 5 top
 
